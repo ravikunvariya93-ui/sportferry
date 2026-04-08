@@ -1,0 +1,122 @@
+'use client';
+
+import React from 'react';
+import { LayoutDashboard, Plus, Users, Calendar, TrendingUp, MoreVertical, MapPin } from 'lucide-react';
+import { MOCK_VENUES } from '@/lib/mockData';
+
+export default function VendorDashboard() {
+  const stats = [
+    { label: 'Total Revenue', value: '₹48,500', icon: TrendingUp, color: '#10b981' },
+    { label: 'Total Bookings', value: '42', icon: Calendar, color: '#38bdf8' },
+    { label: 'Active Venues', value: '3', icon: LayoutDashboard, color: '#fbbf24' },
+    { label: 'Total Users', value: '128', icon: Users, color: '#f472b6' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>Vendor Dashboard</h1>
+          <p style={{ color: 'var(--muted)' }}>Manage your sports venues and track your performance.</p>
+        </div>
+        <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Plus size={18} /> Register New Venue
+        </button>
+      </header>
+
+      {/* Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '24px' }}>
+        {stats.map(stat => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="glass-morphism" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '12px', 
+                backgroundColor: 'rgba(0,0,0,0.05)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: stat.color
+              }}>
+                <Icon size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '4px' }}>{stat.label}</div>
+                <div style={{ fontSize: '24px', fontWeight: '700' }}>{stat.value}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px' }}>
+        {/* Venues List */}
+        <section className="glass-morphism" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Your Venues</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {MOCK_VENUES.map(venue => (
+              <div key={venue.id} style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '16px', 
+                padding: '16px', 
+                background: 'var(--secondary)', 
+                borderRadius: '12px',
+                border: '1px solid var(--glass-border)'
+              }}>
+                <img src={venue.images[0]} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }} />
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>{venue.name}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '13px' }}>
+                    <MapPin size={14} /> {venue.area}, {venue.city}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '24px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Today's Bookings</div>
+                    <div style={{ fontWeight: '600' }}>4/12 slots</div>
+                  </div>
+                  <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
+                    <MoreVertical size={20} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Recent Activity */}
+        <section className="glass-morphism" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Recent Bookings</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} style={{ display: 'flex', gap: '12px', fontSize: '14px' }}>
+                <div style={{ 
+                  width: '32px', 
+                  height: '32px', 
+                  borderRadius: '50%', 
+                  background: 'var(--glass-bg)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  fontSize: '12px' 
+                }}>
+                  RS
+                </div>
+                <div>
+                  <div style={{ fontWeight: '500' }}>Rahul Sharma <span style={{ color: 'var(--muted)', fontWeight: '400' }}>booked</span> Green Field</div>
+                  <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>2 hours ago • ₹1,200</div>
+                </div>
+              </div>
+            ))}
+            <button style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '500', fontSize: '14px', cursor: 'pointer', marginTop: '12px' }}>
+              View All Activity
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
