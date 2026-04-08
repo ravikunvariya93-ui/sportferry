@@ -3,19 +3,34 @@
 import React, { useState, useEffect } from 'react';
 import { User, LogOut, Settings } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 9876543210');
 
   useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
     if (session?.user) {
       setName(session.user.name || '');
       setEmail(session.user.email || '');
     }
-  }, [session]);
+  }, [session, status, router]);
+
+  if (status === 'loading') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '18px' }}>Checking session...</p>
+      </div>
+    );
+  }
+
+  if (!session) return null;
 
   const handleSave = (e) => {
     e.preventDefault();

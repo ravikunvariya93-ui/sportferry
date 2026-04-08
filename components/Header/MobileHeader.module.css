@@ -23,5 +23,40 @@
 @media (max-width: 768px) {
   .mobileHeader {
     display: flex;
+    justify-content: space-between;
   }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.loginBtn {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+  background: var(--glass-bg);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+}
+
+.registerBtn {
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 1px solid var(--primary);
+}
+
+.profileBtn {
+  color: var(--primary);
+  display: flex;
+  align-items: center;
 }
