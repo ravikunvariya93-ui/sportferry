@@ -24,7 +24,7 @@ const MobileHeader = () => {
         ) : (
           <div style={{ display: 'flex', gap: '12px' }}>
             <Link href="/login" className={styles.loginBtn}>Sign In</Link>
-            <Link href="/register" className={styles.registerBtn}>Reigster</Link>
+            <Link href="/register" className={styles.registerBtn}>Register</Link>
           </div>
         )}
       </div>

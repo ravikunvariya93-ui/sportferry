@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { MapPin, Star, Clock, CheckCircle, Navigation, Info, Zap, Shield, CreditCard } from 'lucide-react';
+import styles from './VenueDetail.module.css';
 
 export default function VenueDetailClient({ venue }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -18,13 +19,7 @@ export default function VenueDetailClient({ venue }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '80px' }}>
       
       {/* Cinematic Hero */}
-      <section style={{ 
-        position: 'relative', 
-        height: '450px', 
-        borderRadius: '24px', 
-        overflow: 'hidden',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
-      }}>
+      <section className={styles.hero}>
         <img 
           src={venue.images[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=1600'} 
           alt={venue.name} 
@@ -38,7 +33,7 @@ export default function VenueDetailClient({ venue }) {
         }} />
         
         {/* Hero Content */}
-        <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', padding: '40px', color: 'white' }}>
+        <div className={styles.heroContent}>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             {venue.sportTypes.map(s => (
               <span key={s} style={{ background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold' }}>
@@ -46,7 +41,7 @@ export default function VenueDetailClient({ venue }) {
               </span>
             ))}
           </div>
-          <h1 style={{ fontSize: '48px', fontWeight: '800', marginBottom: '12px', letterSpacing: '-0.5px' }}>{venue.name}</h1>
+          <h1 className={styles.heroTitle}>{venue.name}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', fontSize: '15px', color: 'rgba(255,255,255,0.9)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <MapPin size={18} color="var(--primary)" /> {venue.area}, {venue.city}
@@ -60,27 +55,21 @@ export default function VenueDetailClient({ venue }) {
       </section>
 
       {/* Main Layout Splitting into 2 Columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '48px', alignItems: 'start' }}>
+      <div className={styles.mainGrid}>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
           {/* Tabbed Navigation */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)' }}>
+          <div className={styles.tabList}>
             {['overview', 'amenities', 'location'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
+                className={styles.tabButton}
                 style={{
-                  padding: '16px 32px',
-                  background: 'none',
-                  border: 'none',
                   borderBottom: activeTab === tab ? '3px solid var(--primary)' : '3px solid transparent',
                   color: activeTab === tab ? 'var(--foreground)' : 'var(--muted)',
-                  fontSize: '16px',
                   fontWeight: activeTab === tab ? '600' : '400',
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
-                  transition: 'all 0.2s ease'
                 }}
               >
                 {tab}
@@ -120,7 +109,7 @@ export default function VenueDetailClient({ venue }) {
             {activeTab === 'amenities' && (
               <section>
                 <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '24px' }}>What this place offers</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                <div className={styles.amenitiesGrid}>
                   {(venue.amenities && venue.amenities.length > 0 ? venue.amenities : ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipments Provided']).map(a => (
                     <div key={a} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(22, 163, 74, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
