@@ -1,64 +1,54 @@
 import React from 'react';
-import { CITIES, SPORTS } from '@/lib/mockData';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
-import { MapPin, Star, Trophy, ArrowRight, Building } from 'lucide-react';
-import Image from 'next/image';
+import { MapPin, Star, Trophy, ArrowRight, Building, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import VenueCard from '@/components/VenueCard/VenueCard';
+import styles from './page.module.css';
 
 export default async function Home() {
   await dbConnect();
+  
+  // Natively pull data
   const rawVenues = await Venue.find({}).limit(6).lean();
+  const activeCities = await Venue.distinct('city');
+  const availableSports = await Venue.distinct('sportTypes');
   
   // Serialize ObjectIds for Client Component consumption
   const featuredVenues = rawVenues.map(v => ({
     ...v,
     _id: v._id.toString(),
     owner: v.owner.toString(),
-    id: v._id.toString(), // For compatibility with legacy MOCK_VENUE structural expectations
+    id: v._id.toString(), 
   }));
 
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', paddingBottom: '80px' }}>
       {/* Hero Section */}
-      <section style={{ 
-        height: '400px', 
-        position: 'relative', 
-        borderRadius: '24px', 
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '60px',
-        backgroundColor: 'var(--secondary)',
-        border: '1px solid var(--glass-border)',
-        backgroundImage: 'linear-gradient(to right, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.9) 40%, rgba(255, 255, 255, 0) 100%), url(/assets/hero-bg.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
-      }}>
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: '600px' }}>
-          <h1 style={{ fontSize: '48px', fontWeight: '700', marginBottom: '16px', lineHeight: 1.2 }}>
+      <section className={styles.hero}>
+        <div className={styles.heroContent}>
+          <h1 className={styles.heroTitle}>
             Your Game, <span style={{ color: 'var(--primary)' }}>Your Ground.</span>
           </h1>
-          <p style={{ fontSize: '18px', color: 'var(--muted)', marginBottom: '32px' }}>
-            Book the best sports venues in your city in seconds. From box cricket to football turfs, we've got it all.
+          <p className={styles.heroSubtitle}>
+            Book the best sports venues in your city in seconds. From box cricket to football turfs, we've got it all perfectly mapped out for you.
           </p>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
-            <Link href="/explore" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 28px', fontSize: '18px', fontWeight: '600' }}>
+          <div className={styles.heroButtons}>
+            <Link href="/explore" className="btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px 28px', fontWeight: '600', borderRadius: '12px' }}>
               Book a Court Now <ArrowRight size={20} />
             </Link>
             <Link href="/register" style={{ 
               background: 'rgba(255, 255, 255, 0.8)', 
               color: 'var(--foreground)', 
               padding: '14px 28px', 
-              borderRadius: '8px', 
+              borderRadius: '12px', 
               border: '1px solid rgba(0,0,0,0.1)',
               cursor: 'pointer',
               fontWeight: '600',
-              fontSize: '18px',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '8px',
               transition: 'all 0.3s ease',
               backdropFilter: 'blur(12px)'
@@ -67,63 +57,86 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        {/* Decorative elements or background image would go here */}
       </section>
 
-      {/* Select City Section */}
+      {/* Select City Section (Live Data) */}
       <section>
-        <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <MapPin size={24} color="var(--primary)" />
-          Explore by City
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '16px' }}>
-          {CITIES.map(city => (
-            <div key={city} className="glass-morphism" style={{ 
-              padding: '16px', 
-              textAlign: 'center', 
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease',
-              border: '1px solid var(--glass-border)'
-            }}>
-              {city}
-            </div>
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', letterSpacing: '-0.5px' }}>
+            <MapPin size={24} color="var(--primary)" />
+            Explore by Active Cities
+          </h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
+          {activeCities.length > 0 ? activeCities.map(city => (
+            <Link href={`/explore?city=${city}`} key={city} style={{ textDecoration: 'none' }}>
+              <div className="glass-morphism hover-card" style={{ 
+                padding: '16px 20px', 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                borderRadius: '16px',
+                border: '1px solid var(--glass-border)',
+                fontWeight: '600',
+                fontSize: '15px',
+                color: 'var(--foreground)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+              }}>
+                {city}
+                <ChevronRight size={16} color="var(--primary)" />
+              </div>
+            </Link>
+          )) : (
+            <div style={{ color: 'var(--muted)', padding: '24px 0' }}>No active cities currently registered.</div>
+          )}
         </div>
       </section>
 
-      {/* Popular Sports */}
+      {/* Popular Sports (Simplified) */}
       <section>
-        <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px', letterSpacing: '-0.5px' }}>
           <Trophy size={24} color="var(--primary)" />
-          Popular Sports
+          Discover Sports
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '24px' }}>
-          {SPORTS.map(sport => (
-            <div key={sport.id} className="glass-morphism" style={{ 
-              overflow: 'hidden', 
-              cursor: 'pointer',
-              height: '240px',
-              position: 'relative'
-            }}>
-              <img src={sport.image} alt={sport.name} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }} />
-              <div style={{ position: 'absolute', bottom: '16px', left: '16px', zIndex: 1, color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: '600' }}>{sport.name}</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
+          {availableSports.length > 0 ? availableSports.map(sport => (
+            <Link href={`/explore?sport=${sport}`} key={sport} style={{ textDecoration: 'none' }}>
+              <div className="glass-morphism hover-card" style={{ 
+                padding: '16px 20px', 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                borderRadius: '16px',
+                border: '1px solid var(--glass-border)',
+                fontWeight: '600',
+                fontSize: '15px',
+                color: 'var(--foreground)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+              }}>
+                {sport}
+                <ChevronRight size={16} color="var(--primary)" />
               </div>
-            </div>
-          ))}
+            </Link>
+          )) : (
+            <div style={{ color: 'var(--muted)', padding: '24px 0' }}>No sports have venues yet!</div>
+          )}
         </div>
       </section>
 
       {/* Featured Venues */}
       <section>
-        <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px', letterSpacing: '-0.5px' }}>
           <Star size={24} color="var(--primary)" />
           Top Rated Grounds
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-          {featuredVenues.map(venue => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+          {featuredVenues.length > 0 ? featuredVenues.map(venue => (
             <VenueCard key={venue.id} venue={venue} />
-          ))}
+          )) : (
+            <div style={{ color: 'var(--muted)', gridColumn: '1 / -1' }}>No venues registered on the platform yet.</div>
+          )}
         </div>
       </section>
     </div>

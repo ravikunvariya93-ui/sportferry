@@ -2,6 +2,7 @@ import React from 'react';
 import { LayoutDashboard, Plus, Users, Calendar, TrendingUp, MoreVertical, MapPin } from 'lucide-react';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
+import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 
@@ -21,9 +22,31 @@ export default async function VendorDashboard() {
     owner: v.owner.toString(),
     id: v._id.toString(),
   }));
+
+  const venueIds = rawVenues.map(v => v._id);
+  
+  const rawBookings = await Booking.find({ venue: { $in: venueIds } })
+    .populate('user')
+    .populate('venue')
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+
+  const recentBookings = rawBookings.map(b => ({
+    id: b._id.toString(),
+    userName: b.user ? b.user.name : 'Unknown User',
+    userInitials: b.user ? b.user.name.substring(0, 2).toUpperCase() : '??',
+    venueName: b.venue ? b.venue.name : 'Unknown Venue',
+    dateStr: new Date(b.createdAt).toLocaleDateString(),
+    amount: b.totalAmount
+  }));
+  
+  const totalRevenue = rawBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  const totalBookingsCount = await Booking.countDocuments({ venue: { $in: venueIds } });
+
   const stats = [
-    { label: 'Total Revenue', value: '₹0', icon: TrendingUp, color: '#10b981' },
-    { label: 'Total Bookings', value: '0', icon: Calendar, color: '#38bdf8' },
+    { label: 'Total Revenue', value: `₹${totalRevenue}`, icon: TrendingUp, color: '#10b981' },
+    { label: 'Total Bookings', value: totalBookingsCount.toString(), icon: Calendar, color: '#38bdf8' },
     { label: 'Active Venues', value: vendorVenues.length.toString(), icon: LayoutDashboard, color: '#fbbf24' },
     { label: 'Total Users', value: '0', icon: Users, color: '#f472b6' },
   ];
@@ -107,8 +130,8 @@ export default async function VendorDashboard() {
         <section className="glass-morphism" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Recent Bookings</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{ display: 'flex', gap: '12px', fontSize: '14px' }}>
+            {recentBookings.length > 0 ? recentBookings.map(booking => (
+              <div key={booking.id} style={{ display: 'flex', gap: '12px', fontSize: '14px' }}>
                 <div style={{ 
                   width: '32px', 
                   height: '32px', 
@@ -117,19 +140,24 @@ export default async function VendorDashboard() {
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  fontSize: '12px' 
+                  fontSize: '12px',
+                  color: 'var(--primary)',
+                  fontWeight: '600'
                 }}>
-                  RS
+                  {booking.userInitials}
                 </div>
                 <div>
-                  <div style={{ fontWeight: '500' }}>Rahul Sharma <span style={{ color: 'var(--muted)', fontWeight: '400' }}>booked</span> Green Field</div>
-                  <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>2 hours ago • ₹1,200</div>
+                  <div style={{ fontWeight: '500' }}>{booking.userName} <span style={{ color: 'var(--muted)', fontWeight: '400' }}>booked</span> {booking.venueName}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>{booking.dateStr} • ₹{booking.amount}</div>
                 </div>
               </div>
-            ))}
-            <button style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '500', fontSize: '14px', cursor: 'pointer', marginTop: '12px' }}>
-              View All Activity
-            </button>
+            )) : <div style={{ color: 'var(--muted)' }}>No recent bookings available.</div>}
+            
+            {recentBookings.length > 0 && (
+              <button style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '500', fontSize: '14px', cursor: 'pointer', marginTop: '12px', textAlign: 'left' }}>
+                View All Activity
+              </button>
+            )}
           </div>
         </section>
       </div>

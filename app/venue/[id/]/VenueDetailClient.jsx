@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import { MapPin, Star, Clock, CheckCircle, Navigation, Info, Zap, Shield, CreditCard } from 'lucide-react';
+import styles from './VenueDetail.module.css';
+import { clsx } from 'clsx';
 
 export default function VenueDetailClient({ venue }) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -15,16 +17,10 @@ export default function VenueDetailClient({ venue }) {
   const mapQuery = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '80px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '120px' }}>
       
       {/* Cinematic Hero */}
-      <section style={{ 
-        position: 'relative', 
-        height: '450px', 
-        borderRadius: '24px', 
-        overflow: 'hidden',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
-      }}>
+      <section className={styles.hero}>
         <img 
           src={venue.images[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=1600'} 
           alt={venue.name} 
@@ -38,16 +34,16 @@ export default function VenueDetailClient({ venue }) {
         }} />
         
         {/* Hero Content */}
-        <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', padding: '40px', color: 'white' }}>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <div className={styles.heroContent}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
             {venue.sportTypes.map(s => (
               <span key={s} style={{ background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold' }}>
                 {s}
               </span>
             ))}
           </div>
-          <h1 style={{ fontSize: '48px', fontWeight: '800', marginBottom: '12px', letterSpacing: '-0.5px' }}>{venue.name}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', fontSize: '15px', color: 'rgba(255,255,255,0.9)' }}>
+          <h1 className={styles.heroTitle}>{venue.name}</h1>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '20px', fontSize: '15px', color: 'rgba(255,255,255,0.9)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <MapPin size={18} color="var(--primary)" /> {venue.area}, {venue.city}
             </div>
@@ -59,28 +55,22 @@ export default function VenueDetailClient({ venue }) {
         </div>
       </section>
 
-      {/* Main Layout Splitting into 2 Columns */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr', gap: '48px', alignItems: 'start' }}>
+      {/* Main Layout */}
+      <div className={styles.mainGrid}>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
           {/* Tabbed Navigation */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)' }}>
+          <div className={styles.tabList}>
             {['overview', 'amenities', 'location'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
+                className={styles.tabButton}
                 style={{
-                  padding: '16px 32px',
-                  background: 'none',
-                  border: 'none',
                   borderBottom: activeTab === tab ? '3px solid var(--primary)' : '3px solid transparent',
                   color: activeTab === tab ? 'var(--foreground)' : 'var(--muted)',
-                  fontSize: '16px',
                   fontWeight: activeTab === tab ? '600' : '400',
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
-                  transition: 'all 0.2s ease'
                 }}
               >
                 {tab}
@@ -95,19 +85,18 @@ export default function VenueDetailClient({ venue }) {
                 <div>
                   <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '16px' }}>About this venue</h2>
                   <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '16px' }}>
-                    Welcome to {venue.name}, located in the heart of {venue.area}. Experience the best {venue.sportTypes[0]} games on our professionally maintained surfaces. Designed for players of all skill levels, we provide top-tier floodlights for night matches, ample parking, and an energetic atmosphere. Whether for casual friendly matches, high-stakes corporate events, or structured tournaments, {venue.name} is the premier sports destination in {venue.city}.
+                    Welcome to {venue.name}, located in the heart of {venue.area}. Experience the best {venue.sportTypes[0]} games on our professionally maintained surfaces. Designed for players of all skill levels, we provide top-tier floodlights for night matches, ample parking, and an energetic atmosphere.
                   </p>
                 </div>
                 
-                <div style={{ background: 'var(--glass-bg)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', gap: '24px' }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ background: 'var(--glass-bg)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+                  <div style={{ flex: '1 1 200px' }}>
                     <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Clock size={18} color="var(--primary)" /> Hours of Operation
                     </div>
                     <div style={{ color: 'var(--muted)', fontSize: '14px' }}>Everyday: 6:00 AM - 11:59 PM</div>
                   </div>
-                  <div style={{ width: '1px', background: 'var(--glass-border)' }}></div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: '1 1 200px' }}>
                     <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Shield size={18} color="var(--primary)" /> Safety Rules
                     </div>
@@ -120,7 +109,7 @@ export default function VenueDetailClient({ venue }) {
             {activeTab === 'amenities' && (
               <section>
                 <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '24px' }}>What this place offers</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                <div className={styles.amenitiesGrid}>
                   {(venue.amenities && venue.amenities.length > 0 ? venue.amenities : ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipments Provided']).map(a => (
                     <div key={a} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(22, 163, 74, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,15 +147,15 @@ export default function VenueDetailClient({ venue }) {
         {/* Elevated Booking Sidebar */}
         <aside>
           <div className="glass-morphism" style={{ 
-            padding: '32px', 
+            padding: '24px', 
             position: 'sticky', 
-            top: '40px', 
+            top: '80px', 
             borderRadius: '24px', 
             border: '2px solid var(--glass-border)',
             boxShadow: '0 20px 40px rgba(0,0,0,0.06)'
           }}>
             <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '32px', fontWeight: '800' }}>₹{venue.pricePerHour}</span>
+              <span style={{ fontSize: '28px', fontWeight: '800' }}>₹{venue.pricePerHour}</span>
               <span style={{ fontSize: '16px', color: 'var(--muted)' }}>/ hour</span>
             </div>
             
@@ -178,34 +167,32 @@ export default function VenueDetailClient({ venue }) {
                 onChange={(e) => setSelectedDate(e.target.value)}
                 style={{ 
                   width: '100%', 
-                  padding: '16px', 
+                  padding: '12px', 
                   background: 'var(--secondary)', 
                   border: '1px solid var(--glass-border)', 
                   borderRadius: '12px', 
                   color: 'var(--foreground)',
-                  fontSize: '15px',
-                  fontFamily: 'inherit'
+                  fontSize: '15px'
                 }}
               />
             </div>
 
-            <div style={{ marginBottom: '32px' }}>
+            <div style={{ marginBottom: '24px' }}>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Available Time Slots</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                 {slots.map(slot => (
                   <button 
                     key={slot}
                     onClick={() => setSelectedSlot(slot)}
                     style={{ 
-                      padding: '10px 8px', 
+                      padding: '8px 4px', 
                       borderRadius: '8px', 
                       border: selectedSlot === slot ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
                       background: selectedSlot === slot ? 'var(--primary)' : 'var(--secondary)',
                       color: selectedSlot === slot ? 'white' : 'var(--foreground)',
-                      fontSize: '13px',
+                      fontSize: '12px',
                       fontWeight: selectedSlot === slot ? '600' : '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      cursor: 'pointer'
                     }}
                   >
                     {slot}
@@ -214,12 +201,9 @@ export default function VenueDetailClient({ venue }) {
               </div>
             </div>
 
-            <button className="btn-primary" style={{ width: '100%', padding: '18px', fontSize: '16px', fontWeight: '600', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-               <Zap size={20} /> Checkout & Book
+            <button className="btn-primary" style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: '600', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+               <Zap size={18} /> Checkout & Book
             </button>
-            <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--muted)', marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <CreditCard size={14} /> You won't be charged yet
-            </div>
           </div>
         </aside>
       </div>

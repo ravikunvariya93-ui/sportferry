@@ -1,29 +1,34 @@
-'use client';
-
 import React from 'react';
 import { Calendar, MapPin, Clock } from 'lucide-react';
+import dbConnect from '@/lib/mongodb';
+import Booking from '@/models/Booking';
+// Import Venue so mongoose knows the schema to populate against
+import Venue from '@/models/Venue';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-export default function BookingsPage() {
-  const dummyBookings = [
-    {
-      id: 1,
-      venue: 'Green Field Box Cricket',
-      area: 'Andheri, Mumbai',
-      date: '12th April 2026',
-      time: '06:00 PM - 07:00 PM',
-      status: 'CONFIRMED',
-      amount: '₹1200'
-    },
-    {
-      id: 2,
-      venue: 'Strikers Football Turf',
-      area: 'Indiranagar, Bangalore',
-      date: '5th April 2026',
-      time: '08:00 AM - 09:00 AM',
-      status: 'COMPLETED',
-      amount: '₹1500'
-    }
-  ];
+export default async function BookingsPage() {
+  const session = await auth();
+  if (!session) {
+    redirect('/login');
+  }
+
+  await dbConnect();
+  
+  const rawBookings = await Booking.find({ user: session.user.id })
+    .populate('venue')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const userBookings = rawBookings.map(b => ({
+    id: b._id.toString(),
+    venue: b.venue ? b.venue.name : 'Unknown Venue',
+    area: b.venue ? `${b.venue.area}, ${b.venue.city}` : 'Unknown Location',
+    date: new Date(b.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: `${b.startTime} - ${b.endTime}`,
+    status: b.status,
+    amount: `₹${b.totalAmount}`
+  }));
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -33,7 +38,7 @@ export default function BookingsPage() {
       </header>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {dummyBookings.map((booking) => (
+        {userBookings.length > 0 ? userBookings.map((booking) => (
           <div key={booking.id} className="glass-morphism" style={{ 
             padding: '24px', 
             display: 'flex', 
@@ -72,7 +77,11 @@ export default function BookingsPage() {
               )}
             </div>
           </div>
-        ))}
+        )) : (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
+            You haven't made any bookings yet! Discover local sports venues today.
+          </div>
+        )}
       </div>
     </div>
   );

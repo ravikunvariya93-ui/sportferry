@@ -1,20 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { CITIES, SPORTS } from '@/lib/mockData';
 import { Search, MapPin, Filter, Star } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
 
 export default function ExploreClient({ initialVenues }) {
+  const searchParams = useSearchParams();
   const [selectedCity, setSelectedCity] = useState('All Cities');
   const [selectedSport, setSelectedSport] = useState('All Sports');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Sync state with URL params on mount
+  useEffect(() => {
+    const cityParam = searchParams.get('city');
+    const sportParam = searchParams.get('sport');
+    
+    if (cityParam) setSelectedCity(cityParam);
+    if (sportParam) setSelectedSport(sportParam);
+  }, [searchParams]);
+
   const filteredVenues = initialVenues.filter(venue => {
     const matchesCity = selectedCity === 'All Cities' || venue.city === selectedCity;
     const matchesSport = selectedSport === 'All Sports' || venue.sportTypes.includes(selectedSport);
-    const matchesSearch = venue.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          venue.area.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const searchLow = searchQuery.toLowerCase().trim();
+    const nameMatch = venue.name?.toLowerCase().includes(searchLow);
+    const areaMatch = venue.area?.toLowerCase().includes(searchLow);
+    const cityMatch = venue.city?.toLowerCase().includes(searchLow);
+    const sportMatch = venue.sportTypes?.some(s => s.toLowerCase().includes(searchLow));
+
+    const matchesSearch = !searchLow || nameMatch || areaMatch || cityMatch || sportMatch;
+    
     return matchesCity && matchesSport && matchesSearch;
   });
 
@@ -84,8 +102,19 @@ export default function ExploreClient({ initialVenues }) {
         {filteredVenues.length > 0 ? filteredVenues.map(venue => (
           <VenueCard key={venue.id} venue={venue} />
         )) : (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px', color: 'var(--muted)' }}>
-            No venues found matching your criteria.
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px', color: 'var(--muted)', background: 'var(--secondary)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ fontSize: '18px', marginBottom: '16px' }}>No venues found matching your criteria.</div>
+            <button 
+              onClick={() => {
+                setSelectedCity('All Cities');
+                setSelectedSport('All Sports');
+                setSearchQuery('');
+              }}
+              className="btn-primary"
+              style={{ padding: '10px 24px' }}
+            >
+              Clear all filters
+            </button>
           </div>
         )}
       </div>

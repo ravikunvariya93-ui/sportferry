@@ -1,0 +1,27 @@
+.mobileHeader {
+  display: none;
+  height: 60px;
+  background: var(--secondary);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0 20px;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 18px;
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .mobileHeader {
+    display: flex;
+  }
+}

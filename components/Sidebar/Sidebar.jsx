@@ -23,22 +23,28 @@ const Sidebar = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
 
-  const navItems = [
-    { name: 'Dashboard', icon: Home, path: '/' },
-    { name: 'Find Games', icon: Search, path: '/explore' },
-  ];
+  let navItems = [];
 
-  if (session?.user) {
-    navItems.push(
-      { name: 'My Bookings', icon: Calendar, path: '/bookings' },
-      { name: 'Leaderboard', icon: Trophy, path: '/leaderboard' },
-      { name: 'Profile', icon: User, path: '/profile' }
-    );
+  if (session?.user?.role === 'VENDOR') {
+    navItems = [
+      { name: 'Vendor Dashboard', icon: LayoutDashboard, path: '/vendor' },
+      { name: 'Platform Home', icon: Home, path: '/' },
+      { name: 'Profile', icon: User, path: '/profile' },
+    ];
+  } else {
+    // Player or Unauthenticated view
+    navItems = [
+      { name: 'Home', icon: Home, path: '/' },
+      { name: 'Find Games', icon: Search, path: '/explore' },
+    ];
+
+    if (session?.user) {
+      navItems.push(
+        { name: 'My Bookings', icon: Calendar, path: '/bookings' },
+        { name: 'Profile', icon: User, path: '/profile' }
+      );
+    }
   }
-
-  const vendorItems = [
-    { name: 'Vendor Portal', icon: LayoutDashboard, path: '/vendor' },
-  ];
 
   return (
     <div className={styles.sidebar}>
@@ -63,22 +69,6 @@ const Sidebar = () => {
           );
         })}
 
-        <div style={{ margin: '20px 0', borderTop: '1px solid var(--glass-border)' }}></div>
-
-        {session?.user?.role === 'VENDOR' && vendorItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname.startsWith(item.path);
-          return (
-            <Link 
-              key={item.path} 
-              href={item.path}
-              className={clsx(styles.navItem, isActive && styles.activeNavItem)}
-            >
-              <Icon size={20} />
-              <span>{item.name}</span>
-            </Link>
-          );
-        })}
       </nav>
 
       <div className={styles.footer}>

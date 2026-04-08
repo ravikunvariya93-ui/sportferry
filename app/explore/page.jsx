@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import ExploreClient from './ExploreClient';
@@ -17,5 +17,9 @@ export default async function ExplorePage() {
     id: v._id.toString(), // Preserve legacy UI binding
   }));
 
-  return <ExploreClient initialVenues={venues} />;
+  return (
+    <Suspense fallback={<div>Loading venues...</div>}>
+      <ExploreClient initialVenues={venues} />
+    </Suspense>
+  );
 }
