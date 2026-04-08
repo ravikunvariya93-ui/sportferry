@@ -1,15 +1,31 @@
-'use client';
-
 import React from 'react';
 import { LayoutDashboard, Plus, Users, Calendar, TrendingUp, MoreVertical, MapPin } from 'lucide-react';
-import { MOCK_VENUES } from '@/lib/mockData';
+import dbConnect from '@/lib/mongodb';
+import Venue from '@/models/Venue';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-export default function VendorDashboard() {
+export default async function VendorDashboard() {
+  const session = await auth();
+  
+  if (!session || session.user.role !== 'VENDOR') {
+    redirect('/login');
+  }
+
+  await dbConnect();
+  const rawVenues = await Venue.find({ owner: session.user.id }).lean();
+  
+  const vendorVenues = rawVenues.map(v => ({
+    ...v,
+    _id: v._id.toString(),
+    owner: v.owner.toString(),
+    id: v._id.toString(),
+  }));
   const stats = [
-    { label: 'Total Revenue', value: '₹48,500', icon: TrendingUp, color: '#10b981' },
-    { label: 'Total Bookings', value: '42', icon: Calendar, color: '#38bdf8' },
-    { label: 'Active Venues', value: '3', icon: LayoutDashboard, color: '#fbbf24' },
-    { label: 'Total Users', value: '128', icon: Users, color: '#f472b6' },
+    { label: 'Total Revenue', value: '₹0', icon: TrendingUp, color: '#10b981' },
+    { label: 'Total Bookings', value: '0', icon: Calendar, color: '#38bdf8' },
+    { label: 'Active Venues', value: vendorVenues.length.toString(), icon: LayoutDashboard, color: '#fbbf24' },
+    { label: 'Total Users', value: '0', icon: Users, color: '#f472b6' },
   ];
 
   return (
@@ -56,7 +72,7 @@ export default function VendorDashboard() {
         <section className="glass-morphism" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '24px' }}>Your Venues</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {MOCK_VENUES.map(venue => (
+            {vendorVenues.length > 0 ? vendorVenues.map(venue => (
               <div key={venue.id} style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -66,7 +82,7 @@ export default function VendorDashboard() {
                 borderRadius: '12px',
                 border: '1px solid var(--glass-border)'
               }}>
-                <img src={venue.images[0]} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }} />
+                <img src={venue.images[0] || 'https://placehold.co/80x80/16a34a/FFF?text=Turf'} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }} />
                 <div style={{ flex: 1 }}>
                   <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px' }}>{venue.name}</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '13px' }}>
@@ -83,7 +99,7 @@ export default function VendorDashboard() {
                   </button>
                 </div>
               </div>
-            ))}
+            )) : <div style={{ color: 'var(--muted)', padding: '24px' }}>You haven't listed any venues yet.</div>}
           </div>
         </section>
 

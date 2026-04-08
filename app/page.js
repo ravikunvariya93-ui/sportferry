@@ -1,11 +1,24 @@
 import React from 'react';
-import { CITIES, SPORTS, MOCK_VENUES } from '@/lib/mockData';
+import { CITIES, SPORTS } from '@/lib/mockData';
+import dbConnect from '@/lib/mongodb';
+import Venue from '@/models/Venue';
 import { MapPin, Star, Trophy, ArrowRight, Building } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import VenueCard from '@/components/VenueCard/VenueCard';
 
-export default function Home() {
+export default async function Home() {
+  await dbConnect();
+  const rawVenues = await Venue.find({}).limit(6).lean();
+  
+  // Serialize ObjectIds for Client Component consumption
+  const featuredVenues = rawVenues.map(v => ({
+    ...v,
+    _id: v._id.toString(),
+    owner: v.owner.toString(),
+    id: v._id.toString(), // For compatibility with legacy MOCK_VENUE structural expectations
+  }));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
       {/* Hero Section */}
@@ -108,7 +121,7 @@ export default function Home() {
           Top Rated Grounds
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-          {MOCK_VENUES.map(venue => (
+          {featuredVenues.map(venue => (
             <VenueCard key={venue.id} venue={venue} />
           ))}
         </div>
