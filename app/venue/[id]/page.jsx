@@ -4,6 +4,8 @@ import Venue from '@/models/Venue';
 import VenueDetailClient from './VenueDetailClient';
 import { notFound } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default async function VenueDetailPage({ params }) {
   await dbConnect();
 

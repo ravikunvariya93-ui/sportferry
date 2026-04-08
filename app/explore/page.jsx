@@ -3,6 +3,8 @@ import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import ExploreClient from './ExploreClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExplorePage() {
   await dbConnect();
   

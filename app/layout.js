@@ -8,18 +8,19 @@ export const metadata = {
   title: 'Sportferry | Find & Book Sports Near You',
   description: 'Book box cricket, tennis ball cricket, football turf and more in your city.',
   manifest: '/manifest.json',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    viewportFit: 'cover',
-  },
-  themeColor: '#16a34a',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Sportferry',
   },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#16a34a',
 };
 
 export default function RootLayout({ children }) {
