@@ -62,6 +62,7 @@ export async function GET(request) {
         slot: `${b.startTime} – ${b.endTime}`,
         status: b.status,
         classification: b.classification || 'SOLO',
+        playersCount: b.playersCount || 1,
         bookingType: b.bookingType,
         amount: b.totalAmount,
         paymentId: b.paymentId || '',

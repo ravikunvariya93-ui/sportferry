@@ -210,9 +210,12 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                         <td style={{ padding: '12px', whiteSpace: 'nowrap', color: 'var(--muted)', fontSize: '13px' }}>{b.slot}</td>
                         <td style={{ padding: '12px', fontWeight: '600' }}>₹{b.amount}</td>
                         <td style={{ padding: '12px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)', textTransform: 'uppercase' }}>
-                            {b.classification}
-                          </span>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)', textTransform: 'uppercase' }}>
+                              {b.classification}
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600' }}>({b.playersCount}p)</span>
+                          </div>
                         </td>
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

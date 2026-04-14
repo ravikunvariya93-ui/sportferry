@@ -25,6 +25,7 @@ export default function OfflineBookingModal({ venues, onClose }) {
     slot: '',
     sport: '',
     classification: 'SOLO',
+    playersCount: 1,
   });
 
   const [busySlots, setBusySlots] = useState([]);
@@ -190,26 +191,37 @@ export default function OfflineBookingModal({ venues, onClose }) {
                   </div>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '8px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Booking Type</label>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', marginBottom: '8px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Category & Players</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    {['SOLO', 'TEAM', 'GROUP'].map(type => {
-                      const active = form.classification === type;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setForm({ ...form, classification: type })}
-                          style={{
-                            flex: 1, padding: '10px 4px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
-                            background: active ? 'var(--primary)' : 'var(--secondary)',
-                            color: active ? 'white' : 'var(--foreground)',
-                            border: active ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
-                          }}
-                        >
-                          {type}
-                        </button>
-                      );
-                    })}
+                    <div style={{ display: 'flex', gap: '4px', flex: 2 }}>
+                      {['SOLO', 'TEAM', 'GROUP'].map(type => {
+                        const active = form.classification === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setForm({ ...form, classification: type })}
+                            style={{
+                              flex: 1, padding: '10px 4px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
+                              background: active ? 'var(--primary)' : 'var(--secondary)',
+                              color: active ? 'white' : 'var(--foreground)',
+                              border: active ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                            }}
+                          >
+                            {type.slice(0,1)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <input 
+                      type="number"
+                      min="1"
+                      value={form.playersCount}
+                      onChange={(e) => setForm({...form, playersCount: parseInt(e.target.value) || 1})}
+                      style={{ 
+                        flex: 1, padding: '10px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '12px', color: 'var(--foreground)', outline: 'none', textAlign: 'center', fontSize: '14px', fontWeight: '700'
+                      }}
+                    />
                   </div>
                 </div>
               </div>

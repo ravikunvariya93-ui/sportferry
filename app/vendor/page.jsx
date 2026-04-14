@@ -45,6 +45,7 @@ export default async function VendorDashboard() {
     status: b.status,
     bookingType: b.bookingType || 'ONLINE',
     classification: b.classification || 'SOLO',
+    playersCount: b.playersCount || 1,
   }));
 
   // ── Stats ───────────────────────────────────────────────────────────────

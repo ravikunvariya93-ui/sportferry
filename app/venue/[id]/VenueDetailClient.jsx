@@ -298,29 +298,48 @@ export default function VenueDetailClient({ venue }) {
                   </div>
                 </div>
 
-                {/* Classification Picker */}
+                {/* Classification & Players Picker */}
                 <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Booking Type</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {['SOLO', 'TEAM', 'GROUP'].map(type => {
-                      const active = classification === type;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setClassification(type)}
-                          style={{
-                            flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
-                            background: active ? 'var(--primary)' : 'var(--secondary)',
-                            color: active ? 'white' : 'var(--foreground)',
-                            border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                            textTransform: 'uppercase', letterSpacing: '0.5px'
-                          }}
-                        >
-                          {type}
-                        </button>
-                      );
-                    })}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Booking Type</label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {['SOLO', 'TEAM', 'GROUP'].map(type => {
+                          const active = classification === type;
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => setClassification(type)}
+                              style={{
+                                flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
+                                background: active ? 'var(--primary)' : 'var(--secondary)',
+                                color: active ? 'white' : 'var(--foreground)',
+                                border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                                textTransform: 'uppercase', letterSpacing: '0.5px'
+                              }}
+                            >
+                              {type.slice(0, 1)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Players</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={playersCount}
+                        onChange={(e) => setPlayersCount(parseInt(e.target.value) || 1)}
+                        style={{
+                          width: '100%', padding: '10px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', 
+                          background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)',
+                          outline: 'none', height: '40px'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 

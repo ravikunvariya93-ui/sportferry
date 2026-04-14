@@ -162,9 +162,12 @@ export default function BookingsClient() {
                         <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{b.dateStr}</td>
                         <td style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{b.slot}</td>
                         <td>
-                          <span style={{ fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', textTransform: 'uppercase' }}>
-                            {b.classification}
-                          </span>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', textTransform: 'uppercase' }}>
+                              {b.classification}
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>({b.playersCount}p)</span>
+                          </div>
                         </td>
                         <td>
                           <span className={`${styles.badge} ${b.bookingType === 'ONLINE' ? styles.badgeOnline : styles.badgeOffline}`}>
