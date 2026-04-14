@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import MobileNav from '@/components/MobileNav/MobileNav';
 import MobileHeader from '@/components/Header/MobileHeader';
 import AuthProvider from '@/components/AuthProvider';
+import LocationModal from '@/components/LocationModal/LocationModal';
 
 export const metadata = {
   title: 'Sportferry | Find & Book Sports Near You',
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <AuthProvider>
+          <LocationModal />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <MobileHeader />
             <div style={{ display: 'flex' }}>

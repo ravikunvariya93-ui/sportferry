@@ -20,7 +20,6 @@ const MobileNav = () => {
     { name: 'Profile', icon: User, path: '/profile' },
   ] : [
     { name: 'Home', icon: Home, path: '/' },
-    { name: 'Explore', icon: Search, path: '/explore' },
     { name: 'Bookings', icon: Calendar, path: '/bookings' },
     { name: 'Profile', icon: User, path: '/profile' },
   ];
@@ -32,7 +31,7 @@ const MobileNav = () => {
         const isActive = pathname === item.path;
         return (
           <Link 
-            key={item.path} 
+            key={item.name} 
             href={item.path}
             className={clsx(styles.navItem, isActive && styles.active)}
           >

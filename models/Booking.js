@@ -9,7 +9,18 @@ const BookingSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: false, // Optional for OFFLINE bookings
+  },
+  bookingType: {
+    type: String,
+    enum: ['ONLINE', 'OFFLINE'],
+    default: 'ONLINE',
+  },
+  offlineCustomerName: {
+    type: String,
+  },
+  offlineCustomerPhone: {
+    type: String,
   },
   date: {
     type: Date,

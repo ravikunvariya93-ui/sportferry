@@ -35,7 +35,6 @@ const Sidebar = () => {
     // Player or Unauthenticated view
     navItems = [
       { name: 'Home', icon: Home, path: '/' },
-      { name: 'Find Games', icon: Search, path: '/explore' },
     ];
 
     if (session?.user) {
@@ -59,7 +58,7 @@ const Sidebar = () => {
           const isActive = pathname === item.path;
           return (
             <Link 
-              key={item.path} 
+              key={item.name} 
               href={item.path}
               className={clsx(styles.navItem, isActive && styles.activeNavItem)}
             >

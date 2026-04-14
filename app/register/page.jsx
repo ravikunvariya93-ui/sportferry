@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trophy } from 'lucide-react';
+import { Trophy, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -10,10 +10,14 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('USER');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -25,20 +29,21 @@ export default function RegisterPage() {
         router.push('/login');
       } else {
         const errorData = await res.json();
-        alert(errorData.message || 'Registration failed');
+        setError(errorData.message || 'Registration failed. Please try again.');
       }
-    } catch (error) {
-      console.error('An error occurred', error);
-      alert('An error occurred during registration');
+    } catch {
+      setError('A network error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      minHeight: '80vh' 
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '80vh'
     }}>
       <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
@@ -50,28 +55,28 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
+
           <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
-            <button 
+            <button
               type="button"
               onClick={() => setRole('USER')}
               style={{
                 flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', fontWeight: '500',
                 background: role === 'USER' ? 'var(--primary)' : 'var(--secondary)',
                 color: role === 'USER' ? 'white' : 'var(--foreground)',
-                border: '1px solid var(--glass-border)'
+                border: '1px solid var(--glass-border)', fontFamily: 'inherit'
               }}
             >
               Player
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setRole('VENDOR')}
               style={{
                 flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer', fontWeight: '500',
                 background: role === 'VENDOR' ? 'var(--primary)' : 'var(--secondary)',
                 color: role === 'VENDOR' ? 'white' : 'var(--foreground)',
-                border: '1px solid var(--glass-border)'
+                border: '1px solid var(--glass-border)', fontFamily: 'inherit'
               }}
             >
               Ground Owner
@@ -80,14 +85,15 @@ export default function RegisterPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Full Name</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="John Doe"
-              style={{ 
-                width: '100%', padding: '12px', background: 'var(--secondary)', 
-                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)'
+              style={{
+                width: '100%', padding: '12px', background: 'var(--secondary)',
+                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)',
+                fontFamily: 'inherit', fontSize: '15px'
               }}
               required
             />
@@ -95,14 +101,15 @@ export default function RegisterPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email</label>
-            <input 
-              type="email" 
+            <input
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              style={{ 
-                width: '100%', padding: '12px', background: 'var(--secondary)', 
-                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)'
+              style={{
+                width: '100%', padding: '12px', background: 'var(--secondary)',
+                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)',
+                fontFamily: 'inherit', fontSize: '15px'
               }}
               required
             />
@@ -110,21 +117,39 @@ export default function RegisterPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Password</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              style={{ 
-                width: '100%', padding: '12px', background: 'var(--secondary)', 
-                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)'
+              style={{
+                width: '100%', padding: '12px', background: 'var(--secondary)',
+                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)',
+                fontFamily: 'inherit', fontSize: '15px'
               }}
               required
+              minLength={6}
             />
           </div>
 
-          <button type="submit" className="btn-primary" style={{ padding: '14px', marginTop: '8px' }}>
-            Sign Up
+          {error && (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: '10px',
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: '10px', padding: '12px 14px', color: '#dc2626', fontSize: '13px'
+            }}>
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ padding: '14px', marginTop: '4px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          >
+            {loading ? 'Creating account...' : 'Sign Up'}
           </button>
         </form>
 

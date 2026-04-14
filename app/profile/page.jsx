@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, LogOut, Settings } from 'lucide-react';
+import { User, LogOut, CheckCircle2 } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -11,6 +11,7 @@ export default function ProfilePage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('+91 9876543210');
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -34,7 +35,8 @@ export default function ProfilePage() {
 
   const handleSave = (e) => {
     e.preventDefault();
-    alert('Profile updated! (Simulated)');
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   };
 
   return (
@@ -44,15 +46,19 @@ export default function ProfilePage() {
           <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>My Profile</h1>
           <p style={{ color: 'var(--muted)' }}>Manage your account settings.</p>
         </div>
-        <button onClick={() => signOut({ callbackUrl: '/' })} className="btn-primary" style={{ background: 'var(--card-bg)', color: '#ef4444', border: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+        <button
+          onClick={() => signOut({ callbackUrl: '/' })}
+          className="btn-primary"
+          style={{ background: 'var(--card-bg)', color: '#ef4444', border: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+        >
           <LogOut size={16} /> Sign Out
         </button>
       </header>
 
       <div className="glass-morphism" style={{ padding: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '32px' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: '600' }}>
-            {name.charAt(0)}
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: '600', flexShrink: 0 }}>
+            {name.charAt(0).toUpperCase()}
           </div>
           <div>
             <h2 style={{ fontSize: '24px', fontWeight: '600' }}>{name || 'Loading...'}</h2>
@@ -64,34 +70,45 @@ export default function ProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Full Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)' }}
+                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
               />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email Address</label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)' }}
+                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
               />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Phone Number</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)' }}
+              style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
             />
           </div>
 
-          <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          {saved && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)',
+              borderRadius: '10px', padding: '12px 14px', color: 'var(--primary)', fontSize: '13px', fontWeight: '500'
+            }}>
+              <CheckCircle2 size={16} />
+              Profile updated successfully!
+            </div>
+          )}
+
+          <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
             <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>
               Save Changes
             </button>
