@@ -23,6 +23,9 @@ const Sidebar = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
 
+  // Admin section has its own isolated layout — hide the main sidebar
+  if (pathname?.startsWith('/admin')) return null;
+
   let navItems = [];
 
   if (session?.user?.role === 'VENDOR') {

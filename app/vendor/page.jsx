@@ -44,19 +44,22 @@ export default async function VendorDashboard() {
     amount: b.totalAmount,
     status: b.status,
     bookingType: b.bookingType || 'ONLINE',
+    classification: b.classification || 'SOLO',
   }));
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const SERVICE_FEE_PERCENT = 0.05;
-  const rawRevenue = rawBookings
+  const statisticalBookings = rawBookings.filter(b => b.bookingType !== 'OFFLINE');
+
+  const rawRevenue = statisticalBookings
     .filter(b => b.status === 'CONFIRMED')
     .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
   
   const totalEarnings = rawRevenue * (1 - SERVICE_FEE_PERCENT);
 
-  const totalBookingsCount = rawBookings.length;
+  const totalBookingsCount = statisticalBookings.length;
 
-  const uniqueUserIds = new Set(rawBookings.map(b => b.user?._id?.toString()).filter(Boolean));
+  const uniqueUserIds = new Set(statisticalBookings.map(b => b.user?._id?.toString()).filter(Boolean));
   const uniqueUsersCount = uniqueUserIds.size;
 
   const stats = [

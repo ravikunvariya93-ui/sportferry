@@ -14,6 +14,8 @@ export default function VenueDetailClient({ venue }) {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [busySlots, setBusySlots] = useState([]);
   const [bookingState, setBookingState] = useState('idle'); // idle | loading | success | error
+  const [classification, setClassification] = useState('SOLO');
+  const [playersCount, setPlayersCount] = useState(1);
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingId, setBookingId] = useState(null);
 
@@ -76,6 +78,8 @@ export default function VenueDetailClient({ venue }) {
           venueId: venue._id,
           date: selectedDate,
           slot: selectedSlot,
+          sport: venue.sportTypes[0], // Defaulting to first sport for simplicity, can be expanded to a picker later if needed
+          classification: classification,
         }),
       });
 
@@ -288,6 +292,32 @@ export default function VenueDetailClient({ venue }) {
                         >
                           {slot}
                           {isBusy && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--muted)', width: '8px', height: '8px', borderRadius: '50%' }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Classification Picker */}
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Booking Type</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {['SOLO', 'TEAM', 'GROUP'].map(type => {
+                      const active = classification === type;
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setClassification(type)}
+                          style={{
+                            flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
+                            background: active ? 'var(--primary)' : 'var(--secondary)',
+                            color: active ? 'white' : 'var(--foreground)',
+                            border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                            textTransform: 'uppercase', letterSpacing: '0.5px'
+                          }}
+                        >
+                          {type}
                         </button>
                       );
                     })}

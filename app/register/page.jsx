@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('USER');
@@ -22,7 +23,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, username, email, password, role }),
       });
 
       if (res.ok) {
@@ -100,7 +101,23 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email</label>
+            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Choose a unique username"
+              style={{
+                width: '100%', padding: '12px', background: 'var(--secondary)',
+                border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)',
+                fontFamily: 'inherit', fontSize: '15px'
+              }}
+              required
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email (Optional)</label>
             <input
               type="email"
               value={email}
@@ -111,7 +128,6 @@ export default function RegisterPage() {
                 border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)',
                 fontFamily: 'inherit', fontSize: '15px'
               }}
-              required
             />
           </div>
 

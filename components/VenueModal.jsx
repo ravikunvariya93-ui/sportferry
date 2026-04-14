@@ -1,19 +1,27 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, CheckCircle2, Image, MapPin, DollarSign } from 'lucide-react';
+import { X, AlertCircle, CheckCircle2, MapPin, DollarSign } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const SPORT_OPTIONS = ['Box Cricket', 'Tennis Ball Cricket', 'Football', 'Badminton', 'Tennis', 'Table Tennis'];
 const AMENITY_OPTIONS = ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipment Provided', 'Changing Room', 'Cafeteria'];
 
-export default function RegisterVenueModal({ onClose }) {
+export default function VenueModal({ onClose, editingVenue = null }) {
   const router = useRouter();
+  const isEdit = !!editingVenue;
+
   const [form, setForm] = useState({
-    name: '', city: '', area: '', address: '',
-    pricePerHour: '', imageUrl: '',
-    sportTypes: [], amenities: [],
+    name: editingVenue?.name || '',
+    city: editingVenue?.city || '',
+    area: editingVenue?.area || '',
+    address: editingVenue?.address || '',
+    pricePerHour: editingVenue?.pricePerHour || '',
+    imageUrl: editingVenue?.images?.[0] || '',
+    sportTypes: editingVenue?.sportTypes || [],
+    amenities: editingVenue?.amenities || [],
   });
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -46,9 +54,13 @@ export default function RegisterVenueModal({ onClose }) {
     }
     setLoading(true);
     setError('');
+
+    const url = isEdit ? `/api/venues/${editingVenue.id || editingVenue._id}` : '/api/venues';
+    const method = isEdit ? 'PATCH' : 'POST';
+
     try {
-      const res = await fetch('/api/venues', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
@@ -57,7 +69,7 @@ export default function RegisterVenueModal({ onClose }) {
         setSuccess(true);
         setTimeout(() => { onClose(); router.refresh(); }, 1800);
       } else {
-        setError(data.message || 'Failed to register venue.');
+        setError(data.message || `Failed to ${isEdit ? 'update' : 'register'} venue.`);
       }
     } catch {
       setError('Network error. Please try again.');
@@ -89,8 +101,10 @@ export default function RegisterVenueModal({ onClose }) {
         {/* Header */}
         <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--secondary)', zIndex: 1 }}>
           <div>
-            <h2 style={{ fontSize: '20px', fontWeight: '700' }}>Register New Venue</h2>
-            <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '2px' }}>List your sports facility on Sportferry</p>
+            <h2 style={{ fontSize: '20px', fontWeight: '700' }}>{isEdit ? 'Edit Venue' : 'Register New Venue'}</h2>
+            <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '2px' }}>
+              {isEdit ? `Updating ${editingVenue.name}` : 'List your sports facility on Sportferry'}
+            </p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
             <X size={22} />
@@ -102,8 +116,10 @@ export default function RegisterVenueModal({ onClose }) {
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <CheckCircle2 size={32} color="var(--primary)" />
             </div>
-            <h3 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>Venue Registered!</h3>
-            <p style={{ color: 'var(--muted)' }}>Your venue is now live on Sportferry.</p>
+            <h3 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>Venue {isEdit ? 'Updated' : 'Registered'}!</h3>
+            <p style={{ color: 'var(--muted)' }}>
+              {isEdit ? 'Changes have been saved successfully.' : 'Your venue is now live on Sportferry.'}
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -197,7 +213,7 @@ export default function RegisterVenueModal({ onClose }) {
                 Cancel
               </button>
               <button type="submit" disabled={loading} className="btn-primary" style={{ flex: 2, padding: '14px', borderRadius: '12px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
-                {loading ? 'Registering...' : 'Register Venue'}
+                {loading ? (isEdit ? 'Updating...' : 'Registering...') : (isEdit ? 'Save Changes' : 'Register Venue')}
               </button>
             </div>
           </form>

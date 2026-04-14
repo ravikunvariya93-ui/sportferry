@@ -48,4 +48,4 @@ const VenueSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-export default mongoose.models.Venue || mongoose.model('Venue', VenueSchema);
+export default (mongoose.models && mongoose.models.Venue) || mongoose.model('Venue', VenueSchema);

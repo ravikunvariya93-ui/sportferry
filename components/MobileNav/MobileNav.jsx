@@ -12,6 +12,9 @@ const MobileNav = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
 
+  // Admin section has its own isolated layout
+  if (pathname?.startsWith('/admin')) return null;
+
   const isVendor = session?.user?.role === 'VENDOR';
 
   const navItems = isVendor ? [

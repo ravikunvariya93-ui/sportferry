@@ -7,7 +7,7 @@ import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
 
@@ -15,12 +15,12 @@ export default function LoginPage() {
     e.preventDefault();
     const result = await signIn('credentials', {
       redirect: false,
-      email,
+      username,
       password,
     });
 
     if (result?.error) {
-      alert('Invalid email or password');
+      alert('Invalid username or password');
     } else {
       router.push('/');
     }
@@ -44,12 +44,12 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email</label>
+            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Username</label>
             <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              type="text" 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="admin / vendor / user"
               style={{ 
                 width: '100%', 
                 padding: '12px', 

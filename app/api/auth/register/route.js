@@ -5,18 +5,25 @@ import User from '@/models/User';
 
 export async function POST(request) {
   try {
-    const { name, email, password, role } = await request.json();
+    const { name, username, email, password, role } = await request.json();
 
-    if (!name || !email || !password) {
+    if (!name || !username || !password) {
       return NextResponse.json({ message: 'Missing fields' }, { status: 400 });
     }
 
     await dbConnect();
 
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
+    // Check if user exists (by email OR username)
+    const existingUser = await User.findOne({ 
+      $or: [
+        { username },
+        ...(email ? [{ email }] : [])
+      ]
+    });
+    
     if (existingUser) {
-      return NextResponse.json({ message: 'User already exists' }, { status: 409 });
+      const field = existingUser.username === username ? 'Username' : 'Email';
+      return NextResponse.json({ message: `${field} already exists` }, { status: 409 });
     }
 
     // Hash password
@@ -25,7 +32,8 @@ export async function POST(request) {
     // Create user
     const user = await User.create({
       name,
-      email,
+      username,
+      email: email || undefined,
       password: hashedPassword,
       role: role || 'USER',
     });

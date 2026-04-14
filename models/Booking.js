@@ -36,12 +36,27 @@ const BookingSchema = new mongoose.Schema({
   },
   totalAmount: {
     type: Number,
-    required: true,
+    required: false, // Optional for OFFLINE blocks
+    default: 0,
   },
   status: {
     type: String,
     enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
     default: 'PENDING',
+  },
+  sport: {
+    type: String,
+    required: [true, 'Please specify the sport for this booking.'],
+  },
+  classification: {
+    type: String,
+    enum: ['SOLO', 'TEAM', 'GROUP'],
+    default: 'SOLO',
+  },
+  playersCount: {
+    type: Number,
+    default: 1,
+    min: 1,
   },
   paymentId: {
     type: String,
@@ -50,4 +65,4 @@ const BookingSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-export default mongoose.models.Booking || mongoose.model('Booking', BookingSchema);
+export default (mongoose.models && mongoose.models.Booking) || mongoose.model('Booking', BookingSchema);

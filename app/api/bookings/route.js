@@ -29,11 +29,15 @@ export async function POST(request) {
       return NextResponse.json({ message: 'You must be logged in to book.' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { venueId, date, slot, bookingType = 'ONLINE', offlineCustomerName, offlineCustomerPhone } = body;
+    const { 
+      venueId, date, slot, sport, classification, playersCount = 1,
+      bookingType = 'ONLINE', 
+      offlineCustomerName, 
+      offlineCustomerPhone 
+    } = body;
 
-    if (!venueId || !date || !slot) {
-      return NextResponse.json({ message: 'venueId, date, and slot are required.' }, { status: 400 });
+    if (!venueId || !date || !slot || !sport || !classification) {
+      return NextResponse.json({ message: 'venueId, date, slot, sport, and classification are required.' }, { status: 400 });
     }
 
     const times = parseSlot(slot);
@@ -75,11 +79,13 @@ export async function POST(request) {
       date: new Date(date),
       startTime: times.startTime,
       endTime: times.endTime,
-      totalAmount: venue.pricePerHour,
+      totalAmount: bookingType === 'OFFLINE' ? 0 : venue.pricePerHour,
       status: bookingType === 'OFFLINE' ? 'CONFIRMED' : 'PENDING',
       bookingType,
-      offlineCustomerName: bookingType === 'OFFLINE' ? (offlineCustomerName || 'Manual Block') : undefined,
-      offlineCustomerPhone,
+      sport,
+      classification,
+      playersCount,
+      offlineCustomerName: bookingType === 'OFFLINE' ? 'Manual Block' : undefined,
     });
 
     return NextResponse.json({ bookingId: booking._id.toString() }, { status: 201 });
