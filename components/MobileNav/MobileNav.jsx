@@ -15,17 +15,28 @@ const MobileNav = () => {
   // Admin section has its own isolated layout
   if (pathname?.startsWith('/admin')) return null;
 
+  const isAdmin = session?.user?.role === 'ADMIN';
   const isVendor = session?.user?.role === 'VENDOR';
 
-  const navItems = isVendor ? [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/vendor' },
-    { name: 'Home', icon: Home, path: '/' },
-    { name: 'Profile', icon: User, path: '/profile' },
-  ] : [
+  let navItems = [
     { name: 'Home', icon: Home, path: '/' },
     { name: 'Bookings', icon: Calendar, path: '/bookings' },
     { name: 'Profile', icon: User, path: '/profile' },
   ];
+
+  if (isAdmin) {
+    navItems = [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
+      { name: 'Home', icon: Home, path: '/' },
+      { name: 'Profile', icon: User, path: '/profile' },
+    ];
+  } else if (isVendor) {
+    navItems = [
+      { name: 'Dashboard', icon: LayoutDashboard, path: '/vendor' },
+      { name: 'Home', icon: Home, path: '/' },
+      { name: 'Profile', icon: User, path: '/profile' },
+    ];
+  }
 
   return (
     <nav className={styles.mobileNav}>

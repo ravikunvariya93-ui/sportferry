@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Trophy } from 'lucide-react';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -22,7 +22,14 @@ export default function LoginPage() {
     if (result?.error) {
       alert('Invalid username or password');
     } else {
-      router.push('/');
+      const session = await getSession();
+      if (session?.user?.role === 'ADMIN') {
+        router.push('/admin');
+      } else if (session?.user?.role === 'VENDOR') {
+        router.push('/vendor');
+      } else {
+        router.push('/');
+      }
     }
   };
 

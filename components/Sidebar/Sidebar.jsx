@@ -28,7 +28,13 @@ const Sidebar = () => {
 
   let navItems = [];
 
-  if (session?.user?.role === 'VENDOR') {
+  if (session?.user?.role === 'ADMIN') {
+    navItems = [
+      { name: 'Admin Dashboard', icon: LayoutDashboard, path: '/admin' },
+      { name: 'Platform Home', icon: Home, path: '/' },
+      { name: 'Profile', icon: User, path: '/profile' },
+    ];
+  } else if (session?.user?.role === 'VENDOR') {
     navItems = [
       { name: 'Vendor Dashboard', icon: LayoutDashboard, path: '/vendor' },
       { name: 'Platform Home', icon: Home, path: '/' },
