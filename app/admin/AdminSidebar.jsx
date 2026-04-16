@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   LayoutDashboard, Users, Building2, CalendarCheck,
-  LogOut, Shield, ChevronRight, Menu, X, Sun, Moon
+  LogOut, Shield, ChevronRight, Menu, X
 } from 'lucide-react';
 import { useAdminTheme } from './AdminThemeProvider';
 import styles from './admin.module.css';
@@ -51,7 +51,7 @@ const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut
       })}
     </nav>
 
-    {/* Admin info + Theme Toggle + sign out */}
+    {/* Admin info + sign out */}
     <div className={styles.sidebarFooter}>
       <div className={styles.adminInfo}>
         <div className={styles.adminAvatar}>
@@ -61,19 +61,6 @@ const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut
           <div className={styles.adminName}>{adminName || 'Admin'}</div>
           <div className={styles.adminRole}>Super Admin</div>
         </div>
-        <button 
-          className={styles.iconBtn} 
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          style={{ 
-            background: 'var(--admin-nav-hover)',
-            color: 'var(--admin-text-main)',
-            width: '36px',
-            height: '36px'
-          }}
-        >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
       </div>
       <button className={styles.signOutBtn} onClick={handleSignOut}>
         <LogOut size={16} />
@@ -115,13 +102,6 @@ export default function AdminSidebar({ adminName }) {
           <span className={styles.mobileTitle}>Admin Panel</span>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button 
-            className={styles.iconBtn} 
-            onClick={toggleTheme}
-            style={{ background: 'none', border: 'none', color: 'var(--admin-text-sub)' }}
-          >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
           <button
             className={styles.mobileMenuBtn}
             onClick={() => setMobileOpen(!mobileOpen)}

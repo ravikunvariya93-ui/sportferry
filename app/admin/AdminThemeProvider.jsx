@@ -13,31 +13,10 @@ export const useAdminTheme = () => {
 };
 
 export default function AdminThemeProvider({ children }) {
-  const [theme, setTheme] = useState('dark'); // Default to dark as per original design
-  const [mounted, setMounted] = useState(false);
+  const theme = 'light';
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('admin-theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('admin-theme', theme);
-    }
-  }, [theme, mounted]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
-
-  // Prevent flash by not rendering children until mounted if we want to be strict,
-  // but for a dashboard, a wrapper with the class is better.
   return (
-    <AdminThemeContext.Provider value={{ theme, toggleTheme }}>
+    <AdminThemeContext.Provider value={{ theme, toggleTheme: () => {} }}>
       <div className={`admin-theme-wrapper ${theme}-theme`}>
         {children}
       </div>
@@ -47,25 +26,7 @@ export default function AdminThemeProvider({ children }) {
           transition: background-color 0.3s ease, color 0.3s ease;
         }
         
-        /* Dark Theme Variables */
-        .dark-theme {
-          --admin-bg: #0f1117;
-          --admin-sidebar: #13161e;
-          --admin-surface: #13161e;
-          --admin-table-row: #13161e;
-          --admin-text-main: #e2e8f0;
-          --admin-text-sub: #94a3b8;
-          --admin-text-muted: #64748b;
-          --admin-border: rgba(255, 255, 255, 0.07);
-          --admin-border-sub: rgba(255, 255, 255, 0.04);
-          --admin-nav-hover: rgba(255, 255, 255, 0.06);
-          --admin-nav-active: rgba(34, 197, 94, 0.12);
-          --admin-input-bg: rgba(255, 255, 255, 0.05);
-          --admin-input-border: rgba(255, 255, 255, 0.08);
-          --admin-card-hover: rgba(34, 197, 94, 0.2);
-        }
-
-        /* Light Theme Variables */
+        /* Light Theme Variables (Default) */
         .light-theme {
           --admin-bg: #f8fafc;
           --admin-sidebar: #ffffff;
@@ -86,3 +47,4 @@ export default function AdminThemeProvider({ children }) {
     </AdminThemeContext.Provider>
   );
 }
+

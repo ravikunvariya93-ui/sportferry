@@ -170,7 +170,7 @@ export default function AdminOverviewClient({ stats }) {
                   {topVenues.map((v, i) => (
                     <tr key={v.id}>
                       <td>
-                        <div style={{ fontWeight: 600, color: '#f1f5f9', marginBottom: '2px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', marginBottom: '2px' }}>
                           {i + 1}. {v.name}
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748b' }}>{v.city}</div>
@@ -213,7 +213,7 @@ export default function AdminOverviewClient({ stats }) {
                   {b.userName?.charAt(0)?.toUpperCase() || '?'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text-main)' }}>
                     {b.userName}
                     <span style={{ color: '#64748b', fontWeight: 400 }}> booked </span>
                     {b.venueName}
