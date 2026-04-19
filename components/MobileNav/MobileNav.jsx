@@ -10,10 +10,11 @@ import styles from './MobileNav.module.css';
 
 const MobileNav = () => {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
 
-  // Admin section has its own isolated layout
-  if (pathname?.startsWith('/admin')) return null;
+  // Admin section or loading status should not show the standard mobile nav
+  if (pathname?.startsWith('/admin') || isLoading) return null;
 
   const isAdmin = session?.user?.role === 'ADMIN';
   const isVendor = session?.user?.role === 'VENDOR';

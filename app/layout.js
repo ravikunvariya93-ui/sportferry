@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import MobileNav from '@/components/MobileNav/MobileNav';
 import MobileHeader from '@/components/Header/MobileHeader';
 import AuthProvider from '@/components/AuthProvider';
+import { auth } from '@/lib/auth';
 import LocationModal from '@/components/LocationModal/LocationModal';
 import Footer from '@/components/Footer/Footer';
 
@@ -25,7 +26,9 @@ export const viewport = {
   themeColor: '#16a34a',
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const session = await auth();
+
   return (
     <html lang="en">
       <head>
@@ -35,7 +38,7 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body>
-        <AuthProvider>
+        <AuthProvider session={session}>
           <LocationModal />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <MobileHeader />

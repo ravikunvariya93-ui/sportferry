@@ -21,7 +21,8 @@ import { useSession, signOut } from 'next-auth/react';
 
 const Sidebar = () => {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
 
   // Admin section has its own isolated layout — hide the main sidebar
   if (pathname?.startsWith('/admin')) return null;
@@ -55,8 +56,10 @@ const Sidebar = () => {
     }
   }
 
+  const authState = isLoading ? 'loading' : session?.user ? 'authenticated' : 'unauthenticated';
+
   return (
-    <div className={styles.sidebar}>
+    <div className={styles.sidebar} data-auth-state={authState}>
       <div className={styles.logo}>
         <Trophy size={28} />
         <span>Sportferry</span>
@@ -81,10 +84,27 @@ const Sidebar = () => {
       </nav>
 
       <div className={styles.footer}>
-        {session?.user ? (
-          <div className={styles.navItem} onClick={() => signOut({ callbackUrl: '/' })} style={{ cursor: 'pointer' }}>
-            <LogOut size={20} />
-            <span>Sign Out</span>
+        {isLoading ? (
+          <div className={styles.loadingPlaceholder} />
+        ) : session?.user ? (
+          <div className={styles.userSection}>
+            <div className={styles.userProfile}>
+              <div className={styles.avatar}>
+                {session.user.name?.charAt(0) || 'U'}
+              </div>
+              <div className={styles.userInfo}>
+                <span className={styles.userName}>{session.user.name}</span>
+                <span className={styles.userRole}>{session.user.role}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className={styles.logoutButton}
+              title="Sign Out"
+            >
+              <LogOut size={18} />
+              <span>Sign Out</span>
+            </button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
