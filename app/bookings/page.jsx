@@ -1,4 +1,9 @@
 import React from 'react';
+
+export const metadata = {
+  title: 'My Bookings | Sportferry',
+  description: 'Manage your sports venue bookings and track your upcoming games.',
+};
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';

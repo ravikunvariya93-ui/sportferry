@@ -1,120 +1,86 @@
-'use client';
+import React from 'react';
 
-import React, { useState, useEffect } from 'react';
-import { User, LogOut, CheckCircle2 } from 'lucide-react';
-import { useSession, signOut } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+export const metadata = {
+  title: 'My Profile | Sportferry',
+  description: 'Manage your Sportferry account, roles, and personal information.',
+};
+import { auth, signOut } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { User, LogOut, Shield, ShieldCheck, Mail, Calendar } from 'lucide-react';
+import dbConnect from '@/lib/mongodb';
+import UserDoc from '@/models/User';
 
-export default function ProfilePage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('+91 9876543210');
-  const [saved, setSaved] = useState(false);
+export const dynamic = 'force-dynamic';
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-    if (session?.user) {
-      setName(session.user.name || '');
-      setEmail(session.user.email || '');
-    }
-  }, [session, status, router]);
+export default async function ProfilePage() {
+  const session = await auth();
 
-  if (status === 'loading') {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <p style={{ color: 'var(--muted)', fontSize: '18px' }}>Checking session...</p>
-      </div>
-    );
+  if (!session) {
+    redirect('/login');
   }
 
-  if (!session) return null;
+  await dbConnect();
+  const user = await UserDoc.findById(session.user.id).lean();
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  };
+  if (!user) {
+    redirect('/login');
+  }
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>My Profile</h1>
-          <p style={{ color: 'var(--muted)' }}>Manage your account settings.</p>
-        </div>
-        <button
-          onClick={() => signOut({ callbackUrl: '/' })}
-          className="btn-primary"
-          style={{ background: 'var(--card-bg)', color: '#ef4444', border: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-        >
-          <LogOut size={16} /> Sign Out
-        </button>
-      </header>
-
-      <div className="glass-morphism" style={{ padding: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '32px' }}>
-          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: '600', flexShrink: 0 }}>
-            {name.charAt(0).toUpperCase()}
+    <main style={{ maxWidth: '800px', margin: '60px auto', padding: '0 20px' }}>
+      <div className="glass-morphism" style={{ padding: '40px', borderRadius: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '40px' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <User size={40} />
           </div>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: '600' }}>{name || 'Loading...'}</h2>
-            <p style={{ color: 'var(--muted)', textTransform: 'capitalize' }}>{session?.user?.role?.toLowerCase() || 'Player'} Account</p>
+            <h1 style={{ fontSize: '32px', fontWeight: '800', letterSpacing: '-1px', marginBottom: '4px' }}>{user.name}</h1>
+            <p style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Mail size={16} /> {user.email}
+            </p>
           </div>
         </div>
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
-              />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+          <div style={{ padding: '20px', background: 'var(--secondary)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Shield size={16} /> Account Type
             </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
-              />
+            <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {user.role} {user.role === 'ADMIN' && <ShieldCheck size={18} />}
             </div>
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', color: 'var(--muted)' }}>Phone Number</label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={{ width: '100%', padding: '12px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--foreground)', fontFamily: 'inherit' }}
-            />
-          </div>
-
-          {saved && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.25)',
-              borderRadius: '10px', padding: '12px 14px', color: 'var(--primary)', fontSize: '13px', fontWeight: '500'
-            }}>
-              <CheckCircle2 size={16} />
-              Profile updated successfully!
+          <div style={{ padding: '20px', background: 'var(--secondary)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+            <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Calendar size={16} /> Joined On
             </div>
-          )}
+            <div style={{ fontSize: '18px', fontWeight: '700' }}>
+              {new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
 
-          <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn-primary" style={{ padding: '12px 24px' }}>
-              Save Changes
+        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '32px', display: 'flex', gap: '16px' }}>
+          <form action={async () => {
+             'use server';
+             await signOut();
+          }}>
+            <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px', background: '#dc2626' }}>
+              <LogOut size={18} /> Sign Out
             </button>
-          </div>
-        </form>
+          </form>
+          {user.role === 'ADMIN' && (
+            <a href="/admin" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px' }}>
+              Admin Dashboard
+            </a>
+          )}
+          {user.role === 'VENDOR' && (
+            <a href="/vendor" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '12px' }}>
+              Vendor Dashboard
+            </a>
+          )}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

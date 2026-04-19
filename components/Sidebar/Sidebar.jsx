@@ -44,6 +44,7 @@ const Sidebar = () => {
     // Player or Unauthenticated view
     navItems = [
       { name: 'Home', icon: Home, path: '/' },
+      { name: 'Find Venues', icon: Search, path: '/explore' },
     ];
 
     if (session?.user) {

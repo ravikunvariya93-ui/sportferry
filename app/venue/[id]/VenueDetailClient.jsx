@@ -269,29 +269,46 @@ export default function VenueDetailClient({ venue }) {
                       const isBusy = busySlots.includes(slot);
                       const isSelected = selectedSlot === slot;
                       
+                      // Check if slot has already passed for today
+                      const isToday = selectedDate === new Date().toISOString().split('T')[0];
+                      let hasPassed = false;
+                      if (isToday) {
+                        const [startTimeStr] = slot.split(' – ');
+                        const [time, meridiem] = startTimeStr.split(' ');
+                        let [h, m] = time.split(':').map(Number);
+                        if (meridiem === 'PM' && h !== 12) h += 12;
+                        if (meridiem === 'AM' && h === 12) h = 0;
+                        
+                        const slotTime = new Date();
+                        slotTime.setHours(h, m, 0, 0);
+                        hasPassed = slotTime < new Date();
+                      }
+
+                      const isDisabled = isBusy || hasPassed;
+                      
                       return (
                         <button
                           key={slot}
-                          disabled={isBusy}
+                          disabled={isDisabled}
                           onClick={() => { setSelectedSlot(slot); setBookingState('idle'); }}
                           style={{
                             padding: '10px 8px',
                             borderRadius: '8px',
                             border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                            background: isSelected ? 'var(--primary)' : (isBusy ? 'var(--glass-bg)' : 'var(--secondary)'),
-                            color: isSelected ? 'white' : (isBusy ? 'var(--muted)' : 'var(--foreground)'),
+                            background: isSelected ? 'var(--primary)' : (isDisabled ? 'var(--glass-bg)' : 'var(--secondary)'),
+                            color: isSelected ? 'white' : (isDisabled ? 'var(--muted)' : 'var(--foreground)'),
                             fontSize: '12px',
                             fontWeight: isSelected ? '600' : '500',
-                            cursor: isBusy ? 'not-allowed' : 'pointer',
-                            opacity: isBusy ? 0.5 : 1,
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            opacity: isDisabled ? 0.5 : 1,
                             transition: 'all 0.15s ease',
                             fontFamily: 'inherit',
                             position: 'relative',
-                            textDecoration: isBusy ? 'line-through' : 'none'
+                            textDecoration: isDisabled ? 'line-through' : 'none'
                           }}
                         >
                           {slot}
-                          {isBusy && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--muted)', width: '8px', height: '8px', borderRadius: '50%' }} />}
+                          {isDisabled && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--muted)', width: '8px', height: '8px', borderRadius: '50%' }} />}
                         </button>
                       );
                     })}

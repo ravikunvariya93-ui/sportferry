@@ -143,7 +143,7 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/admin/stats]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    console.error('[GET /api/admin/stats] Critical failure:', error);
+    return NextResponse.json({ message: 'Internal server error while fetching stats' }, { status: 500 });
   }
 }

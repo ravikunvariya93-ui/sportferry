@@ -29,6 +29,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'You must be logged in to book.' }, { status: 401 });
     }
 
+    const body = await request.json();
     const { 
       venueId, date, slot, sport, classification, playersCount = 1,
       bookingType = 'ONLINE', 
@@ -37,7 +38,11 @@ export async function POST(request) {
     } = body;
 
     if (!venueId || !date || !slot || !sport || !classification) {
-      return NextResponse.json({ message: 'venueId, date, slot, sport, and classification are required.' }, { status: 400 });
+      return NextResponse.json({ message: 'Missing required fields (venueId, date, slot, sport, classification).' }, { status: 400 });
+    }
+
+    if (playersCount < 1) {
+      return NextResponse.json({ message: 'playersCount must be at least 1.' }, { status: 400 });
     }
 
     const times = parseSlot(slot);

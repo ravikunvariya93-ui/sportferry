@@ -36,10 +36,27 @@ export default auth((req) => {
     }
   }
 
+  // API protection
+  if (pathname.startsWith('/api')) {
+    // Allow public auth routes and cities/public venues if needed
+    if (pathname.startsWith('/api/auth') || pathname === '/api/cities') {
+      return NextResponse.next();
+    }
+    
+    if (!session) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Protect admin APIs
+    if (pathname.startsWith('/api/admin') && session.user?.role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: ['/', '/vendor/:path*', '/admin/:path*'],
+  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'],
 };
 

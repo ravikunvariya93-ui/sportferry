@@ -16,7 +16,9 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '25');
+    let limit = parseInt(searchParams.get('limit') || '25');
+    if (limit > 100) limit = 100;
+    if (limit < 1) limit = 1;
     const status = searchParams.get('status') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';

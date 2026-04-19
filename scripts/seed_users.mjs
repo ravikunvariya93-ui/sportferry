@@ -22,6 +22,15 @@ async function seed() {
       throw new Error('MONGODB_URI is missing');
     }
 
+    // Safety check for production-like URIs
+    if (process.env.MONGODB_URI.includes('production') || process.env.MONGODB_URI.includes('cluster0')) {
+      if (process.argv[2] !== '--force-seed') {
+        console.error('CAUTION: You are trying to seed users into a production-like database!');
+        console.error('This will delete ALL existing users. Use --force-seed if you are SURE.');
+        process.exit(1);
+      }
+    }
+
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 

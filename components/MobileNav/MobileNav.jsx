@@ -20,6 +20,7 @@ const MobileNav = () => {
 
   let navItems = [
     { name: 'Home', icon: Home, path: '/' },
+    { name: 'Explore', icon: Search, path: '/explore' },
     { name: 'Bookings', icon: Calendar, path: '/bookings' },
     { name: 'Profile', icon: User, path: '/profile' },
   ];

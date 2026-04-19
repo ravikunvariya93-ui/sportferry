@@ -35,7 +35,7 @@ export async function POST(request) {
       username,
       email: email || undefined,
       password: hashedPassword,
-      role: role || 'USER',
+      role: 'USER', // Always default to USER for public registrations
     });
 
     return NextResponse.json(

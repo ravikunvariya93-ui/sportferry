@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { Suspense } from 'react';
 import HomeHero from '@/components/Home/HomeHero';
+import HomeCitySelector from '@/components/Home/HomeCitySelector';
 import HomeRecommended from '@/components/Home/HomeRecommended';
 import ExploreClient from '@/components/Explore/ExploreClient';
 
@@ -24,6 +25,9 @@ export default async function Home() {
 
       {/* Hero — hidden once user selects a city */}
       <HomeHero />
+
+      {/* Popular Cities */}
+      <HomeCitySelector />
 
       {/* Recommended for You — shown once city is set */}
       <HomeRecommended allVenues={allVenues} />

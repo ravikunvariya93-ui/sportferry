@@ -16,7 +16,9 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    let limit = parseInt(searchParams.get('limit') || '20');
+    if (limit > 100) limit = 100;
+    if (limit < 1) limit = 1;
     const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
 
@@ -24,9 +26,10 @@ export async function GET(request) {
 
     const query = {};
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: escapedSearch, $options: 'i' } },
+        { email: { $regex: escapedSearch, $options: 'i' } },
       ];
     }
     if (role) query.role = role;

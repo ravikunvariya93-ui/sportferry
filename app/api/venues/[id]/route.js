@@ -7,7 +7,7 @@ export async function GET(request, { params }) {
   try {
     const { id } = params;
     await dbConnect();
-    const venue = await Venue.findById(id).populate('owner', 'name email');
+    const venue = await Venue.findById(id).populate('owner', 'name');
     
     if (!venue) {
       return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
