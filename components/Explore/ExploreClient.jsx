@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Search, MapPin, LocateFixed, Loader2, X, SlidersHorizontal } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
 
-const SPORTS = ['Box Cricket', 'Tennis Ball Cricket', 'Football', 'Badminton', 'Tennis', 'Table Tennis'];
+const SPORTS = ['Box Cricket'];
 
 const SORT_OPTIONS = [
   { value: 'default',   label: 'Recommended' },
@@ -36,19 +36,35 @@ export default function ExploreClient({ initialVenues }) {
     if (sportParam) setSelectedSport(sportParam);
   }, [searchParams]);
 
+  const locationControllerRef = React.useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (locationControllerRef.current) locationControllerRef.current.abort();
+    };
+  }, []);
+
   // Geolocation + reverse geocode
   const detectLocation = useCallback(() => {
     if (!navigator?.geolocation) {
       setGeoState('denied');
       return;
     }
+
+    if (locationControllerRef.current) locationControllerRef.current.abort();
+    locationControllerRef.current = new AbortController();
+    const signal = locationControllerRef.current.signal;
+
     setGeoState('loading');
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`,
-            { headers: { 'Accept-Language': 'en' } }
+            { 
+              headers: { 'Accept-Language': 'en' },
+              signal 
+            }
           );
           const data = await res.json();
           // Try progressively: city > town > county > state_district
@@ -72,7 +88,8 @@ export default function ExploreClient({ initialVenues }) {
           setDetectedCity(cityToSet);
           setSelectedCity(matched || 'All Cities');
           setGeoState('success');
-        } catch {
+        } catch (err) {
+          if (err.name === 'AbortError') return;
           setGeoState('denied');
         }
       },

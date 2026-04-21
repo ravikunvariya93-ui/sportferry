@@ -34,7 +34,7 @@ export default function HomeHero() {
           Your Game, <span style={{ color: 'var(--primary)' }}>Your Ground.</span>
         </h1>
         <p className={styles.heroSubtitle}>
-          Book the best sports venues in your city in seconds. From box cricket to football turfs, we've got it all perfectly mapped out for you.
+          Book the best box cricket venues in your city in seconds. We've got them all perfectly mapped out for you.
         </p>
         <div className={styles.heroButtons}>
           <Link href="/" className="btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px 28px', fontWeight: '600', borderRadius: '12px' }}>

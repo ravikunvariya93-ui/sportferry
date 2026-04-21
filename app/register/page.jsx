@@ -15,15 +15,29 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const submitControllerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (submitControllerRef.current) submitControllerRef.current.abort();
+    };
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (submitControllerRef.current) submitControllerRef.current.abort();
+    submitControllerRef.current = new AbortController();
+    const signal = submitControllerRef.current.signal;
+
     setLoading(true);
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, username, email, password, role }),
+        signal,
       });
 
       if (res.ok) {
@@ -32,7 +46,8 @@ export default function RegisterPage() {
         const errorData = await res.json();
         setError(errorData.message || 'Registration failed. Please try again.');
       }
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       setError('A network error occurred. Please try again.');
     } finally {
       setLoading(false);

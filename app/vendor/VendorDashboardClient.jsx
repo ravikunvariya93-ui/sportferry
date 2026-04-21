@@ -26,7 +26,19 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
   const [errorId, setErrorId]         = useState(null);
   const [localBookings, setLocalBookings] = useState(bookings);
 
+  const actionControllerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (actionControllerRef.current) actionControllerRef.current.abort();
+    };
+  }, []);
+
   const handleApprove = async (bookingId) => {
+    if (actionControllerRef.current) actionControllerRef.current.abort();
+    actionControllerRef.current = new AbortController();
+    const signal = actionControllerRef.current.signal;
+
     setLoadingId(bookingId);
     setErrorId(null);
     try {
@@ -34,6 +46,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'CONFIRMED' }),
+        signal,
       });
       if (res.ok) {
         setLocalBookings(prev =>
@@ -43,7 +56,8 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
       } else {
         setErrorId(bookingId);
       }
-    } catch {
+    } catch (e) {
+      if (e.name === 'AbortError') return;
       setErrorId(bookingId);
     } finally {
       setLoadingId(null);
@@ -51,13 +65,18 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
   };
 
   const handleCancel = async (bookingId) => {
+    if (actionControllerRef.current) actionControllerRef.current.abort();
+    actionControllerRef.current = new AbortController();
+    const signal = actionControllerRef.current.signal;
+
     setLoadingId(bookingId);
     setErrorId(null);
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, { 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CANCELLED' })
+        body: JSON.stringify({ status: 'CANCELLED' }),
+        signal,
       });
       if (res.ok) {
         setLocalBookings(prev =>
@@ -70,7 +89,8 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
         setErrorId(bookingId);
         console.error(d.message);
       }
-    } catch {
+    } catch (e) {
+      if (e.name === 'AbortError') return;
       setErrorId(bookingId);
     } finally {
       setLoadingId(null);

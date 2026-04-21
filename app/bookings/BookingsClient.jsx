@@ -16,11 +16,26 @@ export default function BookingsClient({ initialBookings }) {
   const [loadingId, setLoadingId] = useState(null);
   const [errorMap, setErrorMap] = useState({});
 
+  const actionControllerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (actionControllerRef.current) actionControllerRef.current.abort();
+    };
+  }, []);
+
   const handleCancel = async (bookingId) => {
+    if (actionControllerRef.current) actionControllerRef.current.abort();
+    actionControllerRef.current = new AbortController();
+    const signal = actionControllerRef.current.signal;
+
     setLoadingId(bookingId);
     setErrorMap(prev => ({ ...prev, [bookingId]: null }));
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, { method: 'PATCH' });
+      const res = await fetch(`/api/bookings/${bookingId}`, { 
+        method: 'PATCH',
+        signal 
+      });
       if (res.ok) {
         setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' } : b));
         setConfirmingId(null);
@@ -28,7 +43,8 @@ export default function BookingsClient({ initialBookings }) {
         const d = await res.json();
         setErrorMap(prev => ({ ...prev, [bookingId]: d.message || 'Cancellation failed.' }));
       }
-    } catch {
+    } catch (e) {
+      if (e.name === 'AbortError') return;
       setErrorMap(prev => ({ ...prev, [bookingId]: 'Network error. Please try again.' }));
     } finally {
       setLoadingId(null);

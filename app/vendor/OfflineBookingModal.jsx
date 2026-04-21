@@ -31,21 +31,30 @@ export default function OfflineBookingModal({ venues, onClose }) {
   const [busySlots, setBusySlots] = useState([]);
   const selectedVenue = venues.find(v => v.id === form.venueId);
 
-  // Set default sport when venue changes
+  const availabilityControllerRef = React.useRef(null);
+  const submitControllerRef = React.useRef(null);
+
   useEffect(() => {
-    if (selectedVenue?.sportTypes?.length > 0 && !form.sport) {
-      setForm(prev => ({ ...prev, sport: selectedVenue.sportTypes[0] }));
-    }
-  }, [selectedVenue, form.sport]);
+    return () => {
+      if (availabilityControllerRef.current) availabilityControllerRef.current.abort();
+      if (submitControllerRef.current) submitControllerRef.current.abort();
+    };
+  }, []);
 
   const fetchAvailability = useCallback(async () => {
     if (!form.venueId || !form.date) return;
+    
+    if (availabilityControllerRef.current) availabilityControllerRef.current.abort();
+    availabilityControllerRef.current = new AbortController();
+    const signal = availabilityControllerRef.current.signal;
+
     setFetchingAvailability(true);
     try {
-      const res = await fetch(`/api/venues/${form.venueId}/availability?date=${form.date}`);
+      const res = await fetch(`/api/venues/${form.venueId}/availability?date=${form.date}`, { signal });
       const data = await res.json();
       setBusySlots(data.busySlots || []);
     } catch (e) {
+      if (e.name === 'AbortError') return;
       console.error('Failed to fetch availability', e);
     } finally {
       setFetchingAvailability(false);
@@ -67,6 +76,10 @@ export default function OfflineBookingModal({ venues, onClose }) {
       return;
     }
 
+    if (submitControllerRef.current) submitControllerRef.current.abort();
+    submitControllerRef.current = new AbortController();
+    const signal = submitControllerRef.current.signal;
+
     setLoading(true);
     setError('');
     try {
@@ -77,6 +90,7 @@ export default function OfflineBookingModal({ venues, onClose }) {
           ...form,
           bookingType: 'OFFLINE',
         }),
+        signal,
       });
       const data = await res.json();
       if (res.ok) {
@@ -85,7 +99,8 @@ export default function OfflineBookingModal({ venues, onClose }) {
       } else {
         setError(data.message || 'Failed to block slot.');
       }
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);

@@ -22,18 +22,19 @@ export default function UsersClient({ currentAdminId }) {
   const [deleting, setDeleting] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(null);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (signal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page, limit: 20 });
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
-      const res = await fetch(`/api/admin/users?${params}`);
+      const res = await fetch(`/api/admin/users?${params}`, { signal });
       const data = await res.json();
       setUsers(data.users || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
     } catch (e) {
+      if (e.name === 'AbortError') return;
       console.error(e);
     } finally {
       setLoading(false);
@@ -41,8 +42,12 @@ export default function UsersClient({ currentAdminId }) {
   }, [page, search, roleFilter]);
 
   useEffect(() => {
-    const t = setTimeout(fetchUsers, search ? 400 : 0);
-    return () => clearTimeout(t);
+    const controller = new AbortController();
+    const t = setTimeout(() => fetchUsers(controller.signal), search ? 400 : 0);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [fetchUsers, search]);
 
   const handleRoleChange = async (userId, newRole) => {
@@ -56,7 +61,10 @@ export default function UsersClient({ currentAdminId }) {
       if (res.ok) {
         setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role: newRole } : u));
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      if (e.name === 'AbortError') return;
+      console.error(e); 
+    }
     finally { setUpdatingRole(null); }
   };
 

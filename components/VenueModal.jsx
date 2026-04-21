@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, AlertCircle, CheckCircle2, MapPin, DollarSign } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const SPORT_OPTIONS = ['Box Cricket', 'Tennis Ball Cricket', 'Football', 'Badminton', 'Tennis', 'Table Tennis'];
+const SPORT_OPTIONS = ['Box Cricket'];
 const AMENITY_OPTIONS = ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipment Provided', 'Changing Room', 'Cafeteria'];
 
 export default function VenueModal({ onClose, editingVenue = null }) {
@@ -26,10 +26,14 @@ export default function VenueModal({ onClose, editingVenue = null }) {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Prevent body scroll
+  const submitControllerRef = React.useRef(null);
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+      if (submitControllerRef.current) submitControllerRef.current.abort();
+    };
   }, []);
 
   const toggleArrayItem = (field, item) => {
@@ -52,6 +56,11 @@ export default function VenueModal({ onClose, editingVenue = null }) {
       setError('Select at least one sport type.');
       return;
     }
+
+    if (submitControllerRef.current) submitControllerRef.current.abort();
+    submitControllerRef.current = new AbortController();
+    const signal = submitControllerRef.current.signal;
+
     setLoading(true);
     setError('');
 
@@ -63,6 +72,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
+        signal,
       });
       const data = await res.json();
       if (res.ok) {
@@ -71,7 +81,8 @@ export default function VenueModal({ onClose, editingVenue = null }) {
       } else {
         setError(data.message || `Failed to ${isEdit ? 'update' : 'register'} venue.`);
       }
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);

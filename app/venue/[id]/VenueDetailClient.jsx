@@ -10,7 +10,13 @@ export default function VenueDetailClient({ venue }) {
   const { data: session } = useSession();
   const router = useRouter();
 
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [busySlots, setBusySlots] = useState([]);
   const [bookingState, setBookingState] = useState('idle'); // idle | loading | success | error
@@ -18,35 +24,62 @@ export default function VenueDetailClient({ venue }) {
   const [playersCount, setPlayersCount] = useState(1);
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingId, setBookingId] = useState(null);
+  const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
-    const fetchAvailability = async () => {
+    if (!selectedSlot) return;
+    const updateCountdown = () => {
+      const [startTimeStr] = selectedSlot.split(' – ');
+      const [time, meridiem] = startTimeStr.split(' ');
+      let [h, m] = time.split(':').map(Number);
+      if (meridiem === 'PM' && h !== 12) h += 12;
+      if (meridiem === 'AM' && h === 12) h = 0;
+      
+      const slotTime = new Date();
+      slotTime.setHours(h, m, 0, 0);
+      
+      const diff = slotTime - new Date();
+      if (diff <= 0) {
+        setTimeLeft('Started');
+      } else {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        if (hours > 0) {
+          setTimeLeft(`${hours}h ${mins}m left hurry up`);
+        } else {
+          setTimeLeft(`${mins}m left hurry up`);
+        }
+      }
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, [selectedSlot]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const fetchAvailability = async (signal) => {
       try {
-        const res = await fetch(`/api/venues/${venue._id}/availability?date=${selectedDate}`);
+        const res = await fetch(`/api/venues/${venue._id}/availability?date=${selectedDate}`, { signal });
         if (res.ok) {
           const data = await res.json();
-          setBusySlots(data.busySlots || []);
+          setBusySlots(data.slotStats || {});
         }
       } catch (err) {
+        if (err.name === 'AbortError') return;
         console.error('Failed to fetch availability', err);
       }
     };
-    if (selectedDate) fetchAvailability();
+    if (selectedDate) fetchAvailability(controller.signal);
+    return () => controller.abort();
   }, [selectedDate, venue._id]);
 
   const slots = [
-    '06:00 AM – 07:00 AM',
-    '07:00 AM – 08:00 AM',
-    '08:00 AM – 09:00 AM',
-    '09:00 AM – 10:00 AM',
-    '04:00 PM – 05:00 PM',
-    '05:00 PM – 06:00 PM',
-    '06:00 PM – 07:00 PM',
-    '07:00 PM – 08:00 PM',
-    '08:00 PM – 09:00 PM',
-    '09:00 PM – 10:00 PM',
-    '10:00 PM – 11:00 PM',
-    '11:00 PM – 12:00 AM',
+    '06:00 AM – 09:00 AM',
+    '09:00 AM – 12:00 PM',
+    '12:00 PM – 03:00 PM',
+    '03:00 PM – 06:00 PM',
+    '06:00 PM – 11:59 PM',
   ];
 
   const mapQuery = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
@@ -78,8 +111,9 @@ export default function VenueDetailClient({ venue }) {
           venueId: venue._id,
           date: selectedDate,
           slot: selectedSlot,
-          sport: venue.sportTypes[0], // Defaulting to first sport for simplicity, can be expanded to a picker later if needed
+          sport: venue.sportTypes[0],
           classification: classification,
+          playersCount: playersCount,
         }),
       });
 
@@ -264,12 +298,12 @@ export default function VenueDetailClient({ venue }) {
 
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Available Time Slots</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                     {slots.map(slot => {
-                      const isBusy = busySlots.includes(slot);
+                      const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
+                      const isFull = stats.total >= 12;
                       const isSelected = selectedSlot === slot;
                       
-                      // Check if slot has already passed for today
                       const isToday = selectedDate === new Date().toISOString().split('T')[0];
                       let hasPassed = false;
                       if (isToday) {
@@ -278,13 +312,12 @@ export default function VenueDetailClient({ venue }) {
                         let [h, m] = time.split(':').map(Number);
                         if (meridiem === 'PM' && h !== 12) h += 12;
                         if (meridiem === 'AM' && h === 12) h = 0;
-                        
                         const slotTime = new Date();
                         slotTime.setHours(h, m, 0, 0);
                         hasPassed = slotTime < new Date();
                       }
 
-                      const isDisabled = isBusy || hasPassed;
+                      const isDisabled = isFull || hasPassed;
                       
                       return (
                         <button
@@ -292,23 +325,43 @@ export default function VenueDetailClient({ venue }) {
                           disabled={isDisabled}
                           onClick={() => { setSelectedSlot(slot); setBookingState('idle'); }}
                           style={{
-                            padding: '10px 8px',
-                            borderRadius: '8px',
+                            padding: '16px',
+                            borderRadius: '16px',
                             border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                            background: isSelected ? 'var(--primary)' : (isDisabled ? 'var(--glass-bg)' : 'var(--secondary)'),
-                            color: isSelected ? 'white' : (isDisabled ? 'var(--muted)' : 'var(--foreground)'),
-                            fontSize: '12px',
-                            fontWeight: isSelected ? '600' : '500',
+                            background: isSelected ? 'rgba(22,163,74,0.1)' : 'var(--secondary)',
+                            color: 'var(--foreground)',
                             cursor: isDisabled ? 'not-allowed' : 'pointer',
-                            opacity: isDisabled ? 0.5 : 1,
-                            transition: 'all 0.15s ease',
-                            fontFamily: 'inherit',
-                            position: 'relative',
-                            textDecoration: isDisabled ? 'line-through' : 'none'
+                            opacity: isDisabled ? 0.6 : 1,
+                            transition: 'all 0.2s ease',
+                            textAlign: 'left',
+                            position: 'relative'
                           }}
                         >
-                          {slot}
-                          {isDisabled && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--muted)', width: '8px', height: '8px', borderRadius: '50%' }} />}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '700' }}>{slot}</span>
+                            {isSelected && <CheckCircle size={16} color="var(--primary)" />}
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--muted)' }}>
+                            <div style={{ display: 'flex', flexDir: 'column' }}>
+                              <span>Team 1: <strong>{stats.team1}/6</strong></span>
+                              <div style={{ width: '60px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '4px' }}>
+                                <div style={{ width: `${(stats.team1 / 6) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: '2px' }} />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDir: 'column' }}>
+                              <span>Team 2: <strong>{stats.team2}/6</strong></span>
+                              <div style={{ width: '60px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '4px' }}>
+                                <div style={{ width: `${(stats.team2 / 6) * 100}%`, height: '100%', background: '#3b82f6', borderRadius: '2px' }} />
+                              </div>
+                            </div>
+                          </div>
+
+                          {isSelected && !isDisabled && (
+                            <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--primary)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={12} /> {timeLeft}
+                            </div>
+                          )}
                         </button>
                       );
                     })}
@@ -327,16 +380,22 @@ export default function VenueDetailClient({ venue }) {
                             <button
                               key={type}
                               type="button"
-                              onClick={() => setClassification(type)}
+                              onClick={() => {
+                                setClassification(type);
+                                // Set default players count for each type
+                                if (type === 'SOLO') setPlayersCount(1);
+                                if (type === 'TEAM') setPlayersCount(3);
+                                if (type === 'GROUP') setPlayersCount(12);
+                              }}
                               style={{
                                 flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
                                 background: active ? 'var(--primary)' : 'var(--secondary)',
                                 color: active ? 'white' : 'var(--foreground)',
                                 border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                                textTransform: 'uppercase', letterSpacing: '0.5px'
+                                textTransform: 'capitalize', letterSpacing: '0.5px'
                               }}
                             >
-                              {type.slice(0, 1)}
+                              {type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()}
                             </button>
                           );
                         })}
@@ -344,20 +403,99 @@ export default function VenueDetailClient({ venue }) {
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Players</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={playersCount}
-                        onChange={(e) => setPlayersCount(parseInt(e.target.value) || 1)}
-                        style={{
-                          width: '100%', padding: '10px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', 
-                          background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)',
-                          outline: 'none', height: '40px'
-                        }}
-                      />
+                      <select 
+                         value={playersCount}
+                         onChange={(e) => setPlayersCount(parseInt(e.target.value))}
+                         style={{
+                           width: '100%', padding: '0 10px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', 
+                           background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)',
+                           outline: 'none', height: '40px', appearance: 'none', cursor: 'pointer'
+                         }}
+                      >
+                        {classification === 'SOLO' && [1, 2].map(n => <option key={n} value={n}>{n} Player{n > 1 ? 's' : ''}</option>)}
+                        {classification === 'TEAM' && [3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Players</option>)}
+                        {classification === 'GROUP' && <option value={12}>12 Players (Full)</option>}
+                      </select>
                     </div>
                   </div>
+                  
+                  {/* Real-time Side Filling info */}
+                  {selectedSlot && busySlots[selectedSlot] && classification === 'SOLO' && (
+                    <div style={{ marginTop: '16px', background: 'rgba(59, 130, 246, 0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '13px', color: '#1d4ed8' }}>
+                      <AlertCircle size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+                      {busySlots[selectedSlot].soloSide === 2 
+                        ? 'Solo Bookings are in progress on Team 2 Side, Please Select on Team - 2 Side'
+                        : 'Solo Bookings are in progress on Team 1 Side, Please Select on Team - 1 Side'
+                      }
+                    </div>
+                  )}
+
+                  {selectedSlot && busySlots[selectedSlot] && busySlots[selectedSlot].team1 === 5 && playersCount === 4 && (
+                    <div style={{ marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '13px', color: '#b91c1c' }}>
+                      <AlertCircle size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+                      Choose another turf because there is more players are playing against this turf
+                    </div>
+                  )}
+
+                  {/* ──────────────── New: Team Rosters ──────────────── */}
+                  {selectedSlot && busySlots[selectedSlot] && (busySlots[selectedSlot].team1Slots?.length > 0 || busySlots[selectedSlot].team2Slots?.length > 0) && (
+                    <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                        <div style={{ padding: '6px', background: 'rgba(22,163,74,0.1)', borderRadius: '8px' }}>
+                          <Star size={14} color="var(--primary)" />
+                        </div>
+                        <h4 style={{ fontSize: '15px', fontWeight: '700' }}>Current Match Lineup</h4>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        {/* Team 1 Side */}
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            Team 1 <span style={{ padding: '2px 6px', background: 'rgba(22,163,74,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlot].team1}/6</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {busySlots[selectedSlot].team1Slots?.map((p, idx) => (
+                              <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
+                                <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>{p.type.toLowerCase()}</span>
+                                  <span>x{p.count}</span>
+                                </div>
+                              </div>
+                            ))}
+                            {busySlots[selectedSlot].team1 < 6 && (
+                              <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
+                                {6 - busySlots[selectedSlot].team1} spots left
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Team 2 Side */}
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#3b82f6', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            Team 2 <span style={{ padding: '2px 6px', background: 'rgba(59,130,246,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlot].team2}/6</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {busySlots[selectedSlot].team2Slots?.map((p, idx) => (
+                              <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
+                                <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>{p.type.toLowerCase()}</span>
+                                  <span>x{p.count}</span>
+                                </div>
+                              </div>
+                            ))}
+                            {busySlots[selectedSlot].team2 < 6 && (
+                              <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
+                                {6 - busySlots[selectedSlot].team2} spots left
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Inline error banner */}

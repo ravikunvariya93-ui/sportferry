@@ -31,23 +31,29 @@ async function seed() {
     if (!vendor) throw new Error('Vendor user not found. Run seed_users.mjs first.');
 
     // 3. Create 10 venues
-    const sports = ['Box Cricket', 'Football', 'Badminton', 'Tennis'];
-    const cities = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad'];
-    const areas = ['Downtown', 'West End', 'Sports Complex', 'Green Park'];
+    const sports = ['Box Cricket'];
+    const gujaratCities = ['Surat', 'Ahmedabad', 'Vadodara', 'Rajkot'];
+    const gujaratAreas = ['Adajan', 'Vesu', 'Satellite', 'Prahlad Nagar', 'Alkapuri', 'Sayajigunj', 'Kalawad Road'];
+    const venueNames = [
+      'TopSpin Box Cricket', 'The Arena Gujarat', 'Surat Super Strikers', 
+      'Ahmedabad Action Arena', 'Vadodara Victory Turf', 'Rajkot Royals Box',
+      'SkyLine Sports', 'Green Field Box', 'Master Blasters Turf', 'Gujarat Game Zone'
+    ];
 
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 0; i < 10; i++) {
         await Venue.create({
-            name: `Extreme Arena ${i}`,
+            name: venueNames[i],
             owner: vendor._id,
-            sportTypes: [sports[i % sports.length]],
-            city: cities[i % cities.length],
-            area: areas[i % areas.length],
-            address: `${i * 101} Main St, ${cities[i % cities.length]}`,
-            pricePerHour: 500 + (i * 50),
-            amenities: ['Parking', 'Water', 'Changing Room'],
-            rating: 4 + (i * 0.1)
+            sportTypes: ['Box Cricket'],
+            city: gujaratCities[i % gujaratCities.length],
+            area: gujaratAreas[i % gujaratAreas.length],
+            address: `${(i + 1) * 12} High Street, Near Landmark Center, ${gujaratCities[i % gujaratCities.length]}`,
+            pricePerHour: 800 + (i * 100),
+            amenities: ['Parking', 'Drinking Water', 'Floodlights', 'Seating Area'],
+            rating: 4.2 + (i * 0.08),
+            images: [`https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=800`]
         });
-        console.log(`Created Venue ${i}`);
+        console.log(`Created Venue: ${venueNames[i]}`);
     }
 
     console.log('Seeding complete!');

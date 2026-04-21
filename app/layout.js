@@ -9,7 +9,7 @@ import Footer from '@/components/Footer/Footer';
 
 export const metadata = {
   title: 'Sportferry | Find & Book Sports Near You',
-  description: 'Book box cricket, tennis ball cricket, football turf and more in your city.',
+  description: 'Book the best box cricket venues in your city. Perfectly mapped out for your next game.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

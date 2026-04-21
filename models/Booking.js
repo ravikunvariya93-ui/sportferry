@@ -58,6 +58,11 @@ const BookingSchema = new mongoose.Schema({
     default: 1,
     min: 1,
   },
+  teamSide: {
+    type: Number,
+    enum: [1, 2],
+    default: 1,
+  },
   paymentId: {
     type: String,
   },

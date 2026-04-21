@@ -23,23 +23,31 @@ export default function BookingsClient() {
   const [total, setTotal] = useState(0);
   const [updatingId, setUpdatingId] = useState(null);
 
-  const fetchBookings = useCallback(async () => {
+  const fetchBookings = useCallback(async (signal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page, limit: 25 });
       if (activeTab !== 'All') params.set('status', activeTab);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
-      const res = await fetch(`/api/admin/bookings?${params}`);
+      const res = await fetch(`/api/admin/bookings?${params}`, { signal });
       const data = await res.json();
       setBookings(data.bookings || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, [page, activeTab, dateFrom, dateTo]);
 
-  useEffect(() => { fetchBookings(); }, [fetchBookings]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchBookings(controller.signal);
+    return () => controller.abort();
+  }, [fetchBookings]);
 
   const handleStatusChange = async (bookingId, newStatus) => {
     setUpdatingId(bookingId);

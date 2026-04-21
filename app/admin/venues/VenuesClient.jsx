@@ -16,23 +16,31 @@ export default function VenuesClient() {
   const [editingVenue, setEditingVenue] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchVenues = useCallback(async () => {
+  const fetchVenues = useCallback(async (signal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page, limit: 12 });
       if (search) params.set('search', search);
-      const res = await fetch(`/api/admin/venues?${params}`);
+      const res = await fetch(`/api/admin/venues?${params}`, { signal });
       const data = await res.json();
       setVenues(data.venues || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, [page, search]);
 
   useEffect(() => {
-    const t = setTimeout(fetchVenues, search ? 400 : 0);
-    return () => clearTimeout(t);
+    const controller = new AbortController();
+    const t = setTimeout(() => fetchVenues(controller.signal), search ? 400 : 0);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [fetchVenues, search]);
 
   const handleDelete = async () => {
@@ -44,7 +52,10 @@ export default function VenuesClient() {
         setVenues((prev) => prev.filter((v) => v.id !== deleteTarget.id));
         setDeleteTarget(null);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      if (e.name === 'AbortError') return;
+      console.error(e); 
+    }
     finally { setDeleting(false); }
   };
 
