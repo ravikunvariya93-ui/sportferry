@@ -300,68 +300,148 @@ export default function VenueDetailClient({ venue }) {
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Available Time Slots</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                     {slots.map(slot => {
-                      const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
-                      const isFull = stats.total >= 12;
-                      const isSelected = selectedSlot === slot;
-                      
-                      const isToday = selectedDate === new Date().toISOString().split('T')[0];
-                      let hasPassed = false;
-                      if (isToday) {
-                        const [startTimeStr] = slot.split(' – ');
-                        const [time, meridiem] = startTimeStr.split(' ');
-                        let [h, m] = time.split(':').map(Number);
-                        if (meridiem === 'PM' && h !== 12) h += 12;
-                        if (meridiem === 'AM' && h === 12) h = 0;
-                        const slotTime = new Date();
-                        slotTime.setHours(h, m, 0, 0);
-                        hasPassed = slotTime < new Date();
-                      }
+                        const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
+                        const isFull = stats.total >= 12;
+                        const isSelected = selectedSlot === slot;
+                        
+                        let projTeam1 = 0;
+                        let projTeam2 = 0;
+                        let validPlacement = true;
 
-                      const isDisabled = isFull || hasPassed;
-                      
-                      return (
-                        <button
-                          key={slot}
-                          disabled={isDisabled}
-                          onClick={() => { setSelectedSlot(slot); setBookingState('idle'); }}
-                          style={{
-                            padding: '16px',
-                            borderRadius: '16px',
-                            border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                            background: isSelected ? 'rgba(22,163,74,0.1)' : 'var(--secondary)',
-                            color: 'var(--foreground)',
-                            cursor: isDisabled ? 'not-allowed' : 'pointer',
-                            opacity: isDisabled ? 0.6 : 1,
-                            transition: 'all 0.2s ease',
-                            textAlign: 'left',
-                            position: 'relative'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <span style={{ fontSize: '14px', fontWeight: '700' }}>{slot}</span>
-                            {isSelected && <CheckCircle size={16} color="var(--primary)" />}
-                          </div>
-                          
-                          <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--muted)' }}>
-                            <div style={{ display: 'flex', flexDir: 'column' }}>
-                              <span>Team 1: <strong>{stats.team1}/6</strong></span>
-                              <div style={{ width: '60px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '4px' }}>
-                                <div style={{ width: `${(stats.team1 / 6) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: '2px' }} />
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', flexDir: 'column' }}>
-                              <span>Team 2: <strong>{stats.team2}/6</strong></span>
-                              <div style={{ width: '60px', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '4px' }}>
-                                <div style={{ width: `${(stats.team2 / 6) * 100}%`, height: '100%', background: '#3b82f6', borderRadius: '2px' }} />
-                              </div>
-                            </div>
-                          </div>
+                        if (isSelected) {
+                          if (classification === 'GROUP') {
+                             projTeam1 = 6;
+                             projTeam2 = 6;
+                          } else if (classification === 'SOLO') {
+                             const hasSoloSide1 = stats.soloSide === 1;
+                             const hasSoloSide2 = stats.soloSide === 2;
+                             let assignedSide = 1;
+                             if (hasSoloSide2 && stats.team2 < 6) assignedSide = 2;
+                             else if (hasSoloSide1 && stats.team1 < 6) assignedSide = 1;
+                             else if (stats.team2 > 0 && stats.team2 < 6 && !hasSoloSide1) assignedSide = 1;
+                             else if (stats.team1 < 6) assignedSide = 1;
+                             else if (stats.team2 < 6) assignedSide = 2;
+                             
+                             if (assignedSide === 1) projTeam1 = playersCount;
+                             else projTeam2 = playersCount;
+                             
+                             if (stats.team1 + projTeam1 > 6 && assignedSide === 1) validPlacement = false;
+                             if (stats.team2 + projTeam2 > 6 && assignedSide === 2) validPlacement = false;
+                          } else if (classification === 'TEAM') {
+                             if (stats.team1 === 5 && playersCount === 4) {
+                                validPlacement = false;
+                             } else if (stats.team1 + playersCount <= 6) {
+                                projTeam1 = playersCount;
+                             } else if (stats.team2 + playersCount <= 6) {
+                                projTeam2 = playersCount;
+                             } else {
+                                validPlacement = false;
+                             }
+                          }
+                        }
 
-                          {isSelected && !isDisabled && (
-                            <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--primary)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} /> {timeLeft}
+                        const isToday = selectedDate === new Date().toISOString().split('T')[0];
+                        let hasPassed = false;
+                        if (isToday) {
+                          const [startTimeStr] = slot.split(' – ');
+                          const [time, meridiem] = startTimeStr.split(' ');
+                          let [h, m] = time.split(':').map(Number);
+                          if (meridiem === 'PM' && h !== 12) h += 12;
+                          if (meridiem === 'AM' && h === 12) h = 0;
+                          const slotTime = new Date();
+                          slotTime.setHours(h, m, 0, 0);
+                          hasPassed = slotTime < new Date();
+                        }
+
+                        const isDisabled = isFull || hasPassed;
+                        
+                        return (
+                          <button
+                            key={slot}
+                            disabled={isDisabled}
+                            onClick={() => { setSelectedSlot(slot); setBookingState('idle'); }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'stretch',
+                              borderRadius: '12px',
+                              border: isSelected ? '2px solid var(--primary)' : '1px dashed #00a4b4',
+                              background: isSelected ? 'rgba(22,163,74,0.1)' : 'linear-gradient(to right, rgba(0,164,180,0.15), rgba(0,164,180,0.03))',
+                              color: 'var(--foreground)',
+                              cursor: isDisabled ? 'not-allowed' : 'pointer',
+                              opacity: isDisabled ? 0.6 : 1,
+                              transition: 'all 0.2s ease',
+                              textAlign: 'left',
+                              position: 'relative',
+                              overflow: 'hidden',
+                              padding: 0
+                            }}
+                          >
+                            <div style={{
+                              background: 'var(--glass-bg)',
+                              padding: '12px 10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRight: '1px dashed #00a4b4',
+                              writingMode: 'vertical-rl',
+                              transform: 'rotate(180deg)',
+                              fontWeight: '700',
+                              fontSize: '13px',
+                              letterSpacing: '1px',
+                              color: 'var(--foreground)'
+                            }}>
+                              Turf 1
                             </div>
-                          )}
+
+                            <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '14px', fontWeight: '800' }}>{slot}</span>
+                                {isSelected && <CheckCircle size={16} color="var(--primary)" />}
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {/* Team 1 */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 1</span>
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    {[...Array(6)].map((_, i) => (
+                                      <div key={`t1-${i}`} style={{
+                                        width: '14px', height: '14px', borderRadius: '50%',
+                                        background: i < stats.team1 ? '#00a4b4' : (validPlacement && isSelected && i < stats.team1 + projTeam1 ? '#fbbf24' : '#1a1a1a'),
+                                        boxShadow: i < stats.team1 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && isSelected && i < stats.team1 + projTeam1 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
+                                        flexShrink: 0,
+                                        transition: 'all 0.3s ease'
+                                      }} />
+                                    ))}
+                                  </div>
+                                </div>
+                                
+                                {/* dotted line separator */}
+                                <div style={{ height: '1px', borderBottom: '1px dashed #00a4b4', opacity: 0.4 }}></div>
+                                
+                                {/* Team 2 */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 2</span>
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    {[...Array(6)].map((_, i) => (
+                                      <div key={`t2-${i}`} style={{
+                                        width: '14px', height: '14px', borderRadius: '50%',
+                                        background: i < stats.team2 ? '#00a4b4' : (validPlacement && isSelected && i < stats.team2 + projTeam2 ? '#fbbf24' : '#1a1a1a'),
+                                        boxShadow: i < stats.team2 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && isSelected && i < stats.team2 + projTeam2 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
+                                        flexShrink: 0,
+                                        transition: 'all 0.3s ease'
+                                      }} />
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                            {isSelected && !isDisabled && (
+                              <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--primary)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Clock size={14} /> {timeLeft}
+                              </div>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
