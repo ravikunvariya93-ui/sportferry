@@ -133,7 +133,7 @@ export default function VenueDetailClient({ venue }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '80px' }}>
+    <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '80px' }}>
 
       {/* Cinematic Hero */}
       <section className={styles.hero}>
@@ -172,7 +172,7 @@ export default function VenueDetailClient({ venue }) {
       <div className={styles.mainGrid}>
 
         {/* Left: Content */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+        <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
 
           {/* Overview */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -180,7 +180,7 @@ export default function VenueDetailClient({ venue }) {
             <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '16px' }}>
               Welcome to {venue.name}, located in the heart of {venue.area}. Experience the best {venue.sportTypes[0]} games on our professionally maintained surfaces. Designed for players of all skill levels, we provide top-tier floodlights for night matches, ample parking, and an energetic atmosphere. Whether for casual friendly matches, high-stakes corporate events, or structured tournaments, {venue.name} is the premier sports destination in {venue.city}.
             </p>
-            <div style={{ background: 'var(--glass-bg)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <div className="responsive-flex-col responsive-padding responsive-gap-sm" style={{ background: 'var(--glass-bg)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', gap: '24px' }}>
               <div style={{ flex: 1, minWidth: '140px' }}>
                 <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Clock size={18} color="var(--primary)" /> Hours of Operation
@@ -238,7 +238,7 @@ export default function VenueDetailClient({ venue }) {
 
         {/* Right: Booking Sidebar */}
         <aside>
-          <div className="glass-morphism" style={{
+          <div className="glass-morphism responsive-padding" style={{
             padding: '32px',
             position: 'sticky',
             top: '40px',
@@ -294,6 +294,58 @@ export default function VenueDetailClient({ venue }) {
                       fontFamily: 'inherit'
                     }}
                   />
+                </div>
+
+                {/* Classification & Players Picker */}
+                <div style={{ marginBottom: '24px' }}>
+                  <div className="responsive-grid-1 responsive-gap-sm" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Booking Type</label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {['SOLO', 'TEAM', 'GROUP'].map(type => {
+                          const active = classification === type;
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => {
+                                setClassification(type);
+                                // Set default players count for each type
+                                if (type === 'SOLO') setPlayersCount(1);
+                                if (type === 'TEAM') setPlayersCount(3);
+                                if (type === 'GROUP') setPlayersCount(12);
+                              }}
+                              style={{
+                                flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
+                                background: active ? 'var(--primary)' : 'var(--secondary)',
+                                color: active ? 'white' : 'var(--foreground)',
+                                border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                                textTransform: 'capitalize', letterSpacing: '0.5px'
+                              }}
+                            >
+                              {type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Players</label>
+                      <select 
+                         value={playersCount}
+                         onChange={(e) => setPlayersCount(parseInt(e.target.value))}
+                         style={{
+                           width: '100%', padding: '0 10px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', 
+                           background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)',
+                           outline: 'none', height: '40px', appearance: 'none', cursor: 'pointer'
+                         }}
+                      >
+                        {classification === 'SOLO' && [1, 2].map(n => <option key={n} value={n}>{n} Player{n > 1 ? 's' : ''}</option>)}
+                        {classification === 'TEAM' && [3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Players</option>)}
+                        {classification === 'GROUP' && <option value={12}>12 Players (Full)</option>}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: '24px' }}>
@@ -448,74 +500,6 @@ export default function VenueDetailClient({ venue }) {
                   </div>
                 </div>
 
-                {/* Classification & Players Picker */}
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Booking Type</label>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {['SOLO', 'TEAM', 'GROUP'].map(type => {
-                          const active = classification === type;
-                          return (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => {
-                                setClassification(type);
-                                // Set default players count for each type
-                                if (type === 'SOLO') setPlayersCount(1);
-                                if (type === 'TEAM') setPlayersCount(3);
-                                if (type === 'GROUP') setPlayersCount(12);
-                              }}
-                              style={{
-                                flex: 1, padding: '10px 4px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s',
-                                background: active ? 'var(--primary)' : 'var(--secondary)',
-                                color: active ? 'white' : 'var(--foreground)',
-                                border: active ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                                textTransform: 'capitalize', letterSpacing: '0.5px'
-                              }}
-                            >
-                              {type.charAt(0).toUpperCase() + type.slice(1).toLowerCase()}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Players</label>
-                      <select 
-                         value={playersCount}
-                         onChange={(e) => setPlayersCount(parseInt(e.target.value))}
-                         style={{
-                           width: '100%', padding: '0 10px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', 
-                           background: 'var(--secondary)', color: 'var(--foreground)', border: '1px solid var(--glass-border)',
-                           outline: 'none', height: '40px', appearance: 'none', cursor: 'pointer'
-                         }}
-                      >
-                        {classification === 'SOLO' && [1, 2].map(n => <option key={n} value={n}>{n} Player{n > 1 ? 's' : ''}</option>)}
-                        {classification === 'TEAM' && [3, 4, 5, 6].map(n => <option key={n} value={n}>{n} Players</option>)}
-                        {classification === 'GROUP' && <option value={12}>12 Players (Full)</option>}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  {/* Real-time Side Filling info */}
-                  {selectedSlot && busySlots[selectedSlot] && classification === 'SOLO' && (
-                    <div style={{ marginTop: '16px', background: 'rgba(59, 130, 246, 0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '13px', color: '#1d4ed8' }}>
-                      <AlertCircle size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-                      {busySlots[selectedSlot].soloSide === 2 
-                        ? 'Solo Bookings are in progress on Team 2 Side, Please Select on Team - 2 Side'
-                        : 'Solo Bookings are in progress on Team 1 Side, Please Select on Team - 1 Side'
-                      }
-                    </div>
-                  )}
-
-                  {selectedSlot && busySlots[selectedSlot] && busySlots[selectedSlot].team1 === 5 && playersCount === 4 && (
-                    <div style={{ marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '13px', color: '#b91c1c' }}>
-                      <AlertCircle size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-                      Choose another turf because there is more players are playing against this turf
-                    </div>
-                  )}
 
                   {/* ──────────────── New: Team Rosters ──────────────── */}
                   {selectedSlot && busySlots[selectedSlot] && (busySlots[selectedSlot].team1Slots?.length > 0 || busySlots[selectedSlot].team2Slots?.length > 0) && (
@@ -527,7 +511,7 @@ export default function VenueDetailClient({ venue }) {
                         <h4 style={{ fontSize: '15px', fontWeight: '700' }}>Current Match Lineup</h4>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="responsive-grid-1 responsive-gap-sm" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         {/* Team 1 Side */}
                         <div>
                           <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -576,7 +560,7 @@ export default function VenueDetailClient({ venue }) {
                       </div>
                     </div>
                   )}
-                </div>
+
 
                 {/* Inline error banner */}
                 {bookingState === 'error' && (

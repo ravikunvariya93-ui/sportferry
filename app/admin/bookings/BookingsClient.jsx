@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { CalendarCheck, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { 
+  CalendarCheck, RefreshCw, CheckCircle2, XCircle, 
+  Info, ArrowDownCircle, User, MessageSquare, ShieldCheck, X
+} from 'lucide-react';
 import styles from '../admin.module.css';
 
 const STATUS_TABS = ['All', 'PENDING', 'CONFIRMED', 'CANCELLED'];
@@ -22,6 +25,10 @@ export default function BookingsClient() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [updatingId, setUpdatingId] = useState(null);
+  
+  // Admin cancellation state
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   const fetchBookings = useCallback(async (signal) => {
     setLoading(true);
@@ -49,18 +56,30 @@ export default function BookingsClient() {
     return () => controller.abort();
   }, [fetchBookings]);
 
-  const handleStatusChange = async (bookingId, newStatus) => {
+  const handleStatusChange = async (bookingId, newStatus, reason = '') => {
     setUpdatingId(bookingId);
     try {
       const res = await fetch('/api/admin/bookings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId, status: newStatus }),
+        body: JSON.stringify({ 
+          bookingId, 
+          status: newStatus,
+          cancellationReason: reason 
+        }),
       });
       if (res.ok) {
+        const updated = await res.json();
         setBookings((prev) =>
-          prev.map((b) => b.id === bookingId ? { ...b, status: newStatus } : b)
+          prev.map((b) => b.id === bookingId ? { ...b, status: updated.status } : b)
         );
+        // If it was a cancellation, we might need to re-fetch to get refund info, 
+        // but for simplicity in admin view, a refresh or simple state update is fine.
+        if (newStatus === 'CANCELLED') {
+          fetchBookings(); 
+          setCancellingId(null);
+          setCancelReason('');
+        }
       }
     } catch (e) { console.error(e); }
     finally { setUpdatingId(null); }
@@ -68,6 +87,58 @@ export default function BookingsClient() {
 
   return (
     <div>
+      {/* Admin Cancellation Reason Modal */}
+      {cancellingId && (
+        <div className={styles.modalOverlay} onClick={() => setCancellingId(null)}>
+          <div className={styles.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 className={styles.modalTitle}>Cancel Booking (Admin)</h3>
+              <button onClick={() => setCancellingId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className={styles.modalDesc}>
+              As an admin, you can cancel any booking. The player will receive a <strong>100% full refund</strong>.
+            </p>
+
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '8px', color: '#94a3b8' }}>
+              Reason for Cancellation
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              placeholder="Internal note or reason for user..."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '10px',
+                border: '1px solid #334155',
+                background: '#1e293b',
+                color: '#f1f5f9',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                resize: 'none',
+                outline: 'none',
+                marginBottom: '20px'
+              }}
+            />
+
+            <div className={styles.modalActions}>
+              <button className={styles.btnCancel} onClick={() => setCancellingId(null)}>Back</button>
+              <button 
+                className={styles.btnDelete} 
+                onClick={() => handleStatusChange(cancellingId, 'CANCELLED', cancelReason)}
+                disabled={updatingId === cancellingId}
+              >
+                {updatingId === cancellingId ? 'Updating...' : 'Cancel Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={styles.pageHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <CalendarCheck size={28} color="#22c55e" />
@@ -115,7 +186,7 @@ export default function BookingsClient() {
             Clear
           </button>
         )}
-        <button className={styles.pageBtn} onClick={fetchBookings} title="Refresh" style={{ padding: '10px 12px' }}>
+        <button className={styles.pageBtn} onClick={() => fetchBookings()} title="Refresh" style={{ padding: '10px 12px' }}>
           <RefreshCw size={15} />
         </button>
       </div>
@@ -136,18 +207,18 @@ export default function BookingsClient() {
                   <tr>
                     <th>Customer</th>
                     <th>Venue</th>
-                    <th>Date</th>
-                    <th>Slot</th>
-                    <th>Category</th>
+                    <th>Date / Slot</th>
                     <th>Mode</th>
                     <th>Amount</th>
                     <th>Status</th>
+                    <th>Refund / Cancellation</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {bookings.map((b) => {
                     const isUpdating = updatingId === b.id;
+                    const isCancelled = b.status === 'CANCELLED';
                     return (
                       <tr key={b.id}>
                         <td>
@@ -167,22 +238,16 @@ export default function BookingsClient() {
                           <div style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '13px' }}>{b.venueName}</div>
                           <div style={{ fontSize: '11px', color: '#64748b' }}>{b.venueCity}</div>
                         </td>
-                        <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{b.dateStr}</td>
-                        <td style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{b.slot}</td>
                         <td>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '10px', fontWeight: '700', padding: '4px 8px', borderRadius: '6px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155', textTransform: 'uppercase' }}>
-                              {b.classification}
-                            </span>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>({b.playersCount}p)</span>
-                          </div>
+                          <div style={{ fontSize: '12px', whiteSpace: 'nowrap', color: '#f1f5f9' }}>{b.dateStr}</div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{b.slot}</div>
                         </td>
                         <td>
                           <span className={`${styles.badge} ${b.bookingType === 'ONLINE' ? styles.badgeOnline : styles.badgeOffline}`}>
                             {b.bookingType}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 700, color: '#22c55e', fontSize: '13px' }}>
+                        <td style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '13px' }}>
                           ₹{b.amount}
                         </td>
                         <td>
@@ -191,8 +256,27 @@ export default function BookingsClient() {
                           </span>
                         </td>
                         <td>
+                          {isCancelled && b.cancelledBy ? (
+                            <div style={{ fontSize: '11px', minWidth: '140px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f87171', fontWeight: '600', marginBottom: '2px' }}>
+                                <XCircle size={10} /> By {b.cancelledBy}
+                              </div>
+                              {b.refundAmount > 0 && (
+                                <div style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <ShieldCheck size={10} /> ₹{b.refundAmount} ({b.refundPercent}%)
+                                </div>
+                              )}
+                              {b.cancellationReason && (
+                                <div style={{ color: '#64748b', fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
+                                  "{b.cancellationReason.length > 30 ? b.cancellationReason.substring(0, 30) + '...' : b.cancellationReason}"
+                                </div>
+                              )}
+                            </div>
+                          ) : '-'}
+                        </td>
+                        <td>
                           <div style={{ display: 'flex', gap: '6px' }}>
-                            {b.status !== 'CONFIRMED' && (
+                            {b.status === 'PENDING' && (
                               <button
                                 className={`${styles.iconBtn} ${styles.btnSuccess}`}
                                 disabled={isUpdating}
@@ -206,7 +290,7 @@ export default function BookingsClient() {
                               <button
                                 className={`${styles.iconBtn} ${styles.btnDanger}`}
                                 disabled={isUpdating}
-                                onClick={() => handleStatusChange(b.id, 'CANCELLED')}
+                                onClick={() => setCancellingId(b.id)}
                                 title="Cancel booking"
                               >
                                 {isUpdating ? '…' : <XCircle size={14} />}

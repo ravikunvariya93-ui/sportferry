@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
+import { calculateRefund } from '@/lib/cancellationPolicy';
 
 async function requireAdmin() {
   const session = await auth();
@@ -69,6 +70,12 @@ export async function GET(request) {
         amount: b.totalAmount,
         paymentId: b.paymentId || '',
         createdAt: b.createdAt,
+        // Cancellation metadata
+        cancelledBy: b.cancelledBy || null,
+        cancelledAt: b.cancelledAt || null,
+        cancellationReason: b.cancellationReason || null,
+        refundPercent: b.refundPercent ?? 0,
+        refundAmount: b.refundAmount ?? 0,
       })),
       total,
       page,
@@ -85,15 +92,29 @@ export async function PATCH(request) {
     const session = await requireAdmin();
     if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    const { bookingId, status } = await request.json();
+    const { bookingId, status, cancellationReason } = await request.json();
     if (!bookingId || !status) return NextResponse.json({ message: 'bookingId and status are required' }, { status: 400 });
     if (!['PENDING', 'CONFIRMED', 'CANCELLED'].includes(status)) {
       return NextResponse.json({ message: 'Invalid status' }, { status: 400 });
     }
 
     await dbConnect();
-    const booking = await Booking.findByIdAndUpdate(bookingId, { status }, { new: true });
+    const booking = await Booking.findById(bookingId);
     if (!booking) return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
+
+    booking.status = status;
+
+    // Track cancellation metadata for admin-initiated cancellations
+    if (status === 'CANCELLED' && !booking.cancelledBy) {
+      const refund = calculateRefund(booking, 'ADMIN');
+      booking.cancelledBy = 'ADMIN';
+      booking.cancelledAt = new Date();
+      booking.cancellationReason = cancellationReason?.trim() || 'Cancelled by admin';
+      booking.refundPercent = refund.refundPercent;
+      booking.refundAmount = refund.refundAmount;
+    }
+
+    await booking.save();
 
     return NextResponse.json({ id: booking._id.toString(), status: booking.status });
   } catch (error) {

@@ -66,6 +66,29 @@ const BookingSchema = new mongoose.Schema({
   paymentId: {
     type: String,
   },
+  // ── Cancellation Policy Fields ───────────────────────────────────────
+  cancelledBy: {
+    type: String,
+    enum: ['PLAYER', 'VENDOR', 'ADMIN'],
+  },
+  cancelledAt: {
+    type: Date,
+  },
+  cancellationReason: {
+    type: String,
+    maxlength: 500,
+  },
+  refundPercent: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100,
+  },
+  refundAmount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
 }, {
   timestamps: true,
 });

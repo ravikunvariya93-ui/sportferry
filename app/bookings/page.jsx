@@ -34,10 +34,15 @@ export default async function BookingsPage() {
     time: `${b.startTime} – ${b.endTime}`,
     status: b.status,
     amount: `₹${b.totalAmount}`,
+    // Cancellation metadata
+    cancelledBy: b.cancelledBy || null,
+    cancellationReason: b.cancellationReason || null,
+    refundPercent: b.refundPercent ?? 0,
+    refundAmount: b.refundAmount ?? 0,
   }));
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+    <div className="responsive-gap-sm" style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <header>
         <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>My Bookings</h1>
         <p style={{ color: 'var(--muted)' }}>View and manage your past and upcoming games.</p>

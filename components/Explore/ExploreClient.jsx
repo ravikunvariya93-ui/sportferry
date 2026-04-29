@@ -127,7 +127,7 @@ export default function ExploreClient({ initialVenues }) {
   const hasActiveFilters = selectedCity !== 'All Cities' || selectedSport !== 'All Sports' || searchQuery || sortBy !== 'default';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
 
       {/* Section Header */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -144,9 +144,9 @@ export default function ExploreClient({ initialVenues }) {
       </div>
 
       {/* Search + Geo Bar */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="responsive-gap-sm" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Search */}
-        <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+        <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
           <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} size={18} />
           <input
             type="text"
@@ -175,6 +175,7 @@ export default function ExploreClient({ initialVenues }) {
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '13px 18px', borderRadius: '14px', fontFamily: 'inherit',
             fontSize: '14px', fontWeight: '600', cursor: geoState === 'loading' ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
             border: geoState === 'success' ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
             background: geoState === 'success' ? 'rgba(22,163,74,0.08)' : 'var(--secondary)',
             color: geoState === 'success' ? 'var(--primary)' : 'var(--foreground)',
@@ -196,6 +197,7 @@ export default function ExploreClient({ initialVenues }) {
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '13px 18px', borderRadius: '14px', fontFamily: 'inherit',
             fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            whiteSpace: 'nowrap',
             border: showFilters ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
             background: showFilters ? 'rgba(22,163,74,0.08)' : 'var(--secondary)',
             color: showFilters ? 'var(--primary)' : 'var(--foreground)',
@@ -215,7 +217,7 @@ export default function ExploreClient({ initialVenues }) {
 
       {/* Expanded Filters Panel */}
       {showFilters && (
-        <div className="glass-morphism" style={{ padding: '20px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="glass-morphism responsive-padding responsive-gap-sm" style={{ padding: '20px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {/* City */}
           <div style={{ flex: '1', minWidth: '160px' }}>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--muted)', marginBottom: '6px' }}>City</label>
@@ -293,7 +295,7 @@ export default function ExploreClient({ initialVenues }) {
 
       {/* Results Grid */}
       {processedVenues.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
           {processedVenues.map(venue => (
             <VenueCard key={venue.id} venue={venue} />
           ))}

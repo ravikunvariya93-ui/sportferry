@@ -20,7 +20,7 @@ export default async function Home() {
   }));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', paddingBottom: '80px' }}>
+    <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '48px', paddingBottom: '80px' }}>
 
       {/* Hero — hidden once user selects a city */}
       <HomeHero />

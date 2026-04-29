@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   TrendingUp, Calendar, LayoutDashboard, Users, Plus,
   MapPin, CheckCircle2, XCircle, Clock, AlertCircle, X,
-  ShieldCheck, Lock, Edit2
+  ShieldCheck, Lock, Edit2, ArrowDownCircle, MessageSquare
 } from 'lucide-react';
 import VenueModal from '@/components/VenueModal';
 import OfflineBookingModal from './OfflineBookingModal';
@@ -21,9 +21,11 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
   const [showModal, setShowModal] = useState(false);
   const [editingVenue, setEditingVenue] = useState(null);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);   // booking id being confirmed
-  const [loadingId, setLoadingId]     = useState(null);   // booking id mid-request
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [loadingId, setLoadingId]     = useState(null);
   const [errorId, setErrorId]         = useState(null);
+  const [errorMsg, setErrorMsg]       = useState('');
   const [localBookings, setLocalBookings] = useState(bookings);
 
   const actionControllerRef = React.useRef(null);
@@ -41,6 +43,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
 
     setLoadingId(bookingId);
     setErrorId(null);
+    setErrorMsg('');
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
@@ -55,43 +58,62 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
         router.refresh();
       } else {
         setErrorId(bookingId);
+        const d = await res.json().catch(() => ({}));
+        setErrorMsg(d.message || 'Failed to approve.');
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
       setErrorId(bookingId);
+      setErrorMsg('Network error.');
     } finally {
       setLoadingId(null);
     }
   };
 
   const handleCancel = async (bookingId) => {
+    if (!cancelReason.trim()) {
+      setErrorId(bookingId);
+      setErrorMsg('Please provide a reason for cancellation.');
+      return;
+    }
+
     if (actionControllerRef.current) actionControllerRef.current.abort();
     actionControllerRef.current = new AbortController();
     const signal = actionControllerRef.current.signal;
 
     setLoadingId(bookingId);
     setErrorId(null);
+    setErrorMsg('');
     try {
       const res = await fetch(`/api/bookings/${bookingId}`, { 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CANCELLED' }),
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: cancelReason.trim() }),
         signal,
       });
+      const d = await res.json();
       if (res.ok) {
         setLocalBookings(prev =>
-          prev.map(b => b.id === bookingId ? { ...b, status: 'CANCELLED' } : b)
+          prev.map(b => b.id === bookingId ? { 
+            ...b, 
+            status: 'CANCELLED',
+            cancelledBy: 'VENDOR',
+            cancellationReason: cancelReason.trim(),
+            refundPercent: d.refundPercent ?? 100,
+            refundAmount: d.refundAmount ?? 0,
+          } : b)
         );
         setCancellingId(null);
+        setCancelReason('');
         router.refresh();
       } else {
-        const d = await res.json();
         setErrorId(bookingId);
-        console.error(d.message);
+        setErrorMsg(d.message || 'Cancellation failed.');
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
       setErrorId(bookingId);
+      setErrorMsg('Network error.');
     } finally {
       setLoadingId(null);
     }
@@ -102,6 +124,115 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
       {showModal && <VenueModal onClose={() => setShowModal(false)} />}
       {editingVenue && <VenueModal editingVenue={editingVenue} onClose={() => setEditingVenue(null)} />}
       {showOfflineModal && <OfflineBookingModal venues={venues} onClose={() => setShowOfflineModal(false)} />}
+
+      {/* Vendor Cancellation Reason Modal */}
+      {cancellingId && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => { setCancellingId(null); setCancelReason(''); setErrorId(null); setErrorMsg(''); }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--card-bg, #0f172a)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '18px',
+              padding: '28px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <XCircle size={20} color="#dc2626" />
+                Cancel Booking
+              </h3>
+              <button onClick={() => { setCancellingId(null); setCancelReason(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Policy notice */}
+            <div style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: 'rgba(56,189,248,0.06)',
+              border: '1px solid rgba(56,189,248,0.15)',
+              fontSize: '12px',
+              color: 'var(--muted)',
+              marginBottom: '16px',
+              lineHeight: '1.6',
+            }}>
+              <strong style={{ color: '#38bdf8' }}>⚡ Venue Cancellation Policy</strong><br />
+              When you cancel a booking, the player receives a <strong style={{ color: '#16a34a' }}>100% full refund</strong>.
+              Please provide a valid reason below.
+            </div>
+
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px', color: 'var(--foreground)' }}>
+              <MessageSquare size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+              Cancellation Reason <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              placeholder="e.g., Venue maintenance, weather conditions, emergency closure..."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '10px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--secondary)',
+                color: 'var(--foreground)',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            {errorId === cancellingId && errorMsg && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', color: '#dc2626', fontSize: '13px' }}>
+                <AlertCircle size={14} /> {errorMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+              <button
+                onClick={() => { setCancellingId(null); setCancelReason(''); setErrorId(null); setErrorMsg(''); }}
+                style={{
+                  padding: '10px 20px', borderRadius: '10px',
+                  border: '1px solid var(--glass-border)', background: 'none',
+                  color: 'var(--foreground)', cursor: 'pointer',
+                  fontSize: '14px', fontFamily: 'inherit', fontWeight: '500',
+                }}
+              >
+                Keep Booking
+              </button>
+              <button
+                onClick={() => handleCancel(cancellingId)}
+                disabled={loadingId === cancellingId}
+                style={{
+                  padding: '10px 20px', borderRadius: '10px',
+                  border: 'none', background: '#dc2626', color: 'white',
+                  cursor: loadingId === cancellingId ? 'not-allowed' : 'pointer',
+                  fontSize: '14px', fontFamily: 'inherit', fontWeight: '600',
+                  opacity: loadingId === cancellingId ? 0.7 : 1,
+                }}
+              >
+                {loadingId === cancellingId ? 'Cancelling...' : 'Confirm Cancellation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
@@ -212,9 +343,9 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                 <tbody>
                   {localBookings.map(b => {
                     const statusStyle = STATUS_STYLES[b.status] || STATUS_STYLES.PENDING;
-                    const isConfirming = cancellingId === b.id;
                     const isLoading = loadingId === b.id;
                     const hasError = errorId === b.id;
+                    const isCancelled = b.status === 'CANCELLED';
                     return (
                       <tr key={b.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                         <td style={{ padding: '12px' }}>
@@ -238,12 +369,30 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                           </div>
                         </td>
                         <td style={{ padding: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ padding: '4px 10px', borderRadius: '100px', fontSize: '12px', fontWeight: '600', background: statusStyle.bg, color: statusStyle.color }}>
-                              {statusStyle.label}
-                            </span>
-                            {b.bookingType === 'OFFLINE' && (
-                              <span style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--secondary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--glass-border)' }}>OFFLINE</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ padding: '4px 10px', borderRadius: '100px', fontSize: '12px', fontWeight: '600', background: statusStyle.bg, color: statusStyle.color }}>
+                                {statusStyle.label}
+                              </span>
+                              {b.bookingType === 'OFFLINE' && (
+                                <span style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--secondary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--glass-border)' }}>OFFLINE</span>
+                              )}
+                            </div>
+                            {/* Cancellation details inline */}
+                            {isCancelled && b.cancelledBy && (
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: '1.5' }}>
+                                <span style={{ color: '#dc2626', fontWeight: '600' }}>
+                                  By {b.cancelledBy === 'PLAYER' ? 'Player' : b.cancelledBy === 'VENDOR' ? 'You' : 'Admin'}
+                                </span>
+                                {b.cancellationReason && (
+                                  <span> — {b.cancellationReason.length > 40 ? b.cancellationReason.substring(0, 40) + '…' : b.cancellationReason}</span>
+                                )}
+                                {b.refundAmount > 0 && (
+                                  <div style={{ color: '#16a34a', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                                    <ArrowDownCircle size={11} /> ₹{b.refundAmount} refund ({b.refundPercent}%)
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
@@ -260,24 +409,19 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                             )}
                             
                             {b.status !== 'CANCELLED' && (
-                              isConfirming ? (
-                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Sure?</span>
-                                  <button onClick={() => handleCancel(b.id)} disabled={isLoading} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#dc2626', color: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                    {isLoading ? '...' : 'Yes'}
-                                  </button>
-                                  <button onClick={() => setCancellingId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--glass-border)', background: 'none', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--foreground)' }}>
-                                    No
-                                  </button>
-                                  {hasError && <AlertCircle size={14} color="#dc2626" />}
-                                </div>
-                              ) : (
-                                <button onClick={() => setCancellingId(b.id)} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#dc2626', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '500' }}>
-                                  Cancel
-                                </button>
-                              )
+                              <button
+                                onClick={() => { setCancellingId(b.id); setErrorId(null); setErrorMsg(''); }}
+                                style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#dc2626', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '500' }}
+                              >
+                                Cancel
+                              </button>
                             )}
                           </div>
+                          {hasError && errorId === b.id && !cancellingId && (
+                            <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <AlertCircle size={12} /> {errorMsg}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

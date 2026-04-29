@@ -96,7 +96,7 @@ export default function HomeRecommended({ allVenues }) {
 
       {/* Venues Grid or Empty State */}
       {nearbyVenues.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
           {nearbyVenues.map(venue => (
             <VenueCard key={venue.id} venue={venue} />
           ))}

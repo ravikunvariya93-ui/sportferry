@@ -46,6 +46,11 @@ export default async function VendorDashboard() {
     bookingType: b.bookingType || 'ONLINE',
     classification: b.classification || 'SOLO',
     playersCount: b.playersCount || 1,
+    // Cancellation metadata
+    cancelledBy: b.cancelledBy || null,
+    cancellationReason: b.cancellationReason || null,
+    refundPercent: b.refundPercent ?? 0,
+    refundAmount: b.refundAmount ?? 0,
   }));
 
   // ── Stats ───────────────────────────────────────────────────────────────
