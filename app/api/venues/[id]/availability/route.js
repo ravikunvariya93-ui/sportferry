@@ -17,7 +17,7 @@ export async function GET(request, { params }) {
     const bookings = await Booking.find({
       venue: params.id,
       date: new Date(date),
-      status: { $in: ['PENDING', 'CONFIRMED'] },
+      status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     })
     .populate('user', 'name')
     .select('startTime endTime status playersCount teamSide classification user offlineCustomerName')

@@ -13,7 +13,8 @@ import {
   Trophy,
   LayoutDashboard,
   LogIn,
-  UserPlus
+  UserPlus,
+  Info
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { clsx } from 'clsx';
@@ -33,12 +34,18 @@ const Sidebar = () => {
     navItems = [
       { name: 'Admin Dashboard', icon: LayoutDashboard, path: '/admin' },
       { name: 'Platform Home', icon: Home, path: '/' },
+      { name: 'Find Venues', icon: Search, path: '/explore' },
+      { name: 'My Bookings', icon: Calendar, path: '/bookings' },
+      { name: 'Instructions', icon: Info, path: '/instructions' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else if (session?.user?.role === 'VENDOR') {
     navItems = [
       { name: 'Vendor Dashboard', icon: LayoutDashboard, path: '/vendor' },
       { name: 'Platform Home', icon: Home, path: '/' },
+      { name: 'Find Venues', icon: Search, path: '/explore' },
+      { name: 'My Bookings', icon: Calendar, path: '/bookings' },
+      { name: 'Instructions', icon: Info, path: '/instructions' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else {
@@ -46,6 +53,7 @@ const Sidebar = () => {
     navItems = [
       { name: 'Home', icon: Home, path: '/' },
       { name: 'Find Venues', icon: Search, path: '/explore' },
+      { name: 'Instructions', icon: Info, path: '/instructions' },
     ];
 
     if (session?.user) {
@@ -94,7 +102,7 @@ const Sidebar = () => {
               </div>
               <div className={styles.userInfo}>
                 <span className={styles.userName}>{session.user.name}</span>
-                <span className={styles.userRole}>{session.user.role}</span>
+                <span className={styles.userRole}>{session.user.role === 'USER' ? 'PLAYER' : session.user.role}</span>
               </div>
             </div>
             <button

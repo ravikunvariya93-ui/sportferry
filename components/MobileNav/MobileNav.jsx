@@ -22,20 +22,29 @@ const MobileNav = () => {
   let navItems = [
     { name: 'Home', icon: Home, path: '/' },
     { name: 'Explore', icon: Search, path: '/explore' },
-    { name: 'Bookings', icon: Calendar, path: '/bookings' },
-    { name: 'Profile', icon: User, path: '/profile' },
   ];
 
   if (isAdmin) {
     navItems = [
       { name: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
       { name: 'Home', icon: Home, path: '/' },
+      { name: 'Explore', icon: Search, path: '/explore' },
+      { name: 'Bookings', icon: Calendar, path: '/bookings' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else if (isVendor) {
     navItems = [
       { name: 'Dashboard', icon: LayoutDashboard, path: '/vendor' },
       { name: 'Home', icon: Home, path: '/' },
+      { name: 'Explore', icon: Search, path: '/explore' },
+      { name: 'Bookings', icon: Calendar, path: '/bookings' },
+      { name: 'Profile', icon: User, path: '/profile' },
+    ];
+  } else if (session?.user) {
+    navItems = [
+      { name: 'Home', icon: Home, path: '/' },
+      { name: 'Explore', icon: Search, path: '/explore' },
+      { name: 'Bookings', icon: Calendar, path: '/bookings' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   }

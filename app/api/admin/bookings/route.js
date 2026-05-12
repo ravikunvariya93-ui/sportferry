@@ -23,11 +23,19 @@ export async function GET(request) {
     const status = searchParams.get('status') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
+    const venueId = searchParams.get('venueId') || '';
+    const city = searchParams.get('city') || '';
+    const bookingType = searchParams.get('bookingType') || '';
+    const classification = searchParams.get('classification') || '';
+    const search = searchParams.get('search') || '';
 
     await dbConnect();
 
     const query = {};
     if (status) query.status = status;
+    if (bookingType) query.bookingType = bookingType;
+    if (classification) query.classification = classification;
+    if (venueId) query.venue = venueId;
     if (dateFrom || dateTo) {
       query.date = {};
       if (dateFrom) query.date.$gte = new Date(dateFrom);
@@ -36,6 +44,35 @@ export async function GET(request) {
         to.setHours(23, 59, 59, 999);
         query.date.$lte = to;
       }
+    }
+
+    // For city filter, we need to find venue IDs in that city first
+    if (city && !venueId) {
+      const Venue = (await import('@/models/Venue')).default;
+      const venuesInCity = await Venue.find({ city }).select('_id').lean();
+      query.venue = { $in: venuesInCity.map(v => v._id) };
+    }
+
+    // For search, we need to find matching users first
+    let userFilter = null;
+    if (search) {
+      const User = (await import('@/models/User')).default;
+      const searchRegex = new RegExp(search, 'i');
+      const matchingUsers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { phone: searchRegex },
+        ]
+      }).select('_id').lean();
+      userFilter = matchingUsers.map(u => u._id);
+      
+      // Also match offline customer name/phone
+      query.$or = [
+        { user: { $in: userFilter } },
+        { offlineCustomerName: searchRegex },
+        { offlineCustomerPhone: searchRegex },
+      ];
     }
 
     const [bookings, total] = await Promise.all([

@@ -60,11 +60,11 @@ export async function PATCH(request, { params }) {
         cancelledBy = 'ADMIN';
       }
 
-      // Vendor must provide a reason
-      if (cancelledBy === 'VENDOR' && !cancellationReason?.trim()) {
+      // ── VENDOR CANNOT CANCEL BOOKINGS ─────────────────────────────────
+      if (cancelledBy === 'VENDOR') {
         return NextResponse.json({ 
-          message: 'Venue owners must provide a reason for cancellation.' 
-        }, { status: 400 });
+          message: 'Vendors cannot cancel bookings. Please contact admin if needed.' 
+        }, { status: 403 });
       }
 
       // Player-initiated: check if slot already started

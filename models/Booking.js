@@ -41,7 +41,7 @@ const BookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['PENDING', 'CONFIRMED', 'CANCELLED'],
+    enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'PAYMENT_PENDING'],
     default: 'PENDING',
   },
   sport: {
@@ -65,6 +65,25 @@ const BookingSchema = new mongoose.Schema({
   },
   paymentId: {
     type: String,
+  },
+  razorpayOrderId: {
+    type: String,
+  },
+  razorpaySignature: {
+    type: String,
+  },
+  // ── Commission Fields ─────────────────────────────────────────────────
+  commissionPercent: {
+    type: Number,
+    default: 12,
+  },
+  commissionAmount: {
+    type: Number,
+    default: 0,
+  },
+  // ── Multi-slot Booking Group ──────────────────────────────────────────
+  groupId: {
+    type: String, // UUID linking bookings made in a single multi-slot purchase
   },
   // ── Cancellation Policy Fields ───────────────────────────────────────
   cancelledBy: {

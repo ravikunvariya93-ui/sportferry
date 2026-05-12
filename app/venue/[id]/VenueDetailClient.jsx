@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Star, Clock, CheckCircle, Navigation, Zap, Shield, CreditCard, CalendarCheck, AlertCircle } from 'lucide-react';
+import { MapPin, Star, Clock, CheckCircle, Navigation, Zap, Shield, CreditCard, CalendarCheck, AlertCircle, Info, ChevronDown } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import styles from './VenueDetail.module.css';
@@ -17,7 +17,7 @@ export default function VenueDetailClient({ venue }) {
     const dd = String(today.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   });
-  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedSlots, setSelectedSlots] = useState([]);
   const [busySlots, setBusySlots] = useState([]);
   const [bookingState, setBookingState] = useState('idle'); // idle | loading | success | error
   const [classification, setClassification] = useState('SOLO');
@@ -27,34 +27,28 @@ export default function VenueDetailClient({ venue }) {
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
-    if (!selectedSlot) return;
+    if (selectedSlots.length === 0) return;
     const updateCountdown = () => {
-      const [startTimeStr] = selectedSlot.split(' – ');
+      const [startTimeStr] = selectedSlots[0].split(' – ');
       const [time, meridiem] = startTimeStr.split(' ');
       let [h, m] = time.split(':').map(Number);
       if (meridiem === 'PM' && h !== 12) h += 12;
       if (meridiem === 'AM' && h === 12) h = 0;
-      
       const slotTime = new Date();
       slotTime.setHours(h, m, 0, 0);
-      
       const diff = slotTime - new Date();
       if (diff <= 0) {
         setTimeLeft('Started');
       } else {
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        if (hours > 0) {
-          setTimeLeft(`${hours}h ${mins}m left hurry up`);
-        } else {
-          setTimeLeft(`${mins}m left hurry up`);
-        }
+        setTimeLeft(hours > 0 ? `${hours}h ${mins}m left` : `${mins}m left`);
       }
     };
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
-  }, [selectedSlot]);
+  }, [selectedSlots]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,51 +78,111 @@ export default function VenueDetailClient({ venue }) {
 
   const mapQuery = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
 
+  const toggleSlot = (slot) => {
+    setSelectedSlots(prev => {
+      if (prev.includes(slot)) return prev.filter(s => s !== slot);
+      return [...prev, slot];
+    });
+    setBookingState('idle');
+  };
+
   const handleBook = async () => {
-    if (!session) {
-      router.push('/login');
-      return;
-    }
-    if (!selectedSlot) {
+    if (!session) { router.push('/login'); return; }
+    if (selectedSlots.length === 0) {
       setBookingState('error');
-      setBookingMessage('Please select a time slot before booking.');
+      setBookingMessage('Please select at least one time slot.');
       return;
     }
     if (!selectedDate) {
       setBookingState('error');
-      setBookingMessage('Please select a date before booking.');
+      setBookingMessage('Please select a date.');
       return;
     }
-
+    
     setBookingState('loading');
     setBookingMessage('');
 
     try {
-      const res = await fetch('/api/bookings', {
+      // 1. Create Razorpay Order
+      const orderRes = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           venueId: venue._id,
           date: selectedDate,
-          slot: selectedSlot,
+          slots: selectedSlots,
           sport: venue.sportTypes[0],
-          classification: classification,
-          playersCount: playersCount,
+          classification,
+          playersCount,
         }),
       });
 
-      const data = await res.json();
+      const orderData = await orderRes.json();
 
-      if (res.ok) {
-        setBookingId(data.bookingId);
-        setBookingState('success');
-      } else {
+      if (!orderRes.ok) {
         setBookingState('error');
-        setBookingMessage(data.message || 'Booking failed. Please try again.');
+        setBookingMessage(orderData.message || 'Failed to initiate payment.');
+        return;
       }
-    } catch {
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "SportFerry",
+        description: `Booking for ${venue.name}`,
+        order_id: orderData.orderId,
+        handler: async function (response) {
+          // 3. Verify Payment
+          setBookingState('loading');
+          setBookingMessage('Verifying payment...');
+          
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok) {
+              setBookingId(verifyData.bookingIds[0]);
+              setBookingState('success');
+            } else {
+              setBookingState('error');
+              setBookingMessage(verifyData.message || 'Payment verification failed.');
+            }
+          } catch (err) {
+            setBookingState('error');
+            setBookingMessage('Verification failed. Please contact support.');
+          }
+        },
+        prefill: {
+          name: orderData.customerName,
+          email: orderData.customerEmail,
+          contact: orderData.customerPhone,
+        },
+        theme: { color: "#16a34a" },
+        modal: {
+          ondismiss: function() {
+            setBookingState('idle');
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      console.error('Payment flow error:', error);
       setBookingState('error');
-      setBookingMessage('Network error. Please check your connection.');
+      setBookingMessage('An error occurred. Please try again.');
     }
   };
 
@@ -253,12 +307,13 @@ export default function VenueDetailClient({ venue }) {
                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
                   <CalendarCheck size={32} color="var(--primary)" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>Booking Confirmed!</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>Booking Received!</h3>
+                <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>Your booking will be confirmed once each team has at least 3 players.</p>
                 <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '4px' }}>{venue.name}</p>
                 <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '4px' }}>
                   {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
-                <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '20px' }}>{selectedSlot}</p>
+                <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '20px' }}>{selectedSlots.join(', ')}</p>
                 <p style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '20px' }}>Ref: {bookingId}</p>
                 <button
                   onClick={() => router.push('/bookings')}
@@ -349,49 +404,36 @@ export default function VenueDetailClient({ venue }) {
                 </div>
 
                 <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Available Time Slots</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-                    {slots.map(slot => {
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Select Time Slots <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>(multiple allowed)</span></label>
+                  
+                  {/* Multi-select dropdown */}
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      multiple
+                      value={selectedSlots}
+                      onChange={(e) => {
+                        const options = [...e.target.options];
+                        const selected = options.filter(o => o.selected && !o.disabled).map(o => o.value);
+                        setSelectedSlots(selected);
+                        setBookingState('idle');
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px',
+                        background: 'var(--secondary)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '12px',
+                        color: 'var(--foreground)',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        minHeight: '180px',
+                      }}
+                    >
+                      {slots.map(slot => {
                         const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
                         const isFull = stats.total >= 12;
-                        const isSelected = selectedSlot === slot;
-                        
-                        let projTeam1 = 0;
-                        let projTeam2 = 0;
-                        let validPlacement = true;
-
-                        if (isSelected) {
-                          if (classification === 'GROUP') {
-                             projTeam1 = 6;
-                             projTeam2 = 6;
-                          } else if (classification === 'SOLO') {
-                             const hasSoloSide1 = stats.soloSide === 1;
-                             const hasSoloSide2 = stats.soloSide === 2;
-                             let assignedSide = 1;
-                             if (hasSoloSide2 && stats.team2 < 6) assignedSide = 2;
-                             else if (hasSoloSide1 && stats.team1 < 6) assignedSide = 1;
-                             else if (stats.team2 > 0 && stats.team2 < 6 && !hasSoloSide1) assignedSide = 1;
-                             else if (stats.team1 < 6) assignedSide = 1;
-                             else if (stats.team2 < 6) assignedSide = 2;
-                             
-                             if (assignedSide === 1) projTeam1 = playersCount;
-                             else projTeam2 = playersCount;
-                             
-                             if (stats.team1 + projTeam1 > 6 && assignedSide === 1) validPlacement = false;
-                             if (stats.team2 + projTeam2 > 6 && assignedSide === 2) validPlacement = false;
-                          } else if (classification === 'TEAM') {
-                             if (stats.team1 === 5 && playersCount === 4) {
-                                validPlacement = false;
-                             } else if (stats.team1 + playersCount <= 6) {
-                                projTeam1 = playersCount;
-                             } else if (stats.team2 + playersCount <= 6) {
-                                projTeam2 = playersCount;
-                             } else {
-                                validPlacement = false;
-                             }
-                          }
-                        }
-
                         const isToday = selectedDate === new Date().toISOString().split('T')[0];
                         let hasPassed = false;
                         if (isToday) {
@@ -404,105 +446,106 @@ export default function VenueDetailClient({ venue }) {
                           slotTime.setHours(h, m, 0, 0);
                           hasPassed = slotTime < new Date();
                         }
-
                         const isDisabled = isFull || hasPassed;
-                        
                         return (
-                          <button
-                            key={slot}
-                            disabled={isDisabled}
-                            onClick={() => { setSelectedSlot(slot); setBookingState('idle'); }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'stretch',
-                              borderRadius: '12px',
-                              border: isSelected ? '2px solid var(--primary)' : '1px dashed #00a4b4',
-                              background: isSelected ? 'rgba(22,163,74,0.1)' : 'linear-gradient(to right, rgba(0,164,180,0.15), rgba(0,164,180,0.03))',
-                              color: 'var(--foreground)',
-                              cursor: isDisabled ? 'not-allowed' : 'pointer',
-                              opacity: isDisabled ? 0.6 : 1,
-                              transition: 'all 0.2s ease',
-                              textAlign: 'left',
-                              position: 'relative',
-                              overflow: 'hidden',
-                              padding: 0
-                            }}
-                          >
-                            <div style={{
-                              background: 'var(--glass-bg)',
-                              padding: '12px 10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              borderRight: '1px dashed #00a4b4',
-                              writingMode: 'vertical-rl',
-                              transform: 'rotate(180deg)',
-                              fontWeight: '700',
-                              fontSize: '13px',
-                              letterSpacing: '1px',
-                              color: 'var(--foreground)'
-                            }}>
-                              Turf 1
-                            </div>
-
-                            <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '14px', fontWeight: '800' }}>{slot}</span>
-                                {isSelected && <CheckCircle size={16} color="var(--primary)" />}
-                              </div>
-
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {/* Team 1 */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 1</span>
-                                  <div style={{ display: 'flex', gap: '6px' }}>
-                                    {[...Array(6)].map((_, i) => (
-                                      <div key={`t1-${i}`} style={{
-                                        width: '14px', height: '14px', borderRadius: '50%',
-                                        background: i < stats.team1 ? '#00a4b4' : (validPlacement && isSelected && i < stats.team1 + projTeam1 ? '#fbbf24' : '#1a1a1a'),
-                                        boxShadow: i < stats.team1 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && isSelected && i < stats.team1 + projTeam1 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
-                                        flexShrink: 0,
-                                        transition: 'all 0.3s ease'
-                                      }} />
-                                    ))}
-                                  </div>
-                                </div>
-                                
-                                {/* dotted line separator */}
-                                <div style={{ height: '1px', borderBottom: '1px dashed #00a4b4', opacity: 0.4 }}></div>
-                                
-                                {/* Team 2 */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 2</span>
-                                  <div style={{ display: 'flex', gap: '6px' }}>
-                                    {[...Array(6)].map((_, i) => (
-                                      <div key={`t2-${i}`} style={{
-                                        width: '14px', height: '14px', borderRadius: '50%',
-                                        background: i < stats.team2 ? '#00a4b4' : (validPlacement && isSelected && i < stats.team2 + projTeam2 ? '#fbbf24' : '#1a1a1a'),
-                                        boxShadow: i < stats.team2 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && isSelected && i < stats.team2 + projTeam2 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
-                                        flexShrink: 0,
-                                        transition: 'all 0.3s ease'
-                                      }} />
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-
-                            {isSelected && !isDisabled && (
-                              <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--primary)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Clock size={14} /> {timeLeft}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
+                          <option key={slot} value={slot} disabled={isDisabled} style={{
+                            padding: '10px 12px',
+                            fontSize: '13px',
+                            color: isDisabled ? '#666' : 'inherit',
+                          }}>
+                            {slot} — {isFull ? 'FULL' : hasPassed ? 'PASSED' : `${stats.total}/12 players`}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
+
+                  {/* Selected slots summary */}
+                  {selectedSlots.length > 0 && (
+                    <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {selectedSlots.map(s => (
+                        <span key={s} style={{
+                          padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: '600',
+                          background: 'rgba(22,163,74,0.15)', color: 'var(--primary)', border: '1px solid rgba(22,163,74,0.3)',
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}>
+                          <Clock size={12} /> {s}
+                          <button onClick={() => setSelectedSlots(prev => prev.filter(x => x !== s))} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Turf visualization for first selected slot */}
+                  {selectedSlots.length > 0 && (() => {
+                    const slot = selectedSlots[0];
+                    const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
+                    const isSelected = true;
+                    let projTeam1 = 0, projTeam2 = 0, validPlacement = true;
+
+                    if (classification === 'GROUP') { projTeam1 = 6; projTeam2 = 6; }
+                    else if (classification === 'SOLO') {
+                      const hasSoloSide1 = stats.soloSide === 1;
+                      const hasSoloSide2 = stats.soloSide === 2;
+                      let assignedSide = 1;
+                      if (hasSoloSide2 && stats.team2 < 6) assignedSide = 2;
+                      else if (hasSoloSide1 && stats.team1 < 6) assignedSide = 1;
+                      else if (stats.team2 > 0 && stats.team2 < 6 && !hasSoloSide1) assignedSide = 1;
+                      else if (stats.team1 < 6) assignedSide = 1;
+                      else if (stats.team2 < 6) assignedSide = 2;
+                      if (assignedSide === 1) projTeam1 = playersCount; else projTeam2 = playersCount;
+                      if (stats.team1 + projTeam1 > 6 && assignedSide === 1) validPlacement = false;
+                      if (stats.team2 + projTeam2 > 6 && assignedSide === 2) validPlacement = false;
+                    } else if (classification === 'TEAM') {
+                      if (stats.team1 === 5 && playersCount === 4) validPlacement = false;
+                      else if (stats.team1 + playersCount <= 6) projTeam1 = playersCount;
+                      else if (stats.team2 + playersCount <= 6) projTeam2 = playersCount;
+                      else validPlacement = false;
+                    }
+
+                    return (
+                      <div style={{ marginTop: '16px', padding: '16px', background: 'rgba(0,164,180,0.06)', borderRadius: '12px', border: '1px dashed #00a4b4' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700' }}>Turf 1 — {slot}</span>
+                          {timeLeft && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600' }}><Clock size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {timeLeft}</span>}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 1</span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {[...Array(6)].map((_, i) => (
+                                <div key={`t1-${i}`} style={{
+                                  width: '14px', height: '14px', borderRadius: '50%',
+                                  background: i < stats.team1 ? '#00a4b4' : (validPlacement && i < stats.team1 + projTeam1 ? '#fbbf24' : '#1a1a1a'),
+                                  boxShadow: i < stats.team1 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && i < stats.team1 + projTeam1 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
+                                  flexShrink: 0, transition: 'all 0.3s ease'
+                                }} />
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ height: '1px', borderBottom: '1px dashed #00a4b4', opacity: 0.4 }}></div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: '600', width: '50px' }}>Team 2</span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {[...Array(6)].map((_, i) => (
+                                <div key={`t2-${i}`} style={{
+                                  width: '14px', height: '14px', borderRadius: '50%',
+                                  background: i < stats.team2 ? '#00a4b4' : (validPlacement && i < stats.team2 + projTeam2 ? '#fbbf24' : '#1a1a1a'),
+                                  boxShadow: i < stats.team2 ? '0 0 6px rgba(0,164,180,0.4)' : (validPlacement && i < stats.team2 + projTeam2 ? '0 0 8px rgba(251,191,36,0.6)' : 'none'),
+                                  flexShrink: 0, transition: 'all 0.3s ease'
+                                }} />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
 
                   {/* ──────────────── New: Team Rosters ──────────────── */}
-                  {selectedSlot && busySlots[selectedSlot] && (busySlots[selectedSlot].team1Slots?.length > 0 || busySlots[selectedSlot].team2Slots?.length > 0) && (
+                  {selectedSlots.length > 0 && busySlots[selectedSlots[0]] && (busySlots[selectedSlots[0]].team1Slots?.length > 0 || busySlots[selectedSlots[0]].team2Slots?.length > 0) && (
                     <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                         <div style={{ padding: '6px', background: 'rgba(22,163,74,0.1)', borderRadius: '8px' }}>
@@ -515,10 +558,10 @@ export default function VenueDetailClient({ venue }) {
                         {/* Team 1 Side */}
                         <div>
                           <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            Team 1 <span style={{ padding: '2px 6px', background: 'rgba(22,163,74,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlot].team1}/6</span>
+                            Team 1 <span style={{ padding: '2px 6px', background: 'rgba(22,163,74,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlots[0]].team1}/6</span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {busySlots[selectedSlot].team1Slots?.map((p, idx) => (
+                            {busySlots[selectedSlots[0]].team1Slots?.map((p, idx) => (
                               <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
                                 <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                                 <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
@@ -527,9 +570,9 @@ export default function VenueDetailClient({ venue }) {
                                 </div>
                               </div>
                             ))}
-                            {busySlots[selectedSlot].team1 < 6 && (
+                            {busySlots[selectedSlots[0]].team1 < 6 && (
                               <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
-                                {6 - busySlots[selectedSlot].team1} spots left
+                                {6 - busySlots[selectedSlots[0]].team1} spots left
                               </div>
                             )}
                           </div>
@@ -538,10 +581,10 @@ export default function VenueDetailClient({ venue }) {
                         {/* Team 2 Side */}
                         <div>
                           <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#3b82f6', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            Team 2 <span style={{ padding: '2px 6px', background: 'rgba(59,130,246,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlot].team2}/6</span>
+                            Team 2 <span style={{ padding: '2px 6px', background: 'rgba(59,130,246,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlots[0]].team2}/6</span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {busySlots[selectedSlot].team2Slots?.map((p, idx) => (
+                            {busySlots[selectedSlots[0]].team2Slots?.map((p, idx) => (
                               <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
                                 <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                                 <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
@@ -550,9 +593,9 @@ export default function VenueDetailClient({ venue }) {
                                 </div>
                               </div>
                             ))}
-                            {busySlots[selectedSlot].team2 < 6 && (
+                            {busySlots[selectedSlots[0]].team2 < 6 && (
                               <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
-                                {6 - busySlots[selectedSlot].team2} spots left
+                                {6 - busySlots[selectedSlots[0]].team2} spots left
                               </div>
                             )}
                           </div>
@@ -561,6 +604,34 @@ export default function VenueDetailClient({ venue }) {
                     </div>
                   )}
 
+                {/* Player Instructions */}
+                <div style={{
+                  padding: '14px 16px', borderRadius: '12px', marginBottom: '16px',
+                  background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)',
+                  fontSize: '12px', color: 'var(--muted)', lineHeight: '1.7',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontWeight: '700', color: '#38bdf8', fontSize: '13px' }}>
+                    <Info size={14} /> Important Instructions
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '16px' }}>
+                    <li>Booking is confirmed only when each team has at least <strong>3 players</strong>.</li>
+                    <li>Cancellation 24+ hrs before: <strong>100% refund</strong>. 12-24 hrs: <strong>50%</strong>. Under 12 hrs: <strong>no refund</strong>.</li>
+                    <li>Non-marking shoes are mandatory on the turf.</li>
+                    <li>You can select <strong>multiple time slots</strong> in a single booking.</li>
+                  </ul>
+                </div>
+
+                {/* Total amount display */}
+                {selectedSlots.length > 0 && (
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '14px 16px', borderRadius: '12px', marginBottom: '16px',
+                    background: 'var(--secondary)', border: '1px solid var(--glass-border)',
+                  }}>
+                    <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} slot{selectedSlots.length > 1 ? 's' : ''} × ₹{venue.pricePerHour * 3}</span>
+                    <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{venue.pricePerHour * 3 * selectedSlots.length}</span>
+                  </div>
+                )}
 
                 {/* Inline error banner */}
                 {bookingState === 'error' && (

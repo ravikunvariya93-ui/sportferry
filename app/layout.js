@@ -6,6 +6,7 @@ import AuthProvider from '@/components/AuthProvider';
 import { auth } from '@/lib/auth';
 import LocationModal from '@/components/LocationModal/LocationModal';
 import Footer from '@/components/Footer/Footer';
+import Script from 'next/script';
 
 export const metadata = {
   title: 'Sportferry | Find & Book Sports Near You',
@@ -38,6 +39,7 @@ export default async function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body>
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
         <AuthProvider session={session}>
           <LocationModal />
           <div style={{ display: 'flex', flexDirection: 'column' }}>

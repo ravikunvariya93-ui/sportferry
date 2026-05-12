@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import {
   TrendingUp, Calendar, LayoutDashboard, Users, Plus,
-  MapPin, CheckCircle2, XCircle, Clock, AlertCircle, X,
-  ShieldCheck, Lock, Edit2, ArrowDownCircle, MessageSquare
+  MapPin, CheckCircle2, Clock, Edit2, ArrowDownCircle,
+  ShieldCheck, Lock, Info, Wallet, AlertTriangle, Trash2
 } from 'lucide-react';
 import VenueModal from '@/components/VenueModal';
 import OfflineBookingModal from './OfflineBookingModal';
@@ -14,6 +14,7 @@ const STATUS_STYLES = {
   CONFIRMED: { bg: 'rgba(22,163,74,0.1)', color: '#16a34a', label: 'Confirmed' },
   PENDING:   { bg: 'rgba(251,191,36,0.1)', color: '#d97706', label: 'Pending' },
   CANCELLED: { bg: 'rgba(239,68,68,0.1)',  color: '#dc2626', label: 'Cancelled' },
+  PAYMENT_PENDING: { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6', label: 'Payment Pending' },
 };
 
 export default function VendorDashboardClient({ venues, bookings, stats }) {
@@ -21,12 +22,11 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
   const [showModal, setShowModal] = useState(false);
   const [editingVenue, setEditingVenue] = useState(null);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
-  const [cancellingId, setCancellingId] = useState(null);
-  const [cancelReason, setCancelReason] = useState('');
   const [loadingId, setLoadingId]     = useState(null);
   const [errorId, setErrorId]         = useState(null);
   const [errorMsg, setErrorMsg]       = useState('');
   const [localBookings, setLocalBookings] = useState(bookings);
+  const [showInstructions, setShowInstructions] = useState(true);
 
   const actionControllerRef = React.useRef(null);
 
@@ -70,52 +70,22 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
     }
   };
 
-  const handleCancel = async (bookingId) => {
-    if (!cancelReason.trim()) {
-      setErrorId(bookingId);
-      setErrorMsg('Please provide a reason for cancellation.');
+  const handleDeleteVenue = async (venueId) => {
+    if (!window.confirm('Are you sure you want to delete this venue? This will also delete all associated bookings.')) {
       return;
     }
-
-    if (actionControllerRef.current) actionControllerRef.current.abort();
-    actionControllerRef.current = new AbortController();
-    const signal = actionControllerRef.current.signal;
-
-    setLoadingId(bookingId);
-    setErrorId(null);
-    setErrorMsg('');
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, { 
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: cancelReason.trim() }),
-        signal,
+      const res = await fetch(`/api/venues/${venueId}`, {
+        method: 'DELETE',
       });
-      const d = await res.json();
       if (res.ok) {
-        setLocalBookings(prev =>
-          prev.map(b => b.id === bookingId ? { 
-            ...b, 
-            status: 'CANCELLED',
-            cancelledBy: 'VENDOR',
-            cancellationReason: cancelReason.trim(),
-            refundPercent: d.refundPercent ?? 100,
-            refundAmount: d.refundAmount ?? 0,
-          } : b)
-        );
-        setCancellingId(null);
-        setCancelReason('');
         router.refresh();
       } else {
-        setErrorId(bookingId);
-        setErrorMsg(d.message || 'Cancellation failed.');
+        const data = await res.json();
+        alert(data.message || 'Failed to delete venue.');
       }
     } catch (e) {
-      if (e.name === 'AbortError') return;
-      setErrorId(bookingId);
-      setErrorMsg('Network error.');
-    } finally {
-      setLoadingId(null);
+      alert('Network error. Failed to delete venue.');
     }
   };
 
@@ -124,115 +94,6 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
       {showModal && <VenueModal onClose={() => setShowModal(false)} />}
       {editingVenue && <VenueModal editingVenue={editingVenue} onClose={() => setEditingVenue(null)} />}
       {showOfflineModal && <OfflineBookingModal venues={venues} onClose={() => setShowOfflineModal(false)} />}
-
-      {/* Vendor Cancellation Reason Modal */}
-      {cancellingId && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '20px',
-          }}
-          onClick={() => { setCancellingId(null); setCancelReason(''); setErrorId(null); setErrorMsg(''); }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'var(--card-bg, #0f172a)',
-              border: '1px solid var(--glass-border)',
-              borderRadius: '18px',
-              padding: '28px',
-              maxWidth: '440px',
-              width: '100%',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <XCircle size={20} color="#dc2626" />
-                Cancel Booking
-              </h3>
-              <button onClick={() => { setCancellingId(null); setCancelReason(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Policy notice */}
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              background: 'rgba(56,189,248,0.06)',
-              border: '1px solid rgba(56,189,248,0.15)',
-              fontSize: '12px',
-              color: 'var(--muted)',
-              marginBottom: '16px',
-              lineHeight: '1.6',
-            }}>
-              <strong style={{ color: '#38bdf8' }}>⚡ Venue Cancellation Policy</strong><br />
-              When you cancel a booking, the player receives a <strong style={{ color: '#16a34a' }}>100% full refund</strong>.
-              Please provide a valid reason below.
-            </div>
-
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px', color: 'var(--foreground)' }}>
-              <MessageSquare size={13} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-              Cancellation Reason <span style={{ color: '#dc2626' }}>*</span>
-            </label>
-            <textarea
-              value={cancelReason}
-              onChange={e => setCancelReason(e.target.value)}
-              placeholder="e.g., Venue maintenance, weather conditions, emergency closure..."
-              rows={3}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '10px',
-                border: '1px solid var(--glass-border)',
-                background: 'var(--secondary)',
-                color: 'var(--foreground)',
-                fontSize: '14px',
-                fontFamily: 'inherit',
-                resize: 'vertical',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-
-            {errorId === cancellingId && errorMsg && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', color: '#dc2626', fontSize: '13px' }}>
-                <AlertCircle size={14} /> {errorMsg}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
-              <button
-                onClick={() => { setCancellingId(null); setCancelReason(''); setErrorId(null); setErrorMsg(''); }}
-                style={{
-                  padding: '10px 20px', borderRadius: '10px',
-                  border: '1px solid var(--glass-border)', background: 'none',
-                  color: 'var(--foreground)', cursor: 'pointer',
-                  fontSize: '14px', fontFamily: 'inherit', fontWeight: '500',
-                }}
-              >
-                Keep Booking
-              </button>
-              <button
-                onClick={() => handleCancel(cancellingId)}
-                disabled={loadingId === cancellingId}
-                style={{
-                  padding: '10px 20px', borderRadius: '10px',
-                  border: 'none', background: '#dc2626', color: 'white',
-                  cursor: loadingId === cancellingId ? 'not-allowed' : 'pointer',
-                  fontSize: '14px', fontFamily: 'inherit', fontWeight: '600',
-                  opacity: loadingId === cancellingId ? 0.7 : 1,
-                }}
-              >
-                {loadingId === cancellingId ? 'Cancelling...' : 'Confirm Cancellation'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
@@ -258,6 +119,66 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
             </button>
           </div>
         </header>
+
+        {/* ── Vendor Instructions Banner ─────────────────────────────────── */}
+        {showInstructions && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(56,189,248,0.08), rgba(99,102,241,0.08))',
+            border: '1px solid rgba(56,189,248,0.2)',
+            borderRadius: '16px',
+            padding: '24px',
+            position: 'relative',
+          }}>
+            <button
+              onClick={() => setShowInstructions(false)}
+              style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '18px' }}
+            >×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <div style={{ padding: '8px', background: 'rgba(56,189,248,0.15)', borderRadius: '10px' }}>
+                <Info size={20} color="#38bdf8" />
+              </div>
+              <h3 style={{ fontSize: '17px', fontWeight: '700' }}>Vendor Guidelines & Instructions</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+              <div style={{ padding: '14px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Wallet size={16} color="#10b981" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#10b981' }}>Commission: 12%</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                  SportFerry deducts a 12% platform commission from each confirmed booking. You receive 88% of the booking amount.
+                </p>
+              </div>
+              <div style={{ padding: '14px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <AlertTriangle size={16} color="#f59e0b" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#f59e0b' }}>No Cancellation</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                  Vendors cannot cancel bookings. If an issue arises, contact admin for assistance.
+                </p>
+              </div>
+              <div style={{ padding: '14px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <CheckCircle2 size={16} color="#22c55e" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#22c55e' }}>Auto-Confirm</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                  Bookings auto-confirm when both teams have at least 3 players. No manual approval needed.
+                </p>
+              </div>
+              <div style={{ padding: '14px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Calendar size={16} color="#8b5cf6" />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#8b5cf6' }}>Monthly Withdrawal</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                  You can request a withdrawal once per month. Earnings are calculated from confirmed bookings.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
@@ -309,13 +230,22 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                       <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Price / hr</div>
                       <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--primary)' }}>₹{venue.pricePerHour}</div>
                     </div>
-                    <button 
-                      onClick={() => setEditingVenue(venue)}
-                      style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--muted)', cursor: 'pointer' }}
-                      title="Edit Venue"
-                    >
-                      <Edit2 size={18} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => setEditingVenue(venue)}
+                        style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', color: 'var(--muted)', cursor: 'pointer' }}
+                        title="Edit Venue"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteVenue(venue.id || venue._id)}
+                        style={{ padding: '8px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer' }}
+                        title="Delete Venue"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -323,7 +253,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
           )}
         </section>
 
-        {/* Bookings Table */}
+        {/* Bookings Table — No Cancel Button for Vendor */}
         <section className="glass-morphism" style={{ padding: '24px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>All Bookings ({localBookings.length})</h2>
           {localBookings.length === 0 ? (
@@ -382,7 +312,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                             {isCancelled && b.cancelledBy && (
                               <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: '1.5' }}>
                                 <span style={{ color: '#dc2626', fontWeight: '600' }}>
-                                  By {b.cancelledBy === 'PLAYER' ? 'Player' : b.cancelledBy === 'VENDOR' ? 'You' : 'Admin'}
+                                  By {b.cancelledBy === 'PLAYER' ? 'Player' : b.cancelledBy === 'ADMIN' ? 'Admin' : 'System'}
                                 </span>
                                 {b.cancellationReason && (
                                   <span> — {b.cancellationReason.length > 40 ? b.cancellationReason.substring(0, 40) + '…' : b.cancellationReason}</span>
@@ -407,19 +337,11 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                                 {isLoading ? '...' : <><ShieldCheck size={14} /> Approve</>}
                               </button>
                             )}
-                            
-                            {b.status !== 'CANCELLED' && (
-                              <button
-                                onClick={() => { setCancellingId(b.id); setErrorId(null); setErrorMsg(''); }}
-                                style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)', color: '#dc2626', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '500' }}
-                              >
-                                Cancel
-                              </button>
-                            )}
+                            {/* Vendor cannot cancel — removed cancel button */}
                           </div>
-                          {hasError && errorId === b.id && !cancellingId && (
+                          {hasError && errorId === b.id && (
                             <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <AlertCircle size={12} /> {errorMsg}
+                              <AlertTriangle size={12} /> {errorMsg}
                             </div>
                           )}
                         </td>

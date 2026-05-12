@@ -54,7 +54,7 @@ export default async function VendorDashboard() {
   }));
 
   // ── Stats ───────────────────────────────────────────────────────────────
-  const SERVICE_FEE_PERCENT = 0.05;
+  const SERVICE_FEE_PERCENT = 0.12;
   const statisticalBookings = rawBookings.filter(b => b.bookingType !== 'OFFLINE');
 
   const rawRevenue = statisticalBookings
@@ -69,7 +69,7 @@ export default async function VendorDashboard() {
   const uniqueUsersCount = uniqueUserIds.size;
 
   const stats = [
-    { label: 'Earnings (Net)',  value: `₹${totalEarnings.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, iconName: 'TrendingUp',   color: '#10b981' },
+    { label: 'Earnings (after 12% commission)',  value: `₹${totalEarnings.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, iconName: 'TrendingUp',   color: '#10b981' },
     { label: 'Total Bookings', value: totalBookingsCount.toString(),                iconName: 'Calendar',     color: '#38bdf8' },
     { label: 'Active Venues',  value: vendorVenues.length.toString(),               iconName: 'LayoutDashboard', color: '#fbbf24' },
     { label: 'Customers',      value: uniqueUsersCount.toString(),               iconName: 'Users',        color: '#f472b6' },

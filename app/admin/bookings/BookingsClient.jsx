@@ -3,16 +3,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   CalendarCheck, RefreshCw, CheckCircle2, XCircle, 
-  Info, ArrowDownCircle, User, MessageSquare, ShieldCheck, X
+  Info, ArrowDownCircle, User, MessageSquare, ShieldCheck, X, Search, Filter
 } from 'lucide-react';
 import styles from '../admin.module.css';
 
-const STATUS_TABS = ['All', 'PENDING', 'CONFIRMED', 'CANCELLED'];
+const STATUS_TABS = ['All', 'PENDING', 'CONFIRMED', 'CANCELLED', 'PAYMENT_PENDING'];
 
 const STATUS_BADGE = {
   CONFIRMED: styles.badgeConfirmed,
   PENDING: styles.badgePending,
   CANCELLED: styles.badgeCancelled,
+  PAYMENT_PENDING: styles.badgePending,
 };
 
 export default function BookingsClient() {
@@ -26,9 +27,28 @@ export default function BookingsClient() {
   const [total, setTotal] = useState(0);
   const [updatingId, setUpdatingId] = useState(null);
   
+  // New filters
+  const [venueFilter, setVenueFilter] = useState('');
+  const [cityFilter, setCityFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [venues, setVenues] = useState([]);
+  const [cities, setCities] = useState([]);
+
   // Admin cancellation state
   const [cancellingId, setCancellingId] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
+
+  // Fetch venue/city lists for filter dropdowns
+  useEffect(() => {
+    fetch('/api/admin/venues?limit=200').then(r => r.json()).then(d => {
+      const v = d.venues || [];
+      setVenues(v);
+      const uniqueCities = [...new Set(v.map(x => x.city).filter(Boolean))];
+      setCities(uniqueCities.sort());
+    }).catch(() => {});
+  }, []);
 
   const fetchBookings = useCallback(async (signal) => {
     setLoading(true);
@@ -37,6 +57,11 @@ export default function BookingsClient() {
       if (activeTab !== 'All') params.set('status', activeTab);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
+      if (venueFilter) params.set('venueId', venueFilter);
+      if (cityFilter) params.set('city', cityFilter);
+      if (typeFilter) params.set('bookingType', typeFilter);
+      if (classFilter) params.set('classification', classFilter);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
       const res = await fetch(`/api/admin/bookings?${params}`, { signal });
       const data = await res.json();
       setBookings(data.bookings || []);
@@ -48,7 +73,7 @@ export default function BookingsClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab, dateFrom, dateTo]);
+  }, [page, activeTab, dateFrom, dateTo, venueFilter, cityFilter, typeFilter, classFilter, searchQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -162,8 +187,8 @@ export default function BookingsClient() {
         ))}
       </div>
 
-      {/* Date Filters */}
-      <div className={styles.filterBar} style={{ marginBottom: '20px' }}>
+      {/* Filters */}
+      <div className={styles.filterBar} style={{ marginBottom: '12px', flexWrap: 'wrap' }}>
         <input
           type="date"
           className={styles.filterSelect}
@@ -178,12 +203,44 @@ export default function BookingsClient() {
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
           title="To date"
         />
-        {(dateFrom || dateTo) && (
+        <select className={styles.filterSelect} value={venueFilter} onChange={(e) => { setVenueFilter(e.target.value); setPage(1); }}>
+          <option value="">All Venues</option>
+          {venues.map(v => <option key={v.id || v._id} value={v.id || v._id}>{v.name}</option>)}
+        </select>
+        <select className={styles.filterSelect} value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); setPage(1); }}>
+          <option value="">All Cities</option>
+          {cities.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className={styles.filterSelect} value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}>
+          <option value="">All Types</option>
+          <option value="ONLINE">Online</option>
+          <option value="OFFLINE">Offline</option>
+        </select>
+        <select className={styles.filterSelect} value={classFilter} onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}>
+          <option value="">All Classes</option>
+          <option value="SOLO">Solo</option>
+          <option value="TEAM">Team</option>
+          <option value="GROUP">Group</option>
+        </select>
+      </div>
+      <div className={styles.filterBar} style={{ marginBottom: '20px' }}>
+        <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
+          <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+          <input
+            type="text"
+            placeholder="Search customer name, email, phone..."
+            className={styles.filterSelect}
+            style={{ paddingLeft: '34px', width: '100%' }}
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+          />
+        </div>
+        {(dateFrom || dateTo || venueFilter || cityFilter || typeFilter || classFilter || searchQuery) && (
           <button
             className={styles.pageBtn}
-            onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+            onClick={() => { setDateFrom(''); setDateTo(''); setVenueFilter(''); setCityFilter(''); setTypeFilter(''); setClassFilter(''); setSearchQuery(''); setPage(1); }}
           >
-            Clear
+            Clear All
           </button>
         )}
         <button className={styles.pageBtn} onClick={() => fetchBookings()} title="Refresh" style={{ padding: '10px 12px' }}>

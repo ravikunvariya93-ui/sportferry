@@ -27,6 +27,7 @@ export default function Footer() {
             <li><Link href="/explore" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Find Venues</Link></li>
             <li><Link href="/register" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Register as Vendor</Link></li>
             <li><Link href="/bookings" style={{ color: 'var(--muted)', textDecoration: 'none' }}>My Bookings</Link></li>
+            <li><Link href="/instructions" style={{ color: 'var(--muted)', textDecoration: 'none' }}>Instructions</Link></li>
             <li><Link href="/profile" style={{ color: 'var(--muted)', textDecoration: 'none' }}>My Profile</Link></li>
           </ul>
         </div>

@@ -71,3 +71,40 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ message: 'Something went wrong. Please try again.' }, { status: 500 });
   }
 }
+
+export async function DELETE(request, { params }) {
+  try {
+    const session = await auth();
+    if (!session) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = params;
+    await dbConnect();
+    const venue = await Venue.findById(id);
+
+    if (!venue) {
+      return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+    }
+
+    const isOwner = venue.owner.toString() === session.user.id;
+    const isAdmin = session.user.role === 'ADMIN';
+
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
+    }
+
+    // Delete associated bookings
+    const Booking = (await import('@/models/Booking')).default;
+    await Booking.deleteMany({ venue: id });
+
+    // Delete the venue
+    await Venue.findByIdAndDelete(id);
+
+    return NextResponse.json({ message: 'Venue and associated bookings deleted successfully.' });
+  } catch (error) {
+    console.error('[DELETE /api/venues/[id]]', error);
+    return NextResponse.json({ message: 'Internal server error.' }, { status: 500 });
+  }
+}
+
