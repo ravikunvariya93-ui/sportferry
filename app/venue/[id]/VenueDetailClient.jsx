@@ -69,11 +69,24 @@ export default function VenueDetailClient({ venue }) {
   }, [selectedDate, venue._id]);
 
   const slots = [
-    '06:00 AM – 09:00 AM',
-    '09:00 AM – 12:00 PM',
-    '12:00 PM – 03:00 PM',
-    '03:00 PM – 06:00 PM',
-    '06:00 PM – 11:59 PM',
+    '06:00 AM – 07:00 AM',
+    '07:00 AM – 08:00 AM',
+    '08:00 AM – 09:00 AM',
+    '09:00 AM – 10:00 AM',
+    '10:00 AM – 11:00 AM',
+    '11:00 AM – 12:00 PM',
+    '12:00 PM – 01:00 PM',
+    '01:00 PM – 02:00 PM',
+    '02:00 PM – 03:00 PM',
+    '03:00 PM – 04:00 PM',
+    '04:00 PM – 05:00 PM',
+    '05:00 PM – 06:00 PM',
+    '06:00 PM – 07:00 PM',
+    '07:00 PM – 08:00 PM',
+    '08:00 PM – 09:00 PM',
+    '09:00 PM – 10:00 PM',
+    '10:00 PM – 11:00 PM',
+    '11:00 PM – 12:00 AM',
   ];
 
   const mapQuery = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
@@ -407,57 +420,56 @@ export default function VenueDetailClient({ venue }) {
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Select Time Slots <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>(multiple allowed)</span></label>
                   
                   {/* Multi-select dropdown */}
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      multiple
-                      value={selectedSlots}
-                      onChange={(e) => {
-                        const options = [...e.target.options];
-                        const selected = options.filter(o => o.selected && !o.disabled).map(o => o.value);
-                        setSelectedSlots(selected);
-                        setBookingState('idle');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '8px',
-                        background: 'var(--secondary)',
-                        border: '1px solid var(--glass-border)',
-                        borderRadius: '12px',
-                        color: 'var(--foreground)',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        minHeight: '180px',
-                      }}
-                    >
-                      {slots.map(slot => {
-                        const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
-                        const isFull = stats.total >= 12;
-                        const isToday = selectedDate === new Date().toISOString().split('T')[0];
-                        let hasPassed = false;
-                        if (isToday) {
-                          const [startTimeStr] = slot.split(' – ');
-                          const [time, meridiem] = startTimeStr.split(' ');
-                          let [h, m] = time.split(':').map(Number);
-                          if (meridiem === 'PM' && h !== 12) h += 12;
-                          if (meridiem === 'AM' && h === 12) h = 0;
-                          const slotTime = new Date();
-                          slotTime.setHours(h, m, 0, 0);
-                          hasPassed = slotTime < new Date();
-                        }
-                        const isDisabled = isFull || hasPassed;
-                        return (
-                          <option key={slot} value={slot} disabled={isDisabled} style={{
-                            padding: '10px 12px',
-                            fontSize: '13px',
-                            color: isDisabled ? '#666' : 'inherit',
-                          }}>
-                            {slot} — {isFull ? 'FULL' : hasPassed ? 'PASSED' : `${stats.total}/12 players`}
-                          </option>
-                        );
-                      })}
-                    </select>
+                  {/* Custom Slot Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', maxHeight: '280px', overflowY: 'auto', paddingRight: '6px' }}>
+                    {slots.map(slot => {
+                      const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
+                      const isFull = stats.total >= 12;
+                      const isToday = selectedDate === new Date().toISOString().split('T')[0];
+                      let hasPassed = false;
+                      if (isToday) {
+                        const [startTimeStr] = slot.split(' – ');
+                        const [time, meridiem] = startTimeStr.split(' ');
+                        let [h, m] = time.split(':').map(Number);
+                        if (meridiem === 'PM' && h !== 12) h += 12;
+                        if (meridiem === 'AM' && h === 12) h = 0;
+                        const slotTime = new Date();
+                        slotTime.setHours(h, m, 0, 0);
+                        hasPassed = slotTime < new Date();
+                      }
+                      const isDisabled = isFull || hasPassed;
+                      const isSelected = selectedSlots.includes(slot);
+
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => toggleSlot(slot)}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '12px',
+                            borderRadius: '12px',
+                            border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                            background: isSelected ? 'var(--primary)' : 'var(--secondary)',
+                            color: isSelected ? 'white' : (isDisabled ? 'var(--muted)' : 'var(--foreground)'),
+                            opacity: isDisabled ? 0.5 : 1,
+                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            transform: isSelected ? 'scale(0.98)' : 'scale(1)',
+                            boxShadow: isSelected ? '0 4px 12px rgba(22, 163, 74, 0.3)' : 'none',
+                          }}
+                        >
+                          <span style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{slot}</span>
+                          <span style={{ fontSize: '11px', fontWeight: '600', opacity: 0.9 }}>
+                            {isFull ? 'FULL' : hasPassed ? 'PASSED' : `${stats.total}/12 Players`}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Selected slots summary */}
@@ -628,8 +640,8 @@ export default function VenueDetailClient({ venue }) {
                     padding: '14px 16px', borderRadius: '12px', marginBottom: '16px',
                     background: 'var(--secondary)', border: '1px solid var(--glass-border)',
                   }}>
-                    <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} slot{selectedSlots.length > 1 ? 's' : ''} × ₹{venue.pricePerHour * 3}</span>
-                    <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{venue.pricePerHour * 3 * selectedSlots.length}</span>
+                    <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} slot{selectedSlots.length > 1 ? 's' : ''} × ₹{venue.pricePerHour}</span>
+                    <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{venue.pricePerHour * selectedSlots.length}</span>
                   </div>
                 )}
 

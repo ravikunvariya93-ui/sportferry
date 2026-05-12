@@ -56,13 +56,13 @@ export async function POST(request) {
         return NextResponse.json({ message: `Invalid slot format: ${s}` }, { status: 400 });
       }
 
-      // Verify 3-hour duration
+      // Verify 1-hour duration
       const [startH, startM] = times.startTime.split(':').map(Number);
       const [endH, endM] = times.endTime.split(':').map(Number);
       const endHAdjusted = endH === 0 ? 24 : endH;
       const duration = (endHAdjusted * 60 + endM) - (startH * 60 + startM);
-      if (duration !== 180) {
-        return NextResponse.json({ message: 'Invalid slot duration. Only 3-hour slots are allowed.' }, { status: 400 });
+      if (duration !== 60) {
+        return NextResponse.json({ message: 'Invalid slot duration. Only 1-hour slots are allowed.' }, { status: 400 });
       }
       parsedSlots.push(times);
     }
@@ -161,7 +161,7 @@ export async function POST(request) {
         }
       }
 
-      const slotAmount = bookingType === 'OFFLINE' ? 0 : venue.pricePerHour * 3;
+      const slotAmount = bookingType === 'OFFLINE' ? 0 : venue.pricePerHour;
       const commissionAmount = Math.round(slotAmount * COMMISSION_PERCENT / 100);
 
       const booking = await Booking.create([{
