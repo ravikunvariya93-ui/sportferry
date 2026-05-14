@@ -29,6 +29,8 @@ export async function GET(request, { params }) {
     .populate('user', 'name')
     .select('startTime endTime status playersCount teamSide classification user offlineCustomerName date')
     .lean();
+    
+    console.log(`[Availability API] Found ${bookings.length} bookings for venue ${params.id} on ${date}`);
 
     // Post-filter: Remove PENDING bookings if the slot has already passed
     const now = new Date();
