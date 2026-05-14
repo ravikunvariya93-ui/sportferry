@@ -94,8 +94,10 @@ a {
   margin-left: var(--sidebar-width);
   flex: 1;
   min-width: 0;
+  max-width: calc(100vw - var(--sidebar-width));
   min-height: 100vh;
   padding: 40px;
+  overflow-x: hidden;
   transition: margin-left 0.3s ease, padding 0.3s ease;
 }
 

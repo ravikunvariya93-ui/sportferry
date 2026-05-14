@@ -96,9 +96,9 @@ export async function POST(request) {
       
       let assignedSide = 1;
       if (classification === 'GROUP') {
-        if (existingBookings.length > 0) {
+        if (existingBookings.length > 0 || team1Count > 0 || team2Count > 0) {
           await session.abortTransaction();
-          return NextResponse.json({ message: `Slot ${slotList[i]} is already partially booked.` }, { status: 409 });
+          return NextResponse.json({ message: `Slot ${slotList[i]} is already partially booked. Group booking requires an empty slot.` }, { status: 409 });
         }
       } else {
         if (team1Count + playersCount <= 6) assignedSide = 1;

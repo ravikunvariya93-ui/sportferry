@@ -14,8 +14,8 @@
     "framer-motion": "^11.1.7",
     "lucide-react": "^0.378.0",
     "mongoose": "^8.3.2",
-    "next": "14.2.3",
-    "next-auth": "5.0.0-beta.17",
+    "next": "^14.2.35",
+    "next-auth": "^5.0.0-beta.31",
     "razorpay": "^2.9.6",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -24,6 +24,6 @@
   "devDependencies": {
     "dotenv": "^17.4.1",
     "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.3"
+    "eslint-config-next": "^16.2.6"
   }
 }

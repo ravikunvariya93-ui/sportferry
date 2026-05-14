@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { getISTDayRange } from '@/lib/booking-utils';
+import { getISTDayRange, cleanupExpiredPayments, formatToAMPM } from '@/lib/booking-utils';
 
 export async function GET(request, { params }) {
   try {
@@ -13,29 +13,38 @@ export async function GET(request, { params }) {
     }
 
     await dbConnect();
+    
+    // Cleanup expired payments before checking availability
+    await cleanupExpiredPayments();
 
     // Use robust IST timezone range
     const { startUTC, endUTC } = getISTDayRange(date);
 
     // Fetch all CONFIRMED or PENDING bookings for this venue on the specified date
-    const bookings = await Booking.find({
+    let bookings = await Booking.find({
       venue: params.id,
       date: { $gte: startUTC, $lte: endUTC },
       status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     })
     .populate('user', 'name')
-    .select('startTime endTime status playersCount teamSide classification user offlineCustomerName')
+    .select('startTime endTime status playersCount teamSide classification user offlineCustomerName date')
     .lean();
+
+    // Post-filter: Remove PENDING bookings if the slot has already passed
+    const now = new Date();
+    bookings = bookings.filter(b => {
+      if (b.status === 'CONFIRMED') return true;
+      if (b.status === 'PENDING') {
+        const [h, m] = b.startTime.split(':').map(Number);
+        const slotDate = new Date(b.date);
+        slotDate.setHours(h, m, 0, 0);
+        return slotDate > now; // Only keep if it's in the future
+      }
+      return true; // Keep PAYMENT_PENDING (it will be cleaned up by cleanupExpiredPayments)
+    });
 
     // Group by slot
     const slotStats = {};
-
-    function formatToAMPM(timeStr) {
-      let [h, m] = timeStr.split(':').map(Number);
-      const meridiem = h >= 12 ? 'PM' : 'AM';
-      h = h % 12 || 12;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${meridiem}`;
-    }
 
     bookings.forEach(b => {
       const startAMPM = formatToAMPM(b.startTime);
@@ -50,6 +59,7 @@ export async function GET(request, { params }) {
       }
       
       const rosterItem = {
+        userId: b.user?._id,
         name: b.user?.name || b.offlineCustomerName || 'Manual Block',
         count: b.playersCount,
         type: b.classification
