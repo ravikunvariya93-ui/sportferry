@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
+import { getISTDayRange } from '@/lib/booking-utils';
 
 export async function GET(request, { params }) {
   try {
@@ -13,15 +14,13 @@ export async function GET(request, { params }) {
 
     await dbConnect();
 
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use robust IST timezone range
+    const { startUTC, endUTC } = getISTDayRange(date);
 
     // Fetch all CONFIRMED or PENDING bookings for this venue on the specified date
     const bookings = await Booking.find({
       venue: params.id,
-      date: { $gte: startOfDay, $lte: endOfDay },
+      date: { $gte: startUTC, $lte: endUTC },
       status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     })
     .populate('user', 'name')

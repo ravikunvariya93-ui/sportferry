@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
 import { calculateRefund } from '@/lib/cancellationPolicy';
+import { getISTDayRange } from '@/lib/booking-utils';
 
 async function requireAdmin() {
   const session = await auth();
@@ -36,17 +37,14 @@ export async function GET(request) {
     if (bookingType) query.bookingType = bookingType;
     if (classification) query.classification = classification;
     if (venueId) query.venue = venueId;
+    
     if (dateFrom || dateTo) {
       query.date = {};
       if (dateFrom) {
-        const from = new Date(dateFrom);
-        from.setHours(0, 0, 0, 0);
-        query.date.$gte = from;
+        query.date.$gte = getISTDayRange(dateFrom).startUTC;
       }
       if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        query.date.$lte = to;
+        query.date.$lte = getISTDayRange(dateTo).endUTC;
       }
     }
 

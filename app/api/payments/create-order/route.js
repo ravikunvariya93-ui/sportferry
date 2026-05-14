@@ -6,7 +6,7 @@ import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import { parseSlot, cleanupExpiredPayments } from '@/lib/booking-utils';
+import { parseSlot, cleanupExpiredPayments, getISTDayRange } from '@/lib/booking-utils';
 
 const COMMISSION_PERCENT = 12;
 
@@ -35,8 +35,12 @@ export async function POST(request) {
     }
 
     const playersCount = Math.floor(Number(rawPlayersCount));
-    const bookingDate = new Date(date);
-    bookingDate.setHours(0, 0, 0, 0);
+    
+    // Use robust UTC-based date for storing
+    const [year, month, day] = date.split('-').map(Number);
+    const bookingDate = new Date(Date.UTC(year, month - 1, day));
+    
+    const { startUTC, endUTC } = getISTDayRange(date);
 
     await dbConnect();
     const mongooseConnection = mongoose.connection;
@@ -78,13 +82,13 @@ export async function POST(request) {
     for (let i = 0; i < parsedSlots.length; i++) {
       const times = parsedSlots[i];
 
-      // Availability check (Atomic)
+      // Capacity Check (Atomic within Transaction)
       const existingBookings = await Booking.find({
         venue: venueId,
-        date: bookingDate,
+        date: { $gte: startUTC, $lte: endUTC },
         startTime: times.startTime,
         endTime: times.endTime,
-        status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
+        status: { $ne: 'CANCELLED' },
       }).session(session).lean();
 
       const team1Count = existingBookings.filter(b => b.teamSide === 1).reduce((s, b) => s + b.playersCount, 0);

@@ -5,7 +5,7 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import crypto from 'crypto';
-import { parseSlot, autoConfirmIfReady } from '@/lib/booking-utils';
+import { parseSlot, autoConfirmIfReady, getISTDayRange } from '@/lib/booking-utils';
 
 const COMMISSION_PERCENT = 12;
 
@@ -39,9 +39,13 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Invalid players count.' }, { status: 400 });
     }
 
+    // Use robust UTC-based date for storing
+    const [year, month, day] = date.split('-').map(Number);
+    const bookingDate = new Date(Date.UTC(year, month - 1, day));
+    
+    const { startUTC, endUTC } = getISTDayRange(date);
+
     // 2. Date Validation (Must be today or future)
-    const bookingDate = new Date(date);
-    bookingDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (bookingDate < today) {
@@ -107,7 +111,7 @@ export async function POST(request) {
       // Capacity Check (Atomic within Transaction)
       const existingBookings = await Booking.find({
         venue: venueId,
-        date: bookingDate,
+        date: { $gte: startUTC, $lte: endUTC },
         startTime: times.startTime,
         endTime: times.endTime,
         status: { $ne: 'CANCELLED' },
