@@ -138,7 +138,7 @@ export default function BookingsClient({ initialBookings }) {
 
       {bookings.map(booking => {
         const statusStyle = STATUS_STYLES[booking.status] || STATUS_STYLES.PENDING;
-        const canCancel = booking.status !== 'CANCELLED';
+        const canCancel = booking.status !== 'CANCELLED' && !booking.isPast;
         const isConfirming = confirmingId === booking.id;
         const isLoading = loadingId === booking.id;
         const errMsg = errorMap[booking.id];

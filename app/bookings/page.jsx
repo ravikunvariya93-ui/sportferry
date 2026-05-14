@@ -9,6 +9,7 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { hoursUntilSlot } from '@/lib/cancellationPolicy';
 import BookingsClient from './BookingsClient';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,10 @@ export default async function BookingsPage() {
 
   await dbConnect();
 
-  const rawBookings = await Booking.find({ user: session.user.id })
+  const rawBookings = await Booking.find({ 
+    user: session.user.id,
+    status: { $ne: 'PAYMENT_PENDING' }
+  })
     .populate('venue')
     .sort({ createdAt: -1 })
     .lean();
@@ -39,6 +43,7 @@ export default async function BookingsPage() {
     cancellationReason: b.cancellationReason || null,
     refundPercent: b.refundPercent ?? 0,
     refundAmount: b.refundAmount ?? 0,
+    isPast: hoursUntilSlot(b) <= 0,
   }));
 
   return (

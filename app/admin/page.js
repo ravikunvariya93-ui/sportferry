@@ -18,7 +18,7 @@ async function getStats() {
     User.countDocuments({ role: 'USER' }),
     User.countDocuments({ role: 'VENDOR' }),
     Venue.countDocuments(),
-    Booking.countDocuments({ bookingType: { $ne: 'OFFLINE' } }),
+    Booking.countDocuments({ bookingType: { $ne: 'OFFLINE' }, status: { $ne: 'PAYMENT_PENDING' } }),
     Booking.countDocuments({ status: 'CONFIRMED', bookingType: { $ne: 'OFFLINE' } }),
     Booking.countDocuments({ status: 'PENDING', bookingType: { $ne: 'OFFLINE' } }),
     Booking.countDocuments({ status: 'CANCELLED', bookingType: { $ne: 'OFFLINE' } }),
@@ -33,14 +33,15 @@ async function getStats() {
   const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
   const bookingsToday = await Booking.countDocuments({ 
     createdAt: { $gte: startOfDay },
-    bookingType: { $ne: 'OFFLINE' }
+    bookingType: { $ne: 'OFFLINE' },
+    status: { $ne: 'PAYMENT_PENDING' }
   });
 
   const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
   const newUsersThisMonth = await User.countDocuments({ createdAt: { $gte: startOfMonth } });
 
   // Recent bookings
-  const recentRaw = await Booking.find()
+  const recentRaw = await Booking.find({ status: { $ne: 'PAYMENT_PENDING' } })
     .sort({ createdAt: -1 }).limit(10)
     .populate('venue', 'name city')
     .populate('user', 'name email')
@@ -59,7 +60,7 @@ async function getStats() {
 
   // Top venues
   const topVenuesRaw = await Booking.aggregate([
-    { $match: { bookingType: { $ne: 'OFFLINE' } } },
+    { $match: { bookingType: { $ne: 'OFFLINE' }, status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
     { $group: { _id: '$venue', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
     { $sort: { count: -1 } }, { $limit: 5 },
     { $lookup: { from: 'venues', localField: '_id', foreignField: '_id', as: 'v' } },
@@ -75,7 +76,7 @@ async function getStats() {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1); sixMonthsAgo.setHours(0, 0, 0, 0);
   const monthlyRaw = await Booking.aggregate([
-    { $match: { createdAt: { $gte: sixMonthsAgo }, bookingType: { $ne: 'OFFLINE' } } },
+    { $match: { createdAt: { $gte: sixMonthsAgo }, bookingType: { $ne: 'OFFLINE' }, status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
     { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
     { $sort: { '_id.year': 1, '_id.month': 1 } },
   ]);

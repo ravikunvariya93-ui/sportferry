@@ -161,7 +161,7 @@ export async function POST(request) {
         }
       }
 
-      const slotAmount = bookingType === 'OFFLINE' ? 0 : venue.pricePerHour;
+      const slotAmount = bookingType === 'OFFLINE' ? 0 : venue.pricePerHour * playersCount;
       const commissionAmount = Math.round(slotAmount * COMMISSION_PERCENT / 100);
 
       const booking = await Booking.create([{

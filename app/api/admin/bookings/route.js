@@ -31,14 +31,18 @@ export async function GET(request) {
 
     await dbConnect();
 
-    const query = {};
+    const query = { status: { $ne: 'PAYMENT_PENDING' } };
     if (status) query.status = status;
     if (bookingType) query.bookingType = bookingType;
     if (classification) query.classification = classification;
     if (venueId) query.venue = venueId;
     if (dateFrom || dateTo) {
       query.date = {};
-      if (dateFrom) query.date.$gte = new Date(dateFrom);
+      if (dateFrom) {
+        const from = new Date(dateFrom);
+        from.setHours(0, 0, 0, 0);
+        query.date.$gte = from;
+      }
       if (dateTo) {
         const to = new Date(dateTo);
         to.setHours(23, 59, 59, 999);

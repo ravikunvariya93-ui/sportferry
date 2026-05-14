@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Star, Clock, CheckCircle, Navigation, Zap, Shield, CreditCard, CalendarCheck, AlertCircle, Info, ChevronDown } from 'lucide-react';
+import { MapPin, Star, Clock, CheckCircle, Navigation, Zap, Shield, CreditCard, CalendarCheck, AlertCircle, Info, ChevronDown, User2, Trophy } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import styles from './VenueDetail.module.css';
@@ -202,34 +202,40 @@ export default function VenueDetailClient({ venue }) {
   return (
     <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '32px', paddingBottom: '80px' }}>
 
-      {/* Cinematic Hero */}
-      <section className={styles.hero}>
+      {/* Premium Cinematic Hero */}
+      <section style={{ position: 'relative', height: '55vh', minHeight: '450px', borderRadius: '24px', overflow: 'hidden', marginBottom: '10px', boxShadow: '0 24px 48px rgba(0,0,0,0.1)' }}>
         <img
           src={venue.images[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=1600'}
           alt={venue.name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scale(1.02)' }}
         />
         <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%)'
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.1) 100%)'
         }} />
-        <div className={styles.heroContent}>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'absolute', bottom: '40px', left: 'max(5%, 40px)', right: 'max(5%, 40px)', zIndex: 10 }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
             {venue.sportTypes.map(s => (
-              <span key={s} style={{ background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold' }}>
+              <span key={s} style={{ 
+                background: 'rgba(22, 163, 74, 0.25)', backdropFilter: 'blur(12px)', color: '#4ade80', 
+                border: '1px solid rgba(74, 222, 128, 0.3)', padding: '6px 18px', borderRadius: '100px', 
+                fontSize: '12px', fontWeight: '800', letterSpacing: '0.8px', textTransform: 'uppercase' 
+              }}>
                 {s}
               </span>
             ))}
           </div>
-          <h1 className={styles.heroTitle}>{venue.name}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', fontSize: '15px', color: 'rgba(255,255,255,0.9)', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <MapPin size={18} color="var(--primary)" /> {venue.area}, {venue.city}
+          <h1 style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: '900', color: 'white', marginBottom: '20px', letterSpacing: '-1.5px', textShadow: '0 8px 30px rgba(0,0,0,0.6)', lineHeight: '1.1' }}>
+            {venue.name}
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '15px', color: 'rgba(255,255,255,0.9)', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '100px', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <MapPin size={18} color="#4ade80" /> <span style={{ fontWeight: '600' }}>{venue.area}, {venue.city}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '100px', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <Star size={18} color="#fbbf24" fill="#fbbf24" />
-              <span style={{ fontWeight: '600', color: 'white' }}>{venue.rating || 4.5}</span> (120 reviews)
+              <span style={{ fontWeight: '800', color: 'white' }}>{venue.rating || 4.5}</span> 
+              <span style={{ fontSize: '14px', opacity: 0.7, fontWeight: '500' }}>(120 reviews)</span>
             </div>
           </div>
         </div>
@@ -243,40 +249,40 @@ export default function VenueDetailClient({ venue }) {
 
           {/* Overview */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: '700', borderBottom: '2px solid var(--glass-border)', paddingBottom: '12px' }}>Overview</h2>
-            <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '16px' }}>
-              Welcome to {venue.name}, located in the heart of {venue.area}. Experience the best {venue.sportTypes[0]} games on our professionally maintained surfaces. Designed for players of all skill levels, we provide top-tier floodlights for night matches, ample parking, and an energetic atmosphere. Whether for casual friendly matches, high-stakes corporate events, or structured tournaments, {venue.name} is the premier sports destination in {venue.city}.
+            <h2 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px' }}>About This Venue</h2>
+            <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '16px', fontWeight: '400' }}>
+              Welcome to <strong style={{ color: 'var(--foreground)' }}>{venue.name}</strong>, located in the heart of {venue.area}. Experience the best {venue.sportTypes[0]} games on our professionally maintained surfaces. Designed for players of all skill levels, we provide top-tier floodlights for night matches, ample parking, and an energetic atmosphere. Whether for casual friendly matches, high-stakes corporate events, or structured tournaments, {venue.name} is the premier sports destination in {venue.city}.
             </p>
-            <div className="responsive-flex-col responsive-padding responsive-gap-sm" style={{ background: 'var(--glass-bg)', padding: '24px', borderRadius: '16px', border: '1px solid var(--glass-border)', display: 'flex', gap: '24px' }}>
-              <div style={{ flex: 1, minWidth: '140px' }}>
-                <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Clock size={18} color="var(--primary)" /> Hours of Operation
+            <div className="responsive-flex-col responsive-padding responsive-gap-sm" style={{ background: 'var(--secondary)', padding: '24px', borderRadius: '20px', border: '1px solid var(--glass-border)', display: 'flex', gap: '32px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--foreground)', fontSize: '15px' }}>
+                  <div style={{ padding: '8px', background: 'rgba(22,163,74,0.1)', borderRadius: '10px' }}><Clock size={18} color="var(--primary)" /></div> Hours of Operation
                 </div>
-                <div style={{ color: 'var(--muted)', fontSize: '14px' }}>Everyday: 6:00 AM – 11:59 PM</div>
+                <div style={{ color: 'var(--muted)', fontSize: '15px', fontWeight: '500', paddingLeft: '48px' }}>Everyday: 6:00 AM – 11:59 PM</div>
               </div>
               <div style={{ width: '1px', background: 'var(--glass-border)' }}></div>
-              <div style={{ flex: 1, minWidth: '140px' }}>
-                <div style={{ fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Shield size={18} color="var(--primary)" /> Safety Rules
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--foreground)', fontSize: '15px' }}>
+                  <div style={{ padding: '8px', background: 'rgba(22,163,74,0.1)', borderRadius: '10px' }}><Shield size={18} color="var(--primary)" /></div> Safety Rules
                 </div>
-                <div style={{ color: 'var(--muted)', fontSize: '14px' }}>Non-marking shoes only.</div>
+                <div style={{ color: 'var(--muted)', fontSize: '15px', fontWeight: '500', paddingLeft: '48px' }}>Non-marking shoes only.</div>
               </div>
             </div>
           </section>
 
           {/* Amenities */}
           <section>
-            <h2 style={{ fontSize: '22px', fontWeight: '700', borderBottom: '2px solid var(--glass-border)', paddingBottom: '12px', marginBottom: '24px' }}>Amenities</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '16px', marginBottom: '24px' }}>Premium Amenities</h2>
             <div className={styles.amenitiesGrid}>
               {(venue.amenities && venue.amenities.length > 0
                 ? venue.amenities
                 : ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipments Provided']
               ).map(a => (
-                <div key={a} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(22, 163, 74, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div key={a} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 20px', background: 'var(--secondary)', borderRadius: '16px', border: '1px solid var(--glass-border)', transition: 'transform 0.2s', cursor: 'default' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(22, 163, 74, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <CheckCircle size={20} color="var(--primary)" />
                   </div>
-                  <span style={{ fontSize: '16px', fontWeight: '500' }}>{a}</span>
+                  <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--foreground)' }}>{a}</span>
                 </div>
               ))}
             </div>
@@ -306,12 +312,10 @@ export default function VenueDetailClient({ venue }) {
         {/* Right: Booking Sidebar */}
         <aside>
           <div className="glass-morphism responsive-padding" style={{
-            padding: '32px',
-            position: 'sticky',
-            top: '40px',
-            borderRadius: '24px',
-            border: '2px solid var(--glass-border)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.06)'
+            padding: '32px', position: 'sticky', top: '40px',
+            borderRadius: '24px', border: '1px solid var(--glass-border)',
+            background: 'var(--glass-bg)', backdropFilter: 'blur(24px)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.1)'
           }}>
 
             {bookingState === 'success' ? (
@@ -419,9 +423,22 @@ export default function VenueDetailClient({ venue }) {
                 <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Select Time Slots <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>(multiple allowed)</span></label>
                   
-                  {/* Multi-select dropdown */}
-                  {/* Custom Slot Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', maxHeight: '280px', overflowY: 'auto', paddingRight: '6px' }}>
+                  {/* Color Legend */}
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', padding: '10px 12px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)' }}>
+                    {[
+                      { label: 'Available', color: 'var(--secondary)', border: 'var(--glass-border)', text: 'var(--muted)' },
+                      { label: 'Selected', color: 'var(--primary)', border: 'var(--primary)', text: 'white' },
+                      { label: 'Full', color: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.3)', text: '#dc2626' },
+                      { label: 'Passed', color: 'var(--secondary)', border: 'transparent', text: 'var(--muted)', opacity: 0.4 },
+                    ].map(item => (
+                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: item.color, border: `1px solid ${item.border}`, opacity: item.opacity || 1 }} />
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: '8px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
                     {slots.map(slot => {
                       const stats = busySlots[slot] || { team1: 0, team2: 0, total: 0 };
                       const isFull = stats.total >= 12;
@@ -437,8 +454,33 @@ export default function VenueDetailClient({ venue }) {
                         slotTime.setHours(h, m, 0, 0);
                         hasPassed = slotTime < new Date();
                       }
-                      const isDisabled = isFull || hasPassed;
+                      
                       const isSelected = selectedSlots.includes(slot);
+                      const isDisabled = isFull || hasPassed;
+
+                      let bgColor = 'var(--secondary)';
+                      let borderColor = 'var(--glass-border)';
+                      let textColor = 'var(--foreground)';
+                      let statusColor = 'var(--muted)';
+                      let opacity = 1;
+
+                      if (isSelected) {
+                        bgColor = 'var(--primary)';
+                        borderColor = 'var(--primary)';
+                        textColor = 'white';
+                        statusColor = 'rgba(255,255,255,0.8)';
+                      } else if (isFull) {
+                        bgColor = 'rgba(239,68,68,0.06)';
+                        borderColor = 'rgba(239,68,68,0.2)';
+                        textColor = '#dc2626';
+                        statusColor = '#dc2626';
+                      } else if (hasPassed) {
+                        bgColor = 'rgba(0,0,0,0.02)';
+                        borderColor = 'transparent';
+                        textColor = 'var(--muted)';
+                        statusColor = 'var(--muted)';
+                        opacity = 0.4;
+                      }
 
                       return (
                         <button
@@ -451,22 +493,33 @@ export default function VenueDetailClient({ venue }) {
                             flexDirection: 'column',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            padding: '12px',
-                            borderRadius: '12px',
-                            border: isSelected ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                            background: isSelected ? 'var(--primary)' : 'var(--secondary)',
-                            color: isSelected ? 'white' : (isDisabled ? 'var(--muted)' : 'var(--foreground)'),
-                            opacity: isDisabled ? 0.5 : 1,
+                            padding: '10px 8px',
+                            borderRadius: '10px',
+                            border: `1px solid ${borderColor}`,
+                            background: bgColor,
+                            color: textColor,
+                            opacity: opacity,
                             cursor: isDisabled ? 'not-allowed' : 'pointer',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                            transform: isSelected ? 'scale(0.98)' : 'scale(1)',
-                            boxShadow: isSelected ? '0 4px 12px rgba(22, 163, 74, 0.3)' : 'none',
+                            transform: isSelected ? 'scale(0.96)' : 'scale(1)',
+                            boxShadow: isSelected ? '0 4px 12px rgba(22, 163, 74, 0.25)' : 'none',
                           }}
                         >
-                          <span style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{slot}</span>
-                          <span style={{ fontSize: '11px', fontWeight: '600', opacity: 0.9 }}>
-                            {isFull ? 'FULL' : hasPassed ? 'PASSED' : `${stats.total}/12 Players`}
-                          </span>
+                          <span style={{ fontSize: '11px', fontWeight: '700', marginBottom: '6px', whiteSpace: 'nowrap' }}>{slot}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {hasPassed ? (
+                              <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.5px' }}>PASSED</span>
+                            ) : isFull ? (
+                              <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.5px' }}>FULL</span>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <div style={{ width: '30px', height: '4px', background: 'rgba(0,0,0,0.08)', borderRadius: '10px', overflow: 'hidden' }}>
+                                   <div style={{ width: `${(stats.total / 12) * 100}%`, height: '100%', background: isSelected ? 'white' : 'var(--primary)' }} />
+                                </div>
+                                <span style={{ fontSize: '9px', fontWeight: '700', color: statusColor }}>{stats.total}/12</span>
+                              </div>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -556,60 +609,98 @@ export default function VenueDetailClient({ venue }) {
                 </div>
 
 
-                  {/* ──────────────── New: Team Rosters ──────────────── */}
+                  {/* ──────────────── Improved: Team Rosters (VS Layout) ──────────────── */}
                   {selectedSlots.length > 0 && busySlots[selectedSlots[0]] && (busySlots[selectedSlots[0]].team1Slots?.length > 0 || busySlots[selectedSlots[0]].team2Slots?.length > 0) && (
                     <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--glass-border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <div style={{ padding: '6px', background: 'rgba(22,163,74,0.1)', borderRadius: '8px' }}>
-                          <Star size={14} color="var(--primary)" />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ padding: '6px', background: 'rgba(251,191,36,0.1)', borderRadius: '8px' }}>
+                            <Trophy size={16} color="#fbbf24" />
+                          </div>
+                          <h4 style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '-0.3px' }}>Match Lineup</h4>
                         </div>
-                        <h4 style={{ fontSize: '15px', fontWeight: '700' }}>Current Match Lineup</h4>
+                        <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--muted)', background: 'var(--secondary)', padding: '4px 12px', borderRadius: '100px', border: '1px solid var(--glass-border)' }}>
+                          {busySlots[selectedSlots[0]].total} / 12 PLAYERS JOINED
+                        </div>
                       </div>
 
-                      <div className="responsive-grid-1 responsive-gap-sm" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '12px', alignItems: 'start' }}>
                         {/* Team 1 Side */}
-                        <div>
-                          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            Team 1 <span style={{ padding: '2px 6px', background: 'rgba(22,163,74,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlots[0]].team1}/6</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '900', color: 'var(--primary)', letterSpacing: '0.5px' }}>TEAM A</span>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{busySlots[selectedSlots[0]].team1}/6</span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {busySlots[selectedSlots[0]].team1Slots?.map((p, idx) => (
-                              <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
-                                <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                                <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>{p.type.toLowerCase()}</span>
-                                  <span>x{p.count}</span>
+                              <div key={idx} style={{ 
+                                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', 
+                                background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                              }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <User2 size={14} color="var(--primary)" />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                  <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>{p.type} • {p.count}p</div>
                                 </div>
                               </div>
                             ))}
-                            {busySlots[selectedSlots[0]].team1 < 6 && (
-                              <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
-                                {6 - busySlots[selectedSlots[0]].team1} spots left
+                            {/* Empty placeholders for Team 1 */}
+                            {[...Array(Math.max(0, 3 - (busySlots[selectedSlots[0]].team1Slots?.length || 0)))].map((_, i) => (
+                              <div key={`empty-t1-${i}`} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px dashed var(--glass-border)', display: 'flex', alignItems: 'center', gap: '10px', opacity: 0.4 }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px dashed var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--muted)' }} />
+                                </div>
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)' }}>Open Spot</span>
                               </div>
-                            )}
+                            ))}
                           </div>
                         </div>
 
+                        {/* VS Divider */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', minHeight: '120px', padding: '10px 0' }}>
+                          <div style={{ width: '1px', flex: 1, background: 'linear-gradient(to bottom, transparent, var(--glass-border), transparent)' }}></div>
+                          <div style={{ 
+                            fontSize: '11px', fontWeight: '900', color: 'var(--muted)', margin: '14px 0',
+                            padding: '6px', borderRadius: '50%', border: '1px solid var(--glass-border)',
+                            background: 'var(--secondary)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}>VS</div>
+                          <div style={{ width: '1px', flex: 1, background: 'linear-gradient(to bottom, transparent, var(--glass-border), transparent)' }}></div>
+                        </div>
+
                         {/* Team 2 Side */}
-                        <div>
-                          <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#3b82f6', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            Team 2 <span style={{ padding: '2px 6px', background: 'rgba(59,130,246,0.1)', borderRadius: '4px', fontSize: '9px' }}>{busySlots[selectedSlots[0]].team2}/6</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '900', color: '#3b82f6', letterSpacing: '0.5px' }}>TEAM B</span>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{busySlots[selectedSlots[0]].team2}/6</span>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {busySlots[selectedSlots[0]].team2Slots?.map((p, idx) => (
-                              <div key={idx} style={{ padding: '8px 10px', background: 'var(--secondary)', borderRadius: '10px', border: '1px solid var(--glass-border)', fontSize: '12px' }}>
-                                <div style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                                <div style={{ fontSize: '10px', color: 'var(--muted)', display: 'flex', justifyContent: 'space-between' }}>
-                                  <span>{p.type.toLowerCase()}</span>
-                                  <span>x{p.count}</span>
+                              <div key={idx} style={{ 
+                                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', 
+                                background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                              }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <User2 size={14} color="#3b82f6" />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                  <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>{p.type} • {p.count}p</div>
                                 </div>
                               </div>
                             ))}
-                            {busySlots[selectedSlots[0]].team2 < 6 && (
-                              <div style={{ padding: '8px', border: '1px dashed var(--glass-border)', borderRadius: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--muted)' }}>
-                                {6 - busySlots[selectedSlots[0]].team2} spots left
+                            {/* Empty placeholders for Team 2 */}
+                            {[...Array(Math.max(0, 3 - (busySlots[selectedSlots[0]].team2Slots?.length || 0)))].map((_, i) => (
+                              <div key={`empty-t2-${i}`} style={{ padding: '10px 12px', borderRadius: '12px', border: '1px dashed var(--glass-border)', display: 'flex', alignItems: 'center', gap: '10px', opacity: 0.4 }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px dashed var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--muted)' }} />
+                                </div>
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)' }}>Open Spot</span>
                               </div>
-                            )}
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -626,7 +717,7 @@ export default function VenueDetailClient({ venue }) {
                     <Info size={14} /> Important Instructions
                   </div>
                   <ul style={{ margin: 0, paddingLeft: '16px' }}>
-                    <li>Booking is confirmed only when each team has at least <strong>3 players</strong>.</li>
+                    <li>Booking is confirmed when a total of <strong>6 players</strong> have joined the slot.</li>
                     <li>Cancellation 24+ hrs before: <strong>100% refund</strong>. 12-24 hrs: <strong>50%</strong>. Under 12 hrs: <strong>no refund</strong>.</li>
                     <li>Non-marking shoes are mandatory on the turf.</li>
                     <li>You can select <strong>multiple time slots</strong> in a single booking.</li>
@@ -640,8 +731,8 @@ export default function VenueDetailClient({ venue }) {
                     padding: '14px 16px', borderRadius: '12px', marginBottom: '16px',
                     background: 'var(--secondary)', border: '1px solid var(--glass-border)',
                   }}>
-                    <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} slot{selectedSlots.length > 1 ? 's' : ''} × ₹{venue.pricePerHour}</span>
-                    <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{venue.pricePerHour * selectedSlots.length}</span>
+                    <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} slot(s) × {playersCount} player(s) × ₹{venue.pricePerHour}</span>
+                    <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{venue.pricePerHour * playersCount * selectedSlots.length}</span>
                   </div>
                 )}
 
@@ -662,20 +753,23 @@ export default function VenueDetailClient({ venue }) {
                   disabled={bookingState === 'loading'}
                   className="btn-primary"
                   style={{
-                    width: '100%', padding: '18px', fontSize: '16px', fontWeight: '600',
-                    borderRadius: '12px', display: 'flex', justifyContent: 'center',
-                    alignItems: 'center', gap: '8px',
+                    width: '100%', padding: '18px', fontSize: '16px', fontWeight: '800', letterSpacing: '0.5px',
+                    borderRadius: '16px', display: 'flex', justifyContent: 'center',
+                    alignItems: 'center', gap: '10px',
                     opacity: bookingState === 'loading' ? 0.7 : 1,
                     cursor: bookingState === 'loading' ? 'not-allowed' : 'pointer',
+                    background: 'linear-gradient(135deg, var(--primary) 0%, #15803d 100%)',
+                    boxShadow: '0 10px 24px rgba(22, 163, 74, 0.35)',
+                    border: 'none', color: 'white', transition: 'all 0.3s ease'
                   }}
                 >
                   {bookingState === 'loading' ? (
                     <>
-                      <span style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
-                      Confirming...
+                      <span style={{ width: '18px', height: '18px', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                      Processing...
                     </>
                   ) : (
-                    <><Zap size={20} /> {session ? 'Checkout & Book' : 'Sign In to Book'}</>
+                    <><Zap size={20} fill="currentColor" /> {session ? 'Checkout & Book' : 'Sign In to Book'}</>
                   )}
                 </button>
 

@@ -13,10 +13,15 @@ export async function GET(request, { params }) {
 
     await dbConnect();
 
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
     // Fetch all CONFIRMED or PENDING bookings for this venue on the specified date
     const bookings = await Booking.find({
       venue: params.id,
-      date: new Date(date),
+      date: { $gte: startOfDay, $lte: endOfDay },
       status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     })
     .populate('user', 'name')
@@ -26,8 +31,17 @@ export async function GET(request, { params }) {
     // Group by slot
     const slotStats = {};
 
+    function formatToAMPM(timeStr) {
+      let [h, m] = timeStr.split(':').map(Number);
+      const meridiem = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${meridiem}`;
+    }
+
     bookings.forEach(b => {
-      const slotKey = `${b.startTime} – ${b.endTime}`;
+      const startAMPM = formatToAMPM(b.startTime);
+      const endAMPM = formatToAMPM(b.endTime);
+      const slotKey = `${startAMPM} – ${endAMPM}`;
       if (!slotStats[slotKey]) {
         slotStats[slotKey] = { 
           team1: 0, team2: 0, total: 0, 

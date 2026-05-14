@@ -62,7 +62,7 @@ export async function POST(request) {
     }
 
     const groupId = slotList.length > 1 ? crypto.randomUUID() : undefined;
-    const totalAmount = venue.pricePerHour * slotList.length;
+    const totalAmount = venue.pricePerHour * playersCount * slotList.length;
 
     // 1. Create Razorpay Order
     const options = {
@@ -105,7 +105,7 @@ export async function POST(request) {
         }
       }
 
-      const commissionAmount = Math.round((venue.pricePerHour) * COMMISSION_PERCENT / 100);
+      const commissionAmount = Math.round((venue.pricePerHour * playersCount) * COMMISSION_PERCENT / 100);
 
       const booking = await Booking.create([{
         venue: venueId,
@@ -113,7 +113,7 @@ export async function POST(request) {
         date: bookingDate,
         startTime: times.startTime,
         endTime: times.endTime,
-        totalAmount: venue.pricePerHour,
+        totalAmount: venue.pricePerHour * playersCount,
         commissionPercent: COMMISSION_PERCENT,
         commissionAmount,
         status: 'PAYMENT_PENDING',

@@ -28,7 +28,10 @@ export default async function VendorDashboard() {
   const venueIds = rawVenues.map(v => v._id);
 
   // ── All Bookings for this vendor's venues ───────────────────────────────
-  const rawBookings = await Booking.find({ venue: { $in: venueIds } })
+  const rawBookings = await Booking.find({ 
+    venue: { $in: venueIds },
+    status: { $ne: 'PAYMENT_PENDING' }
+  })
     .populate('user', 'name')
     .populate('venue', 'name')
     .sort({ createdAt: -1 })
