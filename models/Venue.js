@@ -32,6 +32,11 @@ const VenueSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  numberOfTurfs: {
+    type: Number,
+    default: 1,
+    min: [1, 'Venue must have at least 1 turf.'],
+  },
   images: {
     type: [String],
     default: [],

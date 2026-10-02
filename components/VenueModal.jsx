@@ -17,10 +17,18 @@ export default function VenueModal({ onClose, editingVenue = null }) {
     area: editingVenue?.area || '',
     address: editingVenue?.address || '',
     pricePerHour: editingVenue?.pricePerHour || '',
-    imageUrl: editingVenue?.images?.[0] || '',
+    numberOfTurfs: editingVenue?.numberOfTurfs || 1,
     sportTypes: editingVenue?.sportTypes || [],
     amenities: editingVenue?.amenities || [],
   });
+
+  // Cover + gallery images (Vercel Blob). Existing URLs kept until removed.
+  const [existingImages, setExistingImages] = useState(editingVenue?.images || []);
+  const [coverSel, setCoverSel] = useState(null); // { file, preview }
+  const [gallerySel, setGallerySel] = useState([]); // [{ file, preview }]
+  const [uploading, setUploading] = useState(false);
+  const coverInputRef = React.useRef(null);
+  const galleryInputRef = React.useRef(null);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -50,6 +58,21 @@ export default function VenueModal({ onClose, editingVenue = null }) {
     setError('');
   };
 
+  const pickCover = (e) => {
+    const f = e.target.files?.[0];
+    if (f) setCoverSel({ file: f, preview: URL.createObjectURL(f) });
+    setError('');
+  };
+
+  const pickGallery = (e) => {
+    const files = [...(e.target.files || [])].slice(0, 5);
+    if (files.length) {
+      setGallerySel(prev => [...prev, ...files.map(f => ({ file: f, preview: URL.createObjectURL(f) }))].slice(0, 5));
+    }
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (form.sportTypes.length === 0) {
@@ -64,14 +87,41 @@ export default function VenueModal({ onClose, editingVenue = null }) {
     setLoading(true);
     setError('');
 
-    const url = isEdit ? `/api/venues/${editingVenue.id || editingVenue._id}` : '/api/venues';
-    const method = isEdit ? 'PATCH' : 'POST';
-
     try {
+      // 1. Upload new cover/gallery files to Vercel Blob first
+      let images = [...existingImages];
+      const toUpload = [];
+      if (coverSel) toUpload.push(coverSel.file);
+      gallerySel.forEach(g => toUpload.push(g.file));
+      if (toUpload.length > 0) {
+        setUploading(true);
+        const fd = new FormData();
+        toUpload.slice(0, 6).forEach(f => fd.append('files', f));
+        const up = await fetch('/api/upload', { method: 'POST', body: fd, signal });
+        const ud = await up.json();
+        setUploading(false);
+        if (!up.ok) {
+          setError(ud.message || 'Image upload failed.');
+          setLoading(false);
+          return;
+        }
+        const urls = ud.urls || [];
+        let ui = 0;
+        if (coverSel && urls[ui]) {
+          images = images.length ? [urls[ui], ...images.slice(1)] : [urls[ui]];
+          ui++;
+        }
+        images = [...images, ...urls.slice(ui)];
+      }
+
+      // 2. Save venue with final images array
+      const payload = { ...form, images };
+      const url = isEdit ? `/api/venues/${editingVenue.id || editingVenue._id}` : '/api/venues';
+      const method = isEdit ? 'PATCH' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
         signal,
       });
       const data = await res.json();
@@ -86,6 +136,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -158,16 +209,76 @@ export default function VenueModal({ onClose, editingVenue = null }) {
               <input name="address" value={form.address} onChange={handleChange} placeholder="Street, landmark, etc." style={inputStyle} required />
             </div>
 
-            {/* Price */}
-            <div>
-              <label style={labelStyle}>Price Per Hour (₹) *</label>
-              <input name="pricePerHour" value={form.pricePerHour} type="number" min="1" onChange={handleChange} placeholder="e.g. 800" style={inputStyle} required />
+            {/* Price + Number of Turfs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>Price Per Hour (₹) *</label>
+                <input name="pricePerHour" value={form.pricePerHour} type="number" min="1" onChange={handleChange} placeholder="e.g. 800" style={inputStyle} required />
+              </div>
+              <div>
+                <label style={labelStyle}>Number of Turfs *</label>
+                <input name="numberOfTurfs" value={form.numberOfTurfs} type="number" min="1" step="1" onChange={handleChange} placeholder="e.g. 2" style={inputStyle} required />
+              </div>
             </div>
 
-            {/* Image URL */}
+            {/* Cover Image — upload */}
             <div>
-              <label style={labelStyle}>Cover Image URL (optional)</label>
-              <input name="imageUrl" value={form.imageUrl} onChange={handleChange} placeholder="https://..." style={inputStyle} />
+              <label style={labelStyle}>Cover Image {existingImages[0] || coverSel ? '' : '(optional)'}</label>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {(coverSel?.preview || existingImages[0]) && (
+                  <div style={{ position: 'relative' }}>
+                    <img src={coverSel?.preview || existingImages[0]} alt="Cover"
+                      style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: '10px', border: '1.5px solid var(--primary)' }} />
+                    <span style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '10px', fontWeight: '700', background: 'var(--primary)', color: 'white', padding: '2px 8px', borderRadius: '100px' }}>COVER</span>
+                    <button type="button" title="Remove cover" onClick={() => {
+                      if (coverSel) { setCoverSel(null); if (coverInputRef.current) coverInputRef.current.value = ''; }
+                      else setExistingImages(prev => prev.slice(1));
+                    }}
+                      style={{ position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px', borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '700', lineHeight: 1 }}>×</button>
+                  </div>
+                )}
+                <div>
+                  <input ref={coverInputRef} type="file" accept="image/*" onChange={pickCover} style={{ display: 'none' }} />
+                  <button type="button" onClick={() => coverInputRef.current?.click()}
+                    style={{ padding: '10px 18px', borderRadius: '10px', border: '1px dashed var(--glass-border)', background: 'var(--glass-bg)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: '600', color: 'var(--foreground)' }}>
+                    {coverSel || existingImages[0] ? 'Change cover…' : 'Upload cover…'}
+                  </button>
+                  {coverSel && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>New: {coverSel.file.name}</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* Other Images — upload up to 5 */}
+            <div>
+              <label style={labelStyle}>Other Images (up to 5, optional)</label>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                {existingImages.slice(1).map((src, i) => {
+                  const idx = 1 + i;
+                  return (
+                    <div key={`${src}-${idx}`} style={{ position: 'relative' }}>
+                      <img src={src} alt={`Venue ${idx + 1}`}
+                        style={{ width: '88px', height: '64px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--glass-border)' }} />
+                      <button type="button" title="Remove" onClick={() => setExistingImages(prev => prev.filter((_, j) => j !== idx))}
+                        style={{ position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px', borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '700', lineHeight: 1 }}>×</button>
+                      <button type="button" title="Make cover" onClick={() => setExistingImages(prev => [prev[idx], ...prev.filter((_, j) => j !== idx)])}
+                        style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '9px', fontWeight: '700', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 6px', borderRadius: '100px', border: 'none', cursor: 'pointer' }}>COVER</button>
+                    </div>
+                  );
+                })}
+                {gallerySel.map((g, i) => (
+                  <div key={`new-${i}`} style={{ position: 'relative' }}>
+                    <img src={g.preview} alt="New"
+                      style={{ width: '88px', height: '64px', objectFit: 'cover', borderRadius: '10px', border: '1.5px dashed var(--primary)' }} />
+                    <button type="button" title="Remove" onClick={() => setGallerySel(prev => prev.filter((_, j) => j !== i))}
+                      style={{ position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px', borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '700', lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={pickGallery} style={{ display: 'none' }} />
+              <button type="button" onClick={() => galleryInputRef.current?.click()}
+                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px dashed var(--glass-border)', background: 'var(--glass-bg)', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px', fontWeight: '600', color: 'var(--foreground)' }}>
+                + Add images…
+              </button>
             </div>
 
             {/* Sport Types */}
@@ -224,7 +335,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
                 Cancel
               </button>
               <button type="submit" disabled={loading} className="btn-primary" style={{ flex: 2, padding: '14px', borderRadius: '12px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
-                {loading ? (isEdit ? 'Updating...' : 'Registering...') : (isEdit ? 'Save Changes' : 'Register Venue')}
+                {loading ? (uploading ? 'Uploading images…' : isEdit ? 'Updating...' : 'Registering...') : (isEdit ? 'Save Changes' : 'Register Venue')}
               </button>
             </div>
           </form>

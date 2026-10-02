@@ -5,6 +5,17 @@ import { MapPin, LocateFixed, Loader2, ChevronRight, ChevronLeft, Search, X } fr
 import { INDIA_STATES } from '@/lib/indiaCities';
 
 const CITY_KEY = 'sportferry_city';
+const SKIPPED_KEY = 'sportferry_location_skipped';
+
+const readLS = (k) => {
+  try { return localStorage.getItem(k); } catch { return null; }
+};
+const writeLS = (k, v) => {
+  try { localStorage.setItem(k, v); } catch { /* storage blocked — ignore */ }
+};
+const removeLS = (k) => {
+  try { localStorage.removeItem(k); } catch { /* ignore */ }
+};
 
 export default function LocationModal() {
   const [visible, setVisible] = useState(false);
@@ -15,22 +26,54 @@ export default function LocationModal() {
   const [error, setError]     = useState('');
 
   useEffect(() => {
+    let timer = null;
     const check = () => {
-      if (!localStorage.getItem(CITY_KEY)) {
+      // Show only when no saved city AND user hasn't dismissed before
+      if (!readLS(CITY_KEY) && !readLS(SKIPPED_KEY)) {
         setStep('prompt');
         setError('');
-        setTimeout(() => setVisible(true), 600);
+        timer = setTimeout(() => setVisible(true), 600);
       }
     };
     check();
 
-    const handler = () => { localStorage.removeItem(CITY_KEY); check(); };
-    window.addEventListener('sportferry:resetLocation', handler);
-    return () => window.removeEventListener('sportferry:resetLocation', handler);
+    const onReset = () => {
+      removeLS(CITY_KEY);
+      removeLS(SKIPPED_KEY); // user explicitly wants to re-pick
+      check();
+    };
+    // If city gets saved elsewhere (another component/tab), hide immediately
+    const onCitySet = () => {
+      if (readLS(CITY_KEY)) {
+        removeLS(SKIPPED_KEY);
+        setVisible(false);
+      }
+    };
+    const onStorage = (e) => {
+      if (e.key === CITY_KEY && e.newValue) setVisible(false);
+      if (e.key === CITY_KEY && !e.newValue) check();
+    };
+    window.addEventListener('sportferry:resetLocation', onReset);
+    window.addEventListener('sportferry:citySet', onCitySet);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener('sportferry:resetLocation', onReset);
+      window.removeEventListener('sportferry:citySet', onCitySet);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
+  // Dismiss without saving — remembered so we don't nag on every visit
+  const dismiss = () => {
+    writeLS(SKIPPED_KEY, '1');
+    setVisible(false);
+    setTimeout(() => { setStep('prompt'); setSelectedState(null); setStateFilter(''); setCityFilter(''); }, 400);
+  };
+
   const saveCity = (city) => {
-    localStorage.setItem(CITY_KEY, city);
+    writeLS(CITY_KEY, city);
+    removeLS(SKIPPED_KEY);
     window.dispatchEvent(new CustomEvent('sportferry:citySet', { detail: { city } }));
     setVisible(false);
     // Reset internal state for next open
@@ -136,7 +179,7 @@ export default function LocationModal() {
                 <ChevronLeft size={22} />
               </button>
               <h2 style={{ fontSize: '19px', fontWeight: '700', flex: 1 }}>Select State</h2>
-              <button onClick={() => setVisible(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
+              <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
                 <X size={20} />
               </button>
             </div>
@@ -197,7 +240,7 @@ export default function LocationModal() {
                 </div>
                 <h2 style={{ fontSize: '19px', fontWeight: '700' }}>Select City</h2>
               </div>
-              <button onClick={() => setVisible(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
+              <button onClick={dismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
                 <X size={20} />
               </button>
             </div>
@@ -300,7 +343,7 @@ export default function LocationModal() {
               </button>
 
               <button
-                onClick={() => setVisible(false)}
+                onClick={dismiss}
                 style={{
                   display: 'block', margin: '16px auto 0',
                   background: 'none', border: 'none', color: 'var(--muted)',

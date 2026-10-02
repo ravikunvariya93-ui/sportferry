@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Clock, CheckCircle, Navigation, Zap, Shield, CalendarCheck, AlertCircle, User2, Trophy } from 'lucide-react';
+import { MapPin, Clock, CheckCircle, Navigation, Zap, Shield, CalendarCheck, AlertCircle, Trophy, LayoutGrid } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -11,32 +11,74 @@ export default function VenueDetailClient({ venue }) {
   const { data: session } = useSession();
   const router = useRouter();
 
-  const [selectedDate, setSelectedDate] = useState(() => {
+  // Internal value stays YYYY-MM-DD (API-compatible); display is always DD-MM-YYYY
+  const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const toDDMMYYYY = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}-${m}-${y}`;
+  };
+  // Next 30 days for chips — same list everywhere, no locale-dependent native picker
+  const dateOptions = React.useMemo(() => {
+    const out = [];
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const iso = toISO(d);
+      out.push({
+        iso,
+        label: toDDMMYYYY(iso),
+        dayName: d.toLocaleDateString('en-GB', { weekday: 'short' }),
+        dayNum: String(d.getDate()).padStart(2, '0'),
+        monthShort: d.toLocaleDateString('en-GB', { month: 'short' }),
+      });
+    }
+    return out;
+  }, []);
+
+  // Each booking form owns its dates + slots + type + players + team.
+  // Booking 1 is always visible; "Add More Slots" appends Booking 2, 3…
+  const todayISO = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const newBookingForm = () => ({
+    key: Math.random().toString(36).slice(2),
+    selectedDate: todayISO(), // one date per booking
+    selectedSlot: null, // one slot per booking
+    classification: 'SOLO',
+    playersCount: 1,
+    preferredTeam: 'team1', // 'team1' | 'team2'
   });
-  const [selectedSlots, setSelectedSlots] = useState([]);
-  const [busySlots, setBusySlots] = useState({});
+  const [bookingForms, setBookingForms] = useState(() => [newBookingForm()]);
+  const [busyByDate, setBusyByDate] = useState({}); // { 'YYYY-MM-DD': slotStats } (shared)
   const [bookingState, setBookingState] = useState('idle');
-  const [classification, setClassification] = useState('SOLO');
-  const [playersCount, setPlayersCount] = useState(1);
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingId, setBookingId] = useState(null);
-  const [activeSlot, setActiveSlot] = useState('06:00 AM – 07:00 AM');
   const [activeTab, setActiveTab] = useState('overview');
-  const [preferredTeam, setPreferredTeam] = useState('team1'); // 'team1' | 'team2'
+  const [activeImg, setActiveImg] = useState(0); // gallery hero index
 
-  /* ── Fetch slot availability ── */
+  const updateForm = (key, patch) => {
+    setBookingForms(prev => prev.map(f => f.key === key ? { ...f, ...patch } : f));
+  };
+
+  /* ── Fetch slot availability for every date used by any booking ── */
+  const allUsedDates = [...new Set(bookingForms.map(f => f.selectedDate))].sort();
   useEffect(() => {
-    const ctrl = new AbortController();
-    (async () => {
-      try {
-        const r = await fetch(`/api/venues/${venue._id}/availability?date=${selectedDate}`, { signal: ctrl.signal });
-        if (r.ok) { const d = await r.json(); setBusySlots(d.slotStats || {}); }
-      } catch (e) { if (e.name !== 'AbortError') console.error(e); }
-    })();
-    return () => ctrl.abort();
-  }, [selectedDate, venue._id]);
+    const ctrls = allUsedDates.map(() => new AbortController());
+    allUsedDates.forEach((iso, i) => {
+      (async () => {
+        try {
+          const r = await fetch(`/api/venues/${venue._id}/availability?date=${iso}`, { signal: ctrls[i].signal });
+          if (r.ok) {
+            const d = await r.json();
+            setBusyByDate(prev => ({ ...prev, [iso]: d.slotStats || {} }));
+          }
+        } catch (e) { if (e.name !== 'AbortError') console.error(e); }
+      })();
+    });
+    return () => ctrls.forEach(c => c.abort());
+  }, [allUsedDates.join(','), venue._id]);
 
   const slots = [
     '06:00 AM – 07:00 AM','07:00 AM – 08:00 AM','08:00 AM – 09:00 AM',
@@ -47,8 +89,9 @@ export default function VenueDetailClient({ venue }) {
     '09:00 PM – 10:00 PM','10:00 PM – 11:00 PM','11:00 PM – 12:00 AM',
   ];
 
-  const hasPassed = (slot) => {
-    if (selectedDate !== new Date().toISOString().split('T')[0]) return false;
+  const hasPassedFor = (slot, iso) => {
+    const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+    if (iso !== today) return false;
     const [startTimeStr] = slot.split(' – ');
     const [time, meridiem] = startTimeStr.split(' ');
     let [h, m] = time.split(':').map(Number);
@@ -58,20 +101,49 @@ export default function VenueDetailClient({ venue }) {
     return t < new Date();
   };
 
-  const toggleSlot = (slot) => {
-    setSelectedSlots(p => p.includes(slot) ? p.filter(s => s !== slot) : [...p, slot]);
+  const toggleDateFor = (formKey, iso) => {
     setBookingState('idle');
+    const form = bookingForms.find(f => f.key === formKey);
+    if (!form || form.selectedDate === iso) return;
+    // One date per booking — switching date clears the picked slot
+    updateForm(formKey, { selectedDate: iso, selectedSlot: null });
   };
 
-  /* ── Payment flow ── */
+  const toggleSlotFor = (formKey, slot) => {
+    setBookingState('idle');
+    const form = bookingForms.find(f => f.key === formKey);
+    if (!form) return;
+    // One slot per booking — re-tap to deselect
+    updateForm(formKey, { selectedSlot: form.selectedSlot === slot ? null : slot });
+  };
+
+  const addBookingForm = () => {
+    setBookingState('idle');
+    setBookingForms(prev => [...prev, newBookingForm()]);
+  };
+
+  const removeBookingForm = (key) => {
+    setBookingState('idle');
+    setBookingForms(prev => (prev.length > 1 ? prev.filter(f => f.key !== key) : prev));
+  };
+
+  // Flat list of picked date+slot cells — at most one per booking
+  const allCells = bookingForms
+    .filter(f => f.selectedSlot)
+    .map(f => ({
+      date: f.selectedDate, slot: f.selectedSlot,
+      classification: f.classification, playersCount: f.playersCount,
+    }));
+
+  /* ── Payment flow (multi-date + multi-slot) ── */
   const handleBook = async () => {
     if (!session) { router.push('/login'); return; }
-    if (!selectedSlots.length) { setBookingState('error'); setBookingMessage('Select at least one slot.'); return; }
+    if (!allCells.length) { setBookingState('error'); setBookingMessage('Select at least one date and slot.'); return; }
     setBookingState('loading');
     try {
       const r1 = await fetch('/api/payments/create-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ venueId: venue._id, date: selectedDate, slots: selectedSlots, sport: venue.sportTypes[0], classification, playersCount }),
+        body: JSON.stringify({ venueId: venue._id, selections: allCells, sport: venue.sportTypes[0] }),
       });
       const od = await r1.json();
       if (!r1.ok) { setBookingState('error'); setBookingMessage(od.message || 'Failed.'); return; }
@@ -96,15 +168,144 @@ export default function VenueDetailClient({ venue }) {
     } catch { setBookingState('error'); setBookingMessage('Something went wrong.'); }
   };
 
+  const firstUpcomingFor = (iso) => slots.filter(s => !hasPassedFor(s, iso))[0];
+
+  /* ── BookMyShow-style lineup block for one date+slot cell ── */
+  // animIdx staggers entrance so 2nd, 3rd… lineups cascade in visibly
+  const renderLineup = (form, iso, slotLabel, isPreview, animIdx = 0) => {
+    const stats = busyByDate[iso]?.[slotLabel] || { total: 0, team1: 0, team2: 0, team1Slots: [], team2Slots: [] };
+    const isSelected = form.selectedSlot === slotLabel;
+    const past = hasPassedFor(slotLabel, iso);
+    return (
+      <div key={`${form.key}|${iso}|${slotLabel}`} className={styles.lineupEnter} style={{ padding: '20px 16px 16px', background: 'var(--background)', borderRadius: '16px', border: isPreview ? '1px dashed var(--glass-border)' : '1px solid var(--glass-border)', marginBottom: '12px', animationDelay: `${Math.min(animIdx, 6) * 110}ms` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Trophy size={16} color="#fbbf24" />
+            <span style={{ fontSize: '14px', fontWeight: '800' }}>{slotLabel}</span>
+            {isPreview && <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--muted)', background: 'var(--secondary)', padding: '3px 10px', borderRadius: '100px' }}>PREVIEW — tap a seat to add</span>}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)' }}>{stats.total || 0}/12 JOINED</span>
+            {isSelected && (
+              <button onClick={() => { updateForm(form.key, { selectedSlot: null }); setBookingState('idle'); }} title="Remove this slot"
+                style={{ background: 'none', border: '1px solid var(--glass-border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', padding: '2px 8px', fontFamily: 'inherit' }}>✕</button>
+            )}
+          </div>
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>{toDDMMYYYY(iso)}</div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', marginBottom: '18px', fontSize: '11px', color: 'var(--muted)', fontWeight: '600' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '18px', height: '16px', borderRadius: '5px 5px 3px 3px', border: '1.5px solid #16a34a', background: 'transparent', display: 'inline-block' }} /> Available
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '18px', height: '16px', borderRadius: '5px 5px 3px 3px', background: '#16a34a', border: '1.5px solid #16a34a', display: 'inline-block' }} /> Selected
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '18px', height: '16px', borderRadius: '5px 5px 3px 3px', background: '#d1d5db', border: '1.5px solid #d1d5db', display: 'inline-block' }} /> Booked
+          </span>
+        </div>
+
+        {[
+          { key: 'team1', label: 'TEAM A', color: '#16a34a', light: 'rgba(22,163,74,0.12)', count: stats.team1 || 0, slotsArr: stats.team1Slots || [] },
+          { key: 'team2', label: 'TEAM B', color: '#3b82f6', light: 'rgba(59,130,246,0.12)', count: stats.team2 || 0, slotsArr: stats.team2Slots || [] },
+        ].map((row, rowIdx) => {
+                  const isPreferred = form.preferredTeam === row.key || form.classification === 'GROUP';
+                  const spotsToHighlight = isSelected && isPreferred ? (form.classification === 'GROUP' ? 6 : form.playersCount) : 0;
+          let highlighted = 0;
+          return (
+            <React.Fragment key={row.key}>
+            {rowIdx === 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0 16px' }}>
+                <div style={{ flex: 1, height: '2px', background: 'var(--glass-border)' }} />
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '50%',
+                  border: '2px solid var(--primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '10px', fontWeight: '900', color: 'var(--primary)',
+                  background: 'var(--background)', flexShrink: 0,
+                }}>VS</div>
+                <div style={{ flex: 1, height: '2px', background: 'var(--glass-border)' }} />
+              </div>
+            )}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '900', letterSpacing: '1px', color: row.color }}>{row.label}</span>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{row.count}/6</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {[...Array(6)].map((_, i) => {
+                  const p = row.slotsArr[i];
+                  if (p) {
+                    return (
+                      <Link key={i} href={`/profile/${p.userId || ''}`} title={p.name}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          width: '46px', height: '44px', borderRadius: '10px 10px 6px 6px',
+                          background: '#d1d5db', border: '1.5px solid #d1d5db', color: '#6b7280',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '14px', fontWeight: '800', textDecoration: 'none',
+                        }}>
+                        {(p.name || 'M').charAt(0).toUpperCase()}
+                      </Link>
+                    );
+                  }
+                  const isMySeat = !past && highlighted < spotsToHighlight;
+                  if (isMySeat) highlighted++;
+                  return (
+                    <button key={i} title={isMySeat ? 'Your seat' : `${row.label} seat ${i + 1}`}
+                      disabled={past} className={isMySeat ? styles.seatPop : undefined}
+                              onClick={() => {
+                                if (past) return;
+                                // BMS-style: tapping a seat picks this slot (one slot per booking)
+                                updateForm(form.key, { preferredTeam: row.key, selectedSlot: slotLabel });
+                                setBookingState('idle');
+                              }}
+                      style={{
+                        width: '46px', height: '44px', borderRadius: '10px 10px 6px 6px',
+                        border: `1.5px solid ${row.color}`,
+                        background: isMySeat ? row.color : 'transparent',
+                        color: isMySeat ? 'white' : row.color,
+                        fontSize: '13px', fontWeight: '800', cursor: past ? 'not-allowed' : 'pointer',
+                        opacity: past ? 0.4 : 1, fontFamily: 'inherit',
+                        boxShadow: isMySeat ? `0 3px 10px ${row.light}` : 'none',
+                      }}>
+                      {isMySeat ? '✓' : i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+              {row.slotsArr.length > 0 && (
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px', textAlign: 'center' }}>
+                  {row.slotsArr.map(s => s.name).filter(Boolean).join(', ')}
+                </div>
+              )}
+            </div>
+            </React.Fragment>
+          );
+        })}
+
+        <div style={{ borderTop: '1px dashed var(--glass-border)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+            {isSelected
+              ? `${form.playersCount} seat${form.playersCount > 1 ? 's' : ''} • ${form.preferredTeam === 'team1' ? 'Team A' : form.preferredTeam === 'team2' ? 'Team B' : ''}`
+              : 'Tap an available seat to pick your side'}
+          </span>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{venue.pricePerHour * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
+        </div>
+      </div>
+    );
+  };
+
   const mapQ = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
-  const total = venue.pricePerHour * selectedSlots.length * playersCount;
+  const total = allCells.reduce((s, c) => s + venue.pricePerHour * (c.playersCount || 1), 0);
 
   return (
     <div className={styles.page}>
 
       {/* ════════ HERO ════════ */}
       <section className={styles.hero}>
-        <img className={styles.heroImg} src={venue.images?.[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=1600'} alt={venue.name} />
+        <img className={styles.heroImg} src={venue.images?.[activeImg] || venue.images?.[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=1600'} alt={venue.name} />
         <div className={styles.heroOverlay} />
         <div className={styles.heroContent}>
           <div className={styles.heroBadges}>
@@ -117,7 +318,23 @@ export default function VenueDetailClient({ venue }) {
           <div className={styles.heroMeta}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={16} /> {venue.area}, {venue.city}</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={16} /> 6 AM – 12 AM</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><LayoutGrid size={16} /> {venue.numberOfTurfs || 1} Turf{(venue.numberOfTurfs || 1) !== 1 ? 's' : ''}</span>
           </div>
+          {/* Gallery thumbnails */}
+          {(venue.images?.length || 0) > 1 && (
+            <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px' }}>
+              {venue.images.map((src, i) => (
+                <button key={src + i} onClick={() => setActiveImg(i)} title={`Photo ${i + 1}`}
+                  style={{
+                    border: activeImg === i ? '2px solid white' : '2px solid transparent',
+                    borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', padding: 0,
+                    opacity: activeImg === i ? 1 : 0.75, background: 'none',
+                  }}>
+                  <img src={src} alt="" style={{ width: '56px', height: '40px', objectFit: 'cover', display: 'block' }} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -198,38 +415,80 @@ export default function VenueDetailClient({ venue }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Date */}
+              {/* Booking forms — Booking 1 first; "Add More Slots" appends Booking 2, 3… each with own date, type, players, slots, lineups */}
+              {bookingForms.map((form, fi) => {
+                const hasSlot = !!form.selectedSlot;
+                const formSubtotal = hasSlot ? venue.pricePerHour * form.playersCount : 0;
+                return (
+                <div key={form.key} className={styles.dateSectionEnter} style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '16px', borderRadius: '18px', border: '1.5px solid var(--glass-border)', background: 'var(--secondary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800' }}>Booking {fi + 1}
+                      <span style={{ color: 'var(--muted)', fontWeight: '400', fontSize: '12px' }}> • {hasSlot ? `${toDDMMYYYY(form.selectedDate)} • ${form.selectedSlot}` : 'no slot picked'} • ₹{formSubtotal}</span>
+                    </span>
+                    {bookingForms.length > 1 && (
+                      <button onClick={() => removeBookingForm(form.key)} title="Remove this booking"
+                        style={{ background: 'none', border: '1px solid var(--glass-border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', padding: '4px 10px', fontFamily: 'inherit' }}>
+                        Remove ✕
+                      </button>
+                    )}
+                  </div>
+              {/* Date — single pick, always DD-MM-YYYY (custom chips, no locale-dependent native picker) */}
               <div>
-                <label style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>Date</label>
-                <input type="date" value={selectedDate} min={new Date().toISOString().split('T')[0]}
-                  onChange={e => { setSelectedDate(e.target.value); setBookingState('idle'); }}
-                  style={{ width: '100%', padding: '14px', background: 'var(--background)', border: '1px solid var(--glass-border)', borderRadius: '14px', color: 'var(--foreground)', fontSize: '14px', fontWeight: '600' }}
-                />
+                <label style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>
+                  Date <span style={{ color: 'var(--primary)' }}>{toDDMMYYYY(form.selectedDate)}</span>
+                </label>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '6px', scrollbarWidth: 'thin' }}>
+                  {dateOptions.map(o => {
+                    const sel = form.selectedDate === o.iso;
+                    return (
+                      <button
+                        key={o.iso}
+                        onClick={() => toggleDateFor(form.key, o.iso)}
+                        title={o.label}
+                        style={{
+                          flex: '0 0 auto', minWidth: '64px', padding: '10px 8px', borderRadius: '12px',
+                          border: sel ? '1.5px solid var(--primary)' : '1px solid var(--glass-border)',
+                          background: sel ? 'var(--primary)' : 'var(--background)',
+                          color: sel ? 'white' : 'var(--foreground)',
+                          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                          transition: 'all 0.25s ease', transform: sel ? 'scale(1.05)' : 'scale(1)',
+                        }}
+                      >
+                        <div style={{ fontSize: '11px', fontWeight: '700', opacity: sel ? 0.9 : 0.6 }}>{o.dayName}</div>
+                        <div style={{ fontSize: '16px', fontWeight: '800' }}>{o.dayNum}{sel ? ' ✓' : ''}</div>
+                        <div style={{ fontSize: '11px', fontWeight: '600', opacity: sel ? 0.9 : 0.6 }}>{o.monthShort}</div>
+                        <div style={{ fontSize: '10px', fontWeight: '600', opacity: sel ? 0.85 : 0.55, marginTop: '2px' }}>{o.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Type + Players */}
+              {/* Type + Players (per booking) */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>Booking Type</label>
                   <div style={{ display: 'flex', gap: '4px' }}>
                     {['SOLO','TEAM','GROUP'].map(t => {
                       const isGroup = t === 'GROUP';
-                      const hasPartialBookings = selectedSlots.some(s => (busySlots[s]?.total || 0) > 0);
+                      const hasPartialBookings = form.selectedSlot
+                        ? ((busyByDate[form.selectedDate]?.[form.selectedSlot]?.total || 0) > 0)
+                        : false;
                       const groupDisabled = isGroup && hasPartialBookings;
 
                       return (
                         <button key={t} 
                           disabled={groupDisabled}
-                          onClick={() => { 
-                            setClassification(t); 
-                            setPlayersCount(t==='SOLO'?1:t==='TEAM'?3:12); 
+                          onClick={() => {
+                            updateForm(form.key, { classification: t, playersCount: t==='SOLO'?1:t==='TEAM'?3:12 });
+                            setBookingState('idle');
                           }}
                           style={{ 
                             flex: 1, padding: '10px 0', borderRadius: '10px', fontSize: '12px', fontWeight: '700', 
                             cursor: groupDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                            background: classification===t ? 'var(--primary)' : 'var(--background)', 
-                            color: classification===t ? 'white' : 'var(--foreground)',
-                            border: classification===t ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
+                            background: form.classification===t ? 'var(--primary)' : 'var(--background)', 
+                            color: form.classification===t ? 'white' : 'var(--foreground)',
+                            border: form.classification===t ? '1px solid var(--primary)' : '1px solid var(--glass-border)',
                             opacity: groupDisabled ? 0.3 : 1
                           }}
                           title={groupDisabled ? "Group booking only available for completely empty slots" : ""}
@@ -240,158 +499,86 @@ export default function VenueDetailClient({ venue }) {
                 </div>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>Players</label>
-                  <select value={playersCount} onChange={e => setPlayersCount(+e.target.value)}
+                  <select value={form.playersCount} onChange={e => { updateForm(form.key, { playersCount: +e.target.value }); setBookingState('idle'); }}
                     style={{ width: '100%', padding: '10px', borderRadius: '10px', background: 'var(--background)', border: '1px solid var(--glass-border)', fontWeight: '600', fontSize: '14px' }}>
-                    {classification==='SOLO' && [1,2].map(n=><option key={n} value={n}>{n}</option>)}
-                    {classification==='TEAM' && [3,4,5,6].map(n=><option key={n} value={n}>{n}</option>)}
-                    {classification==='GROUP' && <option value={12}>12</option>}
+                    {form.classification==='SOLO' && [1,2].map(n=><option key={n} value={n}>{n}</option>)}
+                    {form.classification==='TEAM' && [3,4,5,6].map(n=><option key={n} value={n}>{n}</option>)}
+                    {form.classification==='GROUP' && <option value={12}>12</option>}
                   </select>
                 </div>
               </div>
 
-              {/* Slot grid */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: '700' }}>Time Slots</label>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{selectedSlots.length} selected</span>
-                </div>
-                <div className={styles.slotGrid}>
-                  {slots.map(slot => {
-                    const stats = busySlots[slot] || { total: 0 };
-                    const full = stats.total >= 12;
-                    const hp = hasPassed(slot);
-                    const sel = selectedSlots.includes(slot);
-                    const dis = full || hp;
-                    return (
-                      <button key={slot} disabled={dis || (classification==='GROUP' && stats.total > 0)}
-                        className={`${styles.slotBtn} ${sel ? styles.slotBtnSelected : ''}`}
-                        onClick={() => { toggleSlot(slot); setActiveSlot(slot); }}>
-                        {slot.split(' – ')[0]}
-                        <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{hp ? 'PASSED' : full ? 'FULL' : `${stats.total}/12`}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ════════ LIVE MATCH LINEUP (INLINE) ════════ */}
-              <div style={{ padding: '20px', background: 'rgba(0,0,0,0.02)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Trophy size={16} color="#fbbf24" />
-                    <span style={{ fontSize: '14px', fontWeight: '800' }}>Lineup: {activeSlot.split(' – ')[0]}</span>
-                  </div>
-                  <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)' }}>
-                    {busySlots[activeSlot]?.total || 0}/12 PLAYERS
-                  </div>
-                </div>
-
-                <div className={styles.teamsGrid}>
-                  {/* Team Alpha */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: '900', color: 'var(--primary)' }}>TEAM A</span>
-                      <span style={{ fontSize: '10px', fontWeight: '700' }}>{busySlots[activeSlot]?.team1 || 0}/6</span>
+              {/* Slot grid (single pick) + lineup for this booking */}
+              {(() => {
+                const iso = form.selectedDate;
+                const dayBusy = busyByDate[iso] || {};
+                const sel = form.selectedSlot;
+                const preview = sel || firstUpcomingFor(iso);
+                return (
+                  <div style={{ padding: '14px', background: 'var(--background)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: '800' }}>
+                        Slots <span style={{ color: 'var(--muted)', fontWeight: '400' }}>• pick 1</span>
+                      </label>
                     </div>
-                    <div className={styles.playerGrid}>
-                      {(() => {
-                        const sel = selectedSlots.includes(activeSlot);
-                        const isPreferred = preferredTeam === 'team1' || classification === 'GROUP';
-                        let emptyHighlighted = 0;
-                        return [...Array(6)].map((_, i) => {
-                          const p = busySlots[activeSlot]?.team1Slots?.[i];
-                          const isMySpot = !p && sel && isPreferred && emptyHighlighted < (classification === 'GROUP' ? 6 : playersCount);
-                          if (isMySpot) emptyHighlighted++;
-                          return (
-                            <div key={i} className={styles.playerSpot}
-                              onClick={() => {
-                                if (!p) {
-                                  setPreferredTeam('team1');
-                                  toggleSlot(activeSlot);
-                                }
-                              }}
-                              style={{
-                                border: p ? '2px solid var(--primary)' : isMySpot ? '2px solid var(--primary)' : undefined,
-                                background: p ? 'rgba(22,163,74,0.08)' : isMySpot ? 'rgba(22,163,74,0.06)' : undefined,
-                              }}
-                            >
-                              {p ? (
-                                <Link href={`/profile/${p.userId || ''}`} 
-                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--foreground)' }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <User2 size={14} color="var(--primary)" />
-                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                                </Link>
-                              ) : isMySpot ? (
-                                <><CheckCircle size={14} color="var(--primary)" /> <span style={{ color: 'var(--primary)' }}>Your Spot</span></>
-                              ) : (
-                                <><div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--glass-border)' }} /> <span style={{ color: 'var(--muted)', fontSize: '11px' }}>Open Spot</span></>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
+                    <div className={styles.slotGrid}>
+                      {slots.map(slot => {
+                        const stats = dayBusy[slot] || { total: 0 };
+                        const full = stats.total >= 12;
+                        const hp = hasPassedFor(slot, iso);
+                        const isSel = sel === slot;
+                        const dis = full || hp;
+                        return (
+                          <button key={slot} disabled={dis || (form.classification==='GROUP' && stats.total > 0)}
+                            className={`${styles.slotBtn} ${isSel ? styles.slotBtnSelected : ''}`}
+                            onClick={() => toggleSlotFor(form.key, slot)}>
+                            {slot.split(' – ')[0]}
+                            <span style={{ fontSize: '10px', marginTop: '1px', opacity: 0.9 }}>– {slot.split(' – ')[1]}</span>
+                            <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{hp ? 'PASSED' : full ? 'FULL' : `${stats.total}/12`}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+                    {/* Lineup for the picked slot (preview of first upcoming if none picked yet) */}
+                    {preview && (
+                      <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {renderLineup(form, iso, preview, !sel, 0)}
+                      </div>
+                    )}
                   </div>
-
-                  <div style={{ fontSize: '14px', fontWeight: '900', color: 'var(--muted)', opacity: 0.2 }}>VS</div>
-
-                  {/* Team Bravo */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: '900', color: '#3b82f6' }}>TEAM B</span>
-                      <span style={{ fontSize: '10px', fontWeight: '700' }}>{busySlots[activeSlot]?.team2 || 0}/6</span>
-                    </div>
-                    <div className={styles.playerGrid}>
-                      {(() => {
-                        const sel = selectedSlots.includes(activeSlot);
-                        const isPreferred = preferredTeam === 'team2' || classification === 'GROUP';
-                        let emptyHighlighted = 0;
-                        return [...Array(6)].map((_, i) => {
-                          const p = busySlots[activeSlot]?.team2Slots?.[i];
-                          const isMySpot = !p && sel && isPreferred && emptyHighlighted < (classification === 'GROUP' ? 6 : playersCount);
-                          if (isMySpot) emptyHighlighted++;
-                          return (
-                            <div key={i} className={styles.playerSpot}
-                              onClick={() => {
-                                if (!p) {
-                                  setPreferredTeam('team2');
-                                  toggleSlot(activeSlot);
-                                }
-                              }}
-                              style={{
-                                border: p ? '2px solid #3b82f6' : isMySpot ? '2px solid #3b82f6' : undefined,
-                                background: p ? 'rgba(59,130,246,0.08)' : isMySpot ? 'rgba(59,130,246,0.06)' : undefined,
-                              }}
-                            >
-                              {p ? (
-                                <Link href={`/profile/${p.userId || ''}`} 
-                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--foreground)' }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <User2 size={14} color="#3b82f6" />
-                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-                                </Link>
-                              ) : isMySpot ? (
-                                <><CheckCircle size={14} color="#3b82f6" /> <span style={{ color: '#3b82f6' }}>Your Spot</span></>
-                              ) : (
-                                <><div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--glass-border)' }} /> <span style={{ color: 'var(--muted)', fontSize: '11px' }}>Open Spot</span></>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
+                );
+              })()}
                 </div>
-              </div>
+                );
+              })}
+
+              {/* Add More Slots — appends Booking 2, 3… with its own date, type, players, slots, lineups */}
+              <button onClick={addBookingForm}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px',
+                  border: '1.5px dashed var(--primary)', background: 'rgba(22,163,74,0.06)',
+                  color: 'var(--primary)', fontSize: '14px', fontWeight: '800', cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                + Add More Slots (Booking {bookingForms.length + 1})
+              </button>
+
             </div>
 
-            {/* Total */}
-            <div style={{ margin: '20px 0', padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px dashed var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{selectedSlots.length} × {playersCount}p × ₹{venue.pricePerHour}</span>
-              <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{total}</span>
+            {/* Total — per-booking breakdown + grand total */}
+            <div style={{ margin: '20px 0', padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px dashed var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {bookingForms.map((f, i) => {
+                if (!f.selectedSlot) return null;
+                return (
+                  <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
+                    <span>Booking {i + 1}: {toDDMMYYYY(f.selectedDate)} • {f.selectedSlot} • {f.playersCount}p</span>
+                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>₹{venue.pricePerHour * f.playersCount}</span>
+                  </div>
+                );
+              })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--glass-border)', paddingTop: '8px' }}>
+                <span style={{ fontSize: '14px', color: 'var(--muted)' }}>{allCells.length} slot{allCells.length !== 1 ? 's' : ''} total</span>
+                <span style={{ fontSize: '20px', fontWeight: '800' }}>₹{total}</span>
+              </div>
             </div>
 
             {bookingState === 'error' && (

@@ -2,9 +2,8 @@ import React from 'react';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { Suspense } from 'react';
-import HomeHero from '@/components/Home/HomeHero';
-import HomeRecommended from '@/components/Home/HomeRecommended';
 import ExploreClient from '@/components/Explore/ExploreClient';
+import HomeRecommended from '@/components/Home/HomeRecommended';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +20,6 @@ export default async function Home() {
 
   return (
     <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '48px', paddingBottom: '80px' }}>
-
-      {/* Hero — hidden once user selects a city */}
-      <HomeHero />
 
       {/* Recommended for You — shown once city is set */}
       <HomeRecommended allVenues={allVenues} />

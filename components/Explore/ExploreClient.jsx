@@ -2,28 +2,60 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, MapPin, LocateFixed, Loader2, X, SlidersHorizontal } from 'lucide-react';
+import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
 
 const SPORTS = ['Box Cricket'];
 
 const SORT_OPTIONS = [
-  { value: 'default',   label: 'Recommended' },
-  { value: 'price_asc', label: 'Price: Low to High' },
+  { value: 'popular',    label: 'Most Popular' },
+  { value: 'price_asc',  label: 'Price: Low to High' },
   { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'rating',    label: 'Top Rated' },
+  { value: 'rating',     label: 'Top Rated' },
 ];
+
+const SLOTS = [
+  '06:00 AM – 07:00 AM','07:00 AM – 08:00 AM','08:00 AM – 09:00 AM',
+  '09:00 AM – 10:00 AM','10:00 AM – 11:00 AM','11:00 AM – 12:00 PM',
+  '12:00 PM – 01:00 PM','01:00 PM – 02:00 PM','02:00 PM – 03:00 PM',
+  '03:00 PM – 04:00 PM','04:00 PM – 05:00 PM','05:00 PM – 06:00 PM',
+  '06:00 PM – 07:00 PM','07:00 PM – 08:00 PM','08:00 PM – 09:00 PM',
+  '09:00 PM – 10:00 PM','10:00 PM – 11:00 PM','11:00 PM – 12:00 AM',
+];
+
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function slotHasPassed(slot, dateISO) {
+  if (dateISO !== todayISO()) return false;
+  const [startTimeStr] = slot.split(' – ');
+  const [time, meridiem] = startTimeStr.split(' ');
+  let [h, m] = time.split(':').map(Number);
+  if (meridiem === 'PM' && h !== 12) h += 12;
+  if (meridiem === 'AM' && h === 12) h = 0;
+  const t = new Date(); t.setHours(h, m, 0, 0);
+  return t < new Date();
+}
+
+function getFirstUpcomingSlot(dateISO) {
+  const upcoming = SLOTS.filter(s => !slotHasPassed(s, dateISO));
+  return upcoming[0] || 'All Slots';
+}
 
 export default function ExploreClient({ initialVenues }) {
   const searchParams = useSearchParams();
 
-  const [searchQuery, setSearchQuery]     = useState('');
   const [selectedCity, setSelectedCity]   = useState('All Cities');
   const [selectedSport, setSelectedSport] = useState('All Sports');
-  const [sortBy, setSortBy]               = useState('default');
+  const [sortBy, setSortBy]               = useState('popular');
+  const [selectedDate, setSelectedDate]   = useState(() => todayISO());
+  const [selectedSlot, setSelectedSlot]   = useState(() => getFirstUpcomingSlot(todayISO()));
+  const [bookingCounts, setBookingCounts] = useState({});
+  const [popLoading, setPopLoading]       = useState(false);
   const [detectedCity, setDetectedCity]   = useState(null);
   const [geoState, setGeoState]           = useState('idle'); // idle | loading | success | denied
-  const [showFilters, setShowFilters]     = useState(false);
 
   // Available cities from venues
   const availableCities = [...new Set(initialVenues.map(v => v.city).filter(Boolean))].sort();
@@ -32,9 +64,43 @@ export default function ExploreClient({ initialVenues }) {
   useEffect(() => {
     const cityParam  = searchParams.get('city');
     const sportParam = searchParams.get('sport');
+    const dateParam  = searchParams.get('date');
+    const slotParam  = searchParams.get('slot');
     if (cityParam)  setSelectedCity(cityParam);
     if (sportParam) setSelectedSport(sportParam);
+    if (dateParam)  setSelectedDate(dateParam);
+    if (slotParam)  setSelectedSlot(slotParam);
   }, [searchParams]);
+
+  // Fetch upcoming-slot popularity for selected date + time
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        setPopLoading(true);
+        const r = await fetch(
+          `/api/venues/popularity?date=${selectedDate}&slot=${encodeURIComponent(selectedSlot)}`,
+          { signal: ctrl.signal }
+        );
+        if (r.ok) {
+          const d = await r.json();
+          setBookingCounts(d.counts || {});
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') console.error(e);
+      } finally {
+        setPopLoading(false);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [selectedDate, selectedSlot]);
+
+  // If selected slot has passed (e.g. date switched to today, or time ticked over), auto-select next upcoming
+  useEffect(() => {
+    if (selectedSlot !== 'All Slots' && slotHasPassed(selectedSlot, selectedDate)) {
+      setSelectedSlot(getFirstUpcomingSlot(selectedDate));
+    }
+  }, [selectedDate, selectedSlot]);
 
   const locationControllerRef = React.useRef(null);
 
@@ -98,33 +164,40 @@ export default function ExploreClient({ initialVenues }) {
     );
   }, [availableCities]);
 
-  // Filtering + sorting
+  // Filtering + sorting (most-booked first by default, only available shown for slot)
   const processedVenues = initialVenues
+    .map(venue => ({
+      ...venue,
+      _bookedTotal: bookingCounts[venue.id]?.total || 0,
+      _bookingCount: bookingCounts[venue.id]?.bookings || 0,
+    }))
     .filter(venue => {
       const matchesCity  = selectedCity === 'All Cities' || venue.city === selectedCity;
       const matchesSport = selectedSport === 'All Sports' || venue.sportTypes?.includes(selectedSport);
-      const q = searchQuery.toLowerCase().trim();
-      const matchesSearch = !q || [venue.name, venue.area, venue.city, ...(venue.sportTypes || [])]
-        .some(f => f?.toLowerCase().includes(q));
-      return matchesCity && matchesSport && matchesSearch;
+      // When a specific upcoming slot is picked, hide venues where that slot already passed today
+      const matchesUpcoming = selectedSlot === 'All Slots' || !slotHasPassed(selectedSlot, selectedDate);
+      // Only available venues for this slot (full = 12/12 players)
+      const matchesAvailable = selectedSlot === 'All Slots' || venue._bookedTotal < 12;
+      return matchesCity && matchesSport && matchesUpcoming && matchesAvailable;
     })
     .sort((a, b) => {
       if (sortBy === 'price_asc')  return a.pricePerHour - b.pricePerHour;
       if (sortBy === 'price_desc') return b.pricePerHour - a.pricePerHour;
       if (sortBy === 'rating')     return (b.rating || 0) - (a.rating || 0);
-      return 0;
+      // 'popular' (default): highly-booked venues first, 0 bookings last
+      return (b._bookedTotal || 0) - (a._bookedTotal || 0);
     });
 
   const clearAll = () => {
-    setSearchQuery('');
     setSelectedCity('All Cities');
     setSelectedSport('All Sports');
-    setSortBy('default');
+    setSortBy('popular');
+    const today = todayISO();
+    setSelectedDate(today);
+    setSelectedSlot(getFirstUpcomingSlot(today));
     setDetectedCity(null);
     setGeoState('idle');
   };
-
-  const hasActiveFilters = selectedCity !== 'All Cities' || selectedSport !== 'All Sports' || searchQuery || sortBy !== 'default';
 
   return (
     <div className="responsive-gap-sm" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -140,33 +213,14 @@ export default function ExploreClient({ initialVenues }) {
         <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
           {processedVenues.length} venue{processedVenues.length !== 1 ? 's' : ''} available
           {selectedCity !== 'All Cities' ? ` in ${selectedCity}` : ''}
+          {` • ${selectedDate}`}
+          {selectedSlot !== 'All Slots' ? ` • ${selectedSlot.split(' – ')[0]}` : ' • all upcoming slots'}
+          {` • sorted: most booked first`}
         </p>
       </div>
 
-      {/* Search + Geo Bar */}
+      {/* Geo Bar */}
       <div className="responsive-gap-sm" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Search */}
-        <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
-          <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} size={18} />
-          <input
-            type="text"
-            placeholder="Search venue, area, sport…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%', padding: '13px 14px 13px 44px',
-              background: 'var(--secondary)', border: '1.5px solid var(--glass-border)',
-              borderRadius: '14px', color: 'var(--foreground)', fontSize: '14px',
-              fontFamily: 'inherit', outline: 'none',
-            }}
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
-
         {/* Use My Location Button */}
         <button
           onClick={detectLocation}
@@ -190,21 +244,6 @@ export default function ExploreClient({ initialVenues }) {
           }
         </button>
 
-        {/* Filters Toggle */}
-        <button
-          onClick={() => setShowFilters(s => !s)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '13px 18px', borderRadius: '14px', fontFamily: 'inherit',
-            fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            border: showFilters ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
-            background: showFilters ? 'rgba(22,163,74,0.08)' : 'var(--secondary)',
-            color: showFilters ? 'var(--primary)' : 'var(--foreground)',
-          }}
-        >
-          <SlidersHorizontal size={16} /> Filters {hasActiveFilters && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }} />}
-        </button>
       </div>
 
       {/* Denied geolocation notice */}
@@ -215,8 +254,7 @@ export default function ExploreClient({ initialVenues }) {
         </div>
       )}
 
-      {/* Expanded Filters Panel */}
-      {showFilters && (
+      {/* Filters Panel — always expanded */}
         <div className="glass-morphism responsive-padding responsive-gap-sm" style={{ padding: '20px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {/* City */}
           <div style={{ flex: '1', minWidth: '160px' }}>
@@ -244,7 +282,46 @@ export default function ExploreClient({ initialVenues }) {
             </select>
           </div>
 
-          {/* Sort */}
+          {/* Date */}
+          <div style={{ flex: '1', minWidth: '160px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--muted)', marginBottom: '6px' }}>Date</label>
+            <input
+              type="date"
+              value={selectedDate}
+              min={todayISO()}
+              onChange={e => {
+                const next = e.target.value;
+                if (!next) return;
+                setSelectedDate(next);
+                // Auto-select first upcoming slot for the new date
+                // (keeps a concrete selection when coming from All Slots or a passed slot)
+                if (selectedSlot === 'All Slots' || slotHasPassed(selectedSlot, next)) {
+                  const first = getFirstUpcomingSlot(next);
+                  if (first) setSelectedSlot(first);
+                }
+              }}
+              style={{ width: '100%', padding: '10px 14px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '10px', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '14px' }}
+            />
+          </div>
+
+          {/* Time Slot — only upcoming slots shown */}
+          <div style={{ flex: '1', minWidth: '180px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--muted)', marginBottom: '6px' }}>
+              Time Slot {popLoading ? '(loading…)' : ''}
+            </label>
+            <select
+              value={selectedSlot}
+              onChange={e => setSelectedSlot(e.target.value)}
+              style={{ width: '100%', padding: '11px 14px', background: 'var(--secondary)', border: '1px solid var(--glass-border)', borderRadius: '10px', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '14px' }}
+            >
+              <option value="All Slots">All Slots (whole day)</option>
+              {SLOTS.filter(s => !slotHasPassed(s, selectedDate)).map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort By — after Time Slot */}
           <div style={{ flex: '1', minWidth: '160px' }}>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: 'var(--muted)', marginBottom: '6px' }}>Sort By</label>
             <select
@@ -255,15 +332,7 @@ export default function ExploreClient({ initialVenues }) {
               {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-
-          {/* Clear */}
-          {hasActiveFilters && (
-            <button onClick={clearAll} style={{ padding: '11px 18px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <X size={15} /> Clear All
-            </button>
-          )}
         </div>
-      )}
 
       {/* Sport Quick Pills */}
       <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
@@ -303,8 +372,8 @@ export default function ExploreClient({ initialVenues }) {
       ) : (
         <div style={{ textAlign: 'center', padding: '72px 20px', background: 'var(--secondary)', borderRadius: '20px', border: '1px solid var(--glass-border)' }}>
           <Search size={40} style={{ color: 'var(--muted)', marginBottom: '16px', opacity: 0.5 }} />
-          <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>No venues found</h3>
-          <p style={{ color: 'var(--muted)', marginBottom: '24px' }}>Try adjusting your filters or search a different area.</p>
+          <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>No available venues for this slot</h3>
+          <p style={{ color: 'var(--muted)', marginBottom: '24px' }}>All venues are full for {selectedSlot} on {selectedDate}. Try a different date or time.</p>
           <button onClick={clearAll} className="btn-primary" style={{ padding: '11px 28px', borderRadius: '12px' }}>
             Clear All Filters
           </button>

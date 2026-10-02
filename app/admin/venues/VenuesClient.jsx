@@ -129,7 +129,7 @@ export default function VenuesClient() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 700, color: '#22c55e', fontSize: '15px' }}>₹{v.pricePerHour}/hr</div>
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                        {v.bookingCount} bookings
+                        {v.bookingCount} bookings • {v.numberOfTurfs || 1} turf{(v.numberOfTurfs || 1) !== 1 ? 's' : ''}
                       </div>
                     </div>
                   </div>

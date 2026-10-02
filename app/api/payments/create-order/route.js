@@ -24,23 +24,34 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { 
-      venueId, date, slots, sport, classification, 
+    const {
+      venueId, date, slots, selections, sport, classification,
       playersCount: rawPlayersCount = 1,
     } = body;
 
-    const slotList = Array.isArray(slots) ? slots : [];
-    if (!venueId || !date || slotList.length === 0 || !sport || !classification) {
+    // Selections may carry per-booking type/players (from "Add More Slots" forms).
+    // Legacy callers send one global classification/playersCount for all cells.
+    const fallbackClassification = ['SOLO', 'TEAM', 'GROUP'].includes(classification) ? classification : 'SOLO';
+    const fallbackPlayers = Math.max(1, Math.floor(Number(rawPlayersCount)) || 1);
+    let cells = [];
+    if (Array.isArray(selections) && selections.length > 0) {
+      cells = selections
+        .filter(s => s && s.date && s.slot)
+        .map(s => ({
+          date: s.date,
+          slot: s.slot,
+          classification: ['SOLO', 'TEAM', 'GROUP'].includes(s.classification) ? s.classification : fallbackClassification,
+          playersCount: Math.max(1, Math.floor(Number(s.playersCount)) || fallbackPlayers),
+        }));
+    } else {
+      const slotList = Array.isArray(slots) ? slots : [];
+      if (venueId && date && slotList.length > 0) {
+        cells = slotList.map(slot => ({ date, slot, classification: fallbackClassification, playersCount: fallbackPlayers }));
+      }
+    }
+    if (!venueId || cells.length === 0 || !sport) {
       return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
     }
-
-    const playersCount = Math.floor(Number(rawPlayersCount));
-    
-    // Use robust UTC-based date for storing
-    const [year, month, day] = date.split('-').map(Number);
-    const bookingDate = new Date(Date.UTC(year, month - 1, day));
-    
-    const { startUTC, endUTC } = getISTDayRange(date);
 
     await dbConnect();
     const mongooseConnection = mongoose.connection;
@@ -55,18 +66,27 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
 
-    const parsedSlots = [];
-    for (const s of slotList) {
-      const times = parseSlot(s);
-      if (!times) {
+    const parsedCells = [];
+    for (const c of cells) {
+      const times = parseSlot(c.slot);
+      if (!times || !/^\d{4}-\d{2}-\d{2}$/.test(c.date)) {
         await session.abortTransaction();
-        return NextResponse.json({ message: `Invalid slot format: ${s}` }, { status: 400 });
+        return NextResponse.json({ message: `Invalid date/slot: ${c.date} ${c.slot}` }, { status: 400 });
       }
-      parsedSlots.push(times);
+      const [year, month, day] = c.date.split('-').map(Number);
+      parsedCells.push({
+        ...times,
+        slotLabel: c.slot,
+        dateStr: c.date,
+        classification: c.classification,
+        playersCount: c.playersCount,
+        bookingDate: new Date(Date.UTC(year, month - 1, day)),
+        ...getISTDayRange(c.date),
+      });
     }
 
-    const groupId = slotList.length > 1 ? crypto.randomUUID() : undefined;
-    const totalAmount = venue.pricePerHour * playersCount * slotList.length;
+    const groupId = parsedCells.length > 1 ? crypto.randomUUID() : undefined;
+    const totalAmount = parsedCells.reduce((s, pc) => s + venue.pricePerHour * pc.playersCount, 0);
 
     // 1. Create Razorpay Order
     const options = {
@@ -77,15 +97,15 @@ export async function POST(request) {
     
     const order = await razorpay.orders.create(options);
 
-    // 2. Create PAYMENT_PENDING bookings
+    // 2. Create PAYMENT_PENDING bookings (one per date+slot cell)
     const createdBookings = [];
-    for (let i = 0; i < parsedSlots.length; i++) {
-      const times = parsedSlots[i];
+    for (let i = 0; i < parsedCells.length; i++) {
+      const times = parsedCells[i];
 
-      // Capacity Check (Atomic within Transaction)
+      // Capacity Check (Atomic within Transaction) — per date+slot
       const existingBookings = await Booking.find({
         venue: venueId,
-        date: { $gte: startUTC, $lte: endUTC },
+        date: { $gte: times.startUTC, $lte: times.endUTC },
         startTime: times.startTime,
         endTime: times.endTime,
         status: { $ne: 'CANCELLED' },
@@ -95,36 +115,36 @@ export async function POST(request) {
       const team2Count = existingBookings.filter(b => b.teamSide === 2).reduce((s, b) => s + b.playersCount, 0);
       
       let assignedSide = 1;
-      if (classification === 'GROUP') {
+      if (times.classification === 'GROUP') {
         if (existingBookings.length > 0 || team1Count > 0 || team2Count > 0) {
           await session.abortTransaction();
-          return NextResponse.json({ message: `Slot ${slotList[i]} is already partially booked. Group booking requires an empty slot.` }, { status: 409 });
+          return NextResponse.json({ message: `Slot ${times.dateStr} ${times.slotLabel} is already partially booked. Group booking requires an empty slot.` }, { status: 409 });
         }
       } else {
-        if (team1Count + playersCount <= 6) assignedSide = 1;
-        else if (team2Count + playersCount <= 6) assignedSide = 2;
+        if (team1Count + times.playersCount <= 6) assignedSide = 1;
+        else if (team2Count + times.playersCount <= 6) assignedSide = 2;
         else {
           await session.abortTransaction();
-          return NextResponse.json({ message: `Slot ${slotList[i]} has no enough space.` }, { status: 409 });
+          return NextResponse.json({ message: `Slot ${times.dateStr} ${times.slotLabel} has no enough space.` }, { status: 409 });
         }
       }
 
-      const commissionAmount = Math.round((venue.pricePerHour * playersCount) * COMMISSION_PERCENT / 100);
+      const commissionAmount = Math.round((venue.pricePerHour * times.playersCount) * COMMISSION_PERCENT / 100);
 
       const booking = await Booking.create([{
         venue: venueId,
         user: authSession.user.id,
-        date: bookingDate,
+        date: times.bookingDate,
         startTime: times.startTime,
         endTime: times.endTime,
-        totalAmount: venue.pricePerHour * playersCount,
+        totalAmount: venue.pricePerHour * times.playersCount,
         commissionPercent: COMMISSION_PERCENT,
         commissionAmount,
         status: 'PAYMENT_PENDING',
         bookingType: 'ONLINE',
         sport,
-        classification,
-        playersCount,
+        classification: times.classification,
+        playersCount: times.playersCount,
         teamSide: assignedSide,
         groupId,
         razorpayOrderId: order.id,

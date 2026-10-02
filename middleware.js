@@ -38,9 +38,9 @@ export default auth((req) => {
 
   // API protection
   if (pathname.startsWith('/api')) {
-    // Allow public auth routes, cities, and venue availability/details
+    // Allow public auth routes, cities, and venue availability/details/popularity
     const isPublicVenueApi = pathname.match(/^\/api\/venues\/[a-f\d]{24}(\/availability)?$/);
-    if (pathname.startsWith('/api/auth') || pathname === '/api/cities' || isPublicVenueApi) {
+    if (pathname.startsWith('/api/auth') || pathname === '/api/cities' || pathname === '/api/venues/popularity' || isPublicVenueApi) {
       return NextResponse.next();
     }
     

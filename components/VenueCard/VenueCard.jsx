@@ -15,6 +15,7 @@ const SPORT_COLORS = {
 
 export default function VenueCard({ venue }) {
   const fallbackImg = 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=600';
+  const bookedTotal = venue._bookedTotal ?? venue.bookedTotal ?? 0;
 
   return (
     <Link href={`/venue/${venue.id}`} style={{ textDecoration: 'none', display: 'block' }}>
@@ -63,6 +64,28 @@ export default function VenueCard({ venue }) {
             {(venue.rating || 4.5).toFixed(1)}
           </div>
 
+          {/* Booked count chip — top left */}
+          {bookedTotal > 0 ? (
+            <div style={{
+              position: 'absolute', top: '12px', left: '12px',
+              background: bookedTotal >= 5 ? '#dc2626' : 'rgba(0,0,0,0.65)',
+              color: 'white', padding: '4px 10px', borderRadius: '100px',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              fontSize: '12px', fontWeight: '700', backdropFilter: 'blur(4px)',
+            }}>
+              🔥 {bookedTotal}/12 booked
+            </div>
+          ) : (
+            <div style={{
+              position: 'absolute', top: '12px', left: '12px',
+              background: 'rgba(0,0,0,0.45)',
+              color: 'white', padding: '4px 10px', borderRadius: '100px',
+              fontSize: '11px', fontWeight: '600', backdropFilter: 'blur(4px)',
+            }}>
+              0 booked — Be first!
+            </div>
+          )}
+
           {/* Sport badges — bottom left */}
           <div style={{ position: 'absolute', bottom: '12px', left: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {venue.sportTypes.slice(0, 2).map(s => (
@@ -90,6 +113,11 @@ export default function VenueCard({ venue }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '13px', marginBottom: '14px' }}>
             <MapPin size={13} style={{ flexShrink: 0, color: 'var(--primary)' }} />
             {venue.area}, {venue.city}
+            {(venue.numberOfTurfs || 1) > 1 && (
+              <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: '700', color: 'var(--primary)', background: 'rgba(22,163,74,0.1)', padding: '2px 8px', borderRadius: '100px', whiteSpace: 'nowrap' }}>
+                {venue.numberOfTurfs} Turfs
+              </span>
+            )}
           </div>
 
           {/* Price + CTA */}

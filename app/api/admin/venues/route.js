@@ -55,6 +55,7 @@ export async function GET(request) {
         address: v.address,
         sportTypes: v.sportTypes,
         pricePerHour: v.pricePerHour,
+        numberOfTurfs: v.numberOfTurfs || 1,
         images: v.images,
         amenities: v.amenities,
         rating: v.rating,

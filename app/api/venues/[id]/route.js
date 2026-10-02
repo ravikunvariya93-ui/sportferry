@@ -44,7 +44,7 @@ export async function PATCH(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, city, area, address, sportTypes, pricePerHour, amenities, imageUrl } = body;
+    const { name, city, area, address, sportTypes, pricePerHour, numberOfTurfs, amenities, images, imageUrl } = body;
 
     // Validation
     if (!name || !city || !area || !address || !sportTypes?.length || !pricePerHour) {
@@ -58,8 +58,11 @@ export async function PATCH(request, { params }) {
     venue.address = address.trim();
     venue.sportTypes = sportTypes;
     venue.pricePerHour = Number(pricePerHour);
+    venue.numberOfTurfs = Math.max(1, Math.floor(Number(numberOfTurfs)) || 1);
     venue.amenities = amenities || [];
-    if (imageUrl) {
+    if (Array.isArray(images)) {
+      venue.images = images.filter(Boolean).slice(0, 6);
+    } else if (imageUrl) {
       venue.images = [imageUrl];
     }
 

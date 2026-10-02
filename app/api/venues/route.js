@@ -11,7 +11,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { name, city, area, address, sportTypes, pricePerHour, amenities, imageUrl } = body;
+    const { name, city, area, address, sportTypes, pricePerHour, numberOfTurfs, amenities, images, imageUrl } = body;
 
     if (!name || !city || !area || !address || !sportTypes?.length || !pricePerHour) {
       return NextResponse.json({ message: 'All required fields must be filled.' }, { status: 400 });
@@ -26,8 +26,9 @@ export async function POST(request) {
       address: address.trim(),
       sportTypes,
       pricePerHour: Number(pricePerHour),
+      numberOfTurfs: Math.max(1, Math.floor(Number(numberOfTurfs)) || 1),
       amenities: amenities || [],
-      images: imageUrl ? [imageUrl] : [],
+      images: Array.isArray(images) && images.length ? images.filter(Boolean).slice(0, 6) : (imageUrl ? [imageUrl] : []),
       owner: session.user.id,
     });
 

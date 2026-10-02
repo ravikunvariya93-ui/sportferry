@@ -223,6 +223,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                       {venue.sportTypes.map(s => (
                         <span key={s} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '100px', background: 'rgba(22,163,74,0.1)', color: 'var(--primary)', fontWeight: '600' }}>{s}</span>
                       ))}
+                      <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '100px', background: 'var(--glass-bg)', color: 'var(--muted)', fontWeight: '600', border: '1px solid var(--glass-border)' }}>{venue.numberOfTurfs || 1} Turf{(venue.numberOfTurfs || 1) !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
