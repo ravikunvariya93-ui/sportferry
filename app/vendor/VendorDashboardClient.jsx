@@ -208,13 +208,13 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {venues.map(venue => (
-                <div key={venue.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--secondary)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+                <div key={venue.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--secondary)', borderRadius: '14px', border: '1px solid var(--glass-border)', flexWrap: 'wrap' }}>
                   <img
-                    src={venue.images[0] || 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=200'}
+                    src={venue.images[0] || 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=200'}
                     alt={venue.name}
                     style={{ width: '72px', height: '72px', objectFit: 'cover', borderRadius: '10px', flexShrink: 0 }}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                     <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{venue.name}</h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '13px', marginBottom: '6px' }}>
                       <MapPin size={13} /> {venue.area}, {venue.city}
@@ -226,7 +226,7 @@ export default function VendorDashboardClient({ venues, bookings, stats }) {
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '100px', background: 'var(--glass-bg)', color: 'var(--muted)', fontWeight: '600', border: '1px solid var(--glass-border)' }}>{venue.numberOfTurfs || 1} Turf{(venue.numberOfTurfs || 1) !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: 'auto', flexWrap: 'wrap' }}>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Price / hr</div>
                       <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--primary)' }}>₹{venue.pricePerHour}</div>

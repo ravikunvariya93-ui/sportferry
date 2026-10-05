@@ -27,6 +27,22 @@
   }
 }
 
+@media (max-width: 400px) {
+  .mobileHeader {
+    padding: 0 12px;
+  }
+
+  .logo {
+    font-size: 16px;
+  }
+
+  .loginBtn,
+  .registerBtn {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+}
+
 .actions {
   display: flex;
   align-items: center;

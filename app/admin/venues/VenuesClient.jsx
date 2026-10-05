@@ -59,7 +59,7 @@ export default function VenuesClient() {
     finally { setDeleting(false); }
   };
 
-  const FALLBACK_IMG = 'https://images.unsplash.com/photo-1529900948632-586bc48be71a?auto=format&fit=crop&q=80&w=400';
+  const FALLBACK_IMG = 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=400';
 
   return (
     <div>

@@ -21,8 +21,8 @@ export default async function ExplorePage() {
   }));
 
   return (
-    <main style={{ padding: '40px 0' }}>
+    <div style={{ padding: '40px 0' }}>
       <ExploreClient initialVenues={allVenues} />
-    </main>
+    </div>
   );
 }
