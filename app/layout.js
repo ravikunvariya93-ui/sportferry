@@ -4,6 +4,9 @@ import MobileNav from '@/components/MobileNav/MobileNav';
 import MobileHeader from '@/components/Header/MobileHeader';
 import AuthProvider from '@/components/AuthProvider';
 import { auth } from '@/lib/auth';
+import dbConnect from '@/lib/mongodb';
+import UserDoc from '@/models/User';
+import CitySync from '@/components/Header/CitySync';
 import LocationModal from '@/components/LocationModal/LocationModal';
 import Footer from '@/components/Footer/Footer';
 import Script from 'next/script';
@@ -30,6 +33,19 @@ export const viewport = {
 export default async function RootLayout({ children }) {
   const session = await auth();
 
+  // Profile city lives in Mongo, but the topbar pill/modal read localStorage.
+  // Fetch it so signed-in users see their saved city everywhere.
+  let defaultCity = null;
+  if (session?.user?.id) {
+    try {
+      await dbConnect();
+      const user = await UserDoc.findById(session.user.id).select('city').lean();
+      defaultCity = user?.city || null;
+    } catch {
+      defaultCity = null; // never let a DB hiccup break the layout
+    }
+  }
+
   return (
     <html lang="en">
       <head>
@@ -41,6 +57,7 @@ export default async function RootLayout({ children }) {
       <body>
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
         <AuthProvider session={session}>
+          <CitySync defaultCity={defaultCity} />
           <LocationModal />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <MobileHeader />

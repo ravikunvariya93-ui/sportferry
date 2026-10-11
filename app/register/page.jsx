@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trophy, AlertCircle } from 'lucide-react';
+import { Trophy, AlertCircle, Users, Building2 } from 'lucide-react';
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 const GoogleIcon = () => (
@@ -15,12 +15,17 @@ const GoogleIcon = () => (
   </svg>
 );
 
+const ROLES = [
+  { value: 'PLAYER', label: 'Player', desc: 'Book venues & join games', Icon: Users },
+  { value: 'VENDOR', label: 'Ground Owner', desc: 'List venues & manage bookings', Icon: Building2 },
+];
+
 export default function RegisterPage() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('USER');
+  const [role, setRole] = useState('PLAYER');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -52,7 +57,17 @@ export default function RegisterPage() {
       });
 
       if (res.ok) {
-        router.push('/login');
+        // Sign the new account straight in and land them in the app, instead of
+        // bouncing to /login for a second step.
+        const result = await signIn('credentials', { redirect: false, username, password });
+        if (result?.error) {
+          router.push('/login');
+        } else {
+          const session = await getSession();
+          if (session?.user?.role === 'VENDOR') router.push('/vendor');
+          else router.push('/');
+          router.refresh();
+        }
       } else {
         const errorData = await res.json();
         setError(errorData.message || 'Registration failed. Please try again.');
@@ -67,6 +82,10 @@ export default function RegisterPage() {
 
   const handleGoogleSignUp = () => {
     setGoogleLoading(true);
+    // Remember the chosen role so the Google callback can honour it (PLAYER/VENDOR).
+    try {
+      document.cookie = `sportferry_oauth_role=${role}; path=/; max-age=900; samesite=lax`;
+    } catch { /* ignore */ }
     signIn('google', { callbackUrl: '/' });
   };
 
@@ -83,6 +102,8 @@ export default function RegisterPage() {
     transition: 'border-color 0.2s ease',
   };
 
+  const roleLabel = role === 'VENDOR' ? 'Ground Owner' : 'Player';
+
   return (
     <div style={{
       display: 'flex',
@@ -90,8 +111,8 @@ export default function RegisterPage() {
       justifyContent: 'center',
       minHeight: '80vh'
     }}>
-      <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '420px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+      <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '440px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: 'var(--primary)' }}>
             <Trophy size={48} />
           </div>
@@ -99,7 +120,40 @@ export default function RegisterPage() {
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Join Sportferry to play or host.</p>
         </div>
 
-        {/* Google Sign-Up Button */}
+        {/* ── Step 1: who are you? (applies to both Google and email sign-up) ── */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>
+            I&apos;m joining as
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {ROLES.map(({ value, label, desc, Icon }) => {
+              const active = role === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setRole(value)}
+                  aria-pressed={active}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                    padding: '14px 8px', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit',
+                    textAlign: 'center',
+                    background: active ? 'var(--primary)' : 'var(--secondary)',
+                    color: active ? 'white' : 'var(--foreground)',
+                    border: active ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Icon size={20} />
+                  <span style={{ fontSize: '14px', fontWeight: '700' }}>{label}</span>
+                  <span style={{ fontSize: '10.5px', lineHeight: 1.3, opacity: active ? 0.9 : 0.65 }}>{desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Step 2a: Google ── */}
         <button
           onClick={handleGoogleSignUp}
           disabled={googleLoading}
@@ -114,54 +168,23 @@ export default function RegisterPage() {
             fontFamily: 'inherit', fontSize: '15px', fontWeight: '600',
             transition: 'all 0.2s ease',
             opacity: googleLoading ? 0.7 : 1,
-            marginBottom: '24px',
           }}
         >
           <GoogleIcon />
-          {googleLoading ? 'Redirecting...' : 'Sign up with Google'}
+          {googleLoading ? 'Redirecting…' : `Sign up as ${roleLabel} with Google`}
         </button>
 
-        {/* Divider */}
+        {/* ── Step 2b: email form ── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '16px',
-          marginBottom: '24px', color: 'var(--muted)', fontSize: '13px',
+          margin: '22px 0', color: 'var(--muted)', fontSize: '13px',
         }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
-          <span>or register manually</span>
+          <span>or sign up with email</span>
           <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '4px' }}>
-            <button
-              type="button"
-              onClick={() => setRole('USER')}
-              style={{
-                flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600',
-                background: role === 'USER' ? 'var(--primary)' : 'var(--secondary)',
-                color: role === 'USER' ? 'white' : 'var(--foreground)',
-                border: role === 'USER' ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
-                fontFamily: 'inherit', fontSize: '14px', transition: 'all 0.2s ease',
-              }}
-            >
-              Player
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('VENDOR')}
-              style={{
-                flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: '600',
-                background: role === 'VENDOR' ? 'var(--primary)' : 'var(--secondary)',
-                color: role === 'VENDOR' ? 'white' : 'var(--foreground)',
-                border: role === 'VENDOR' ? '1.5px solid var(--primary)' : '1.5px solid var(--glass-border)',
-                fontFamily: 'inherit', fontSize: '14px', transition: 'all 0.2s ease',
-              }}
-            >
-              Ground Owner
-            </button>
-          </div>
-
           <div>
             <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>Full Name</label>
             <input
@@ -187,13 +210,14 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>Email (Optional)</label>
+            <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               style={inputStyle}
+              required
             />
           </div>
 
@@ -206,7 +230,7 @@ export default function RegisterPage() {
               placeholder="••••••••"
               style={inputStyle}
               required
-              minLength={6}
+              minLength={8}
             />
           </div>
 
@@ -227,7 +251,7 @@ export default function RegisterPage() {
             disabled={loading}
             style={{ padding: '14px', marginTop: '4px', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
           >
-            {loading ? 'Creating account...' : 'Sign Up'}
+            {loading ? 'Creating account...' : `Create ${roleLabel} Account`}
           </button>
         </form>
 

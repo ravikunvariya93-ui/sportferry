@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth } from '@/lib/auth';
+import { rateLimit } from '@/lib/rateLimit';
 
 const MAX_FILES = 6;
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
@@ -10,6 +11,11 @@ export async function POST(request) {
     const session = await auth();
     if (!session || !['VENDOR', 'ADMIN'].includes(session.user.role)) {
       return NextResponse.json({ message: 'Only vendors can upload images.' }, { status: 401 });
+    }
+
+    const rl = rateLimit(`upload:${session.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
+    if (!rl.ok) {
+      return NextResponse.json({ message: 'Too many uploads. Please try again later.' }, { status: 429 });
     }
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -37,7 +43,9 @@ export async function POST(request) {
       if (file.size > MAX_SIZE) {
         return NextResponse.json({ message: `${file.name} exceeds 5MB.` }, { status: 400 });
       }
-      const blob = await put(`venues/${session.user.id}/${Date.now()}-${file.name}`, file, {
+      // Never trust the client filename — strip anything that isn't safe.
+      const safeName = String(file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+      const blob = await put(`venues/${session.user.id}/${Date.now()}-${safeName}`, file, {
         access: 'public',
         addRandomSuffix: true,
       });

@@ -38,3 +38,6 @@ next-env.d.ts
 
 # command code agent data
 .commandcode/
+
+# freebuff local project id
+.freebuff/

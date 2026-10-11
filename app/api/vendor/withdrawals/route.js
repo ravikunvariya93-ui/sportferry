@@ -99,10 +99,14 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
 
+    // `amount` (gross) and `commissionDeducted` describe THIS payout, so that
+    // amount - commissionDeducted === netAmount for every withdrawal.
+    const grossAmount = Math.round(availableBalance * 100 / (100 - COMMISSION_PERCENT));
+
     const withdrawal = await Withdrawal.create({
       vendor: session.user.id,
-      amount: totalRevenue,
-      commissionDeducted: Math.round(availableBalance * COMMISSION_PERCENT / (100 - COMMISSION_PERCENT)),
+      amount: grossAmount,
+      commissionDeducted: grossAmount - availableBalance,
       netAmount: availableBalance,
       month: currentMonth,
       year: currentYear,

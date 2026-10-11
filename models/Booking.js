@@ -63,6 +63,11 @@ const BookingSchema = new mongoose.Schema({
     enum: [1, 2],
     default: 1,
   },
+  turf: {
+    type: Number,
+    default: 1,
+    min: 1,
+  },
   paymentId: {
     type: String,
   },

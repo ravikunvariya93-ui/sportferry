@@ -23,8 +23,17 @@
     padding: 10px 12px;
   }
 
-  .logo {
+  .logoText {
     font-size: 20px;
+  }
+
+  .logoMark {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .logo {
     margin-bottom: 32px;
   }
 }
@@ -36,14 +45,32 @@
 }
 
 .logo {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--primary);
-  margin-bottom: 48px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 48px;
   padding: 0 12px;
+  text-decoration: none;
+}
+
+.logoMark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.3);
+}
+
+.logoText {
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--foreground);
+  letter-spacing: -0.4px;
 }
 
 .nav {

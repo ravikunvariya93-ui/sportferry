@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { 
   CalendarCheck, RefreshCw, CheckCircle2, XCircle, 
   Info, ArrowDownCircle, User, MessageSquare, ShieldCheck, X, Search, Filter
@@ -17,9 +19,11 @@ const STATUS_BADGE = {
 };
 
 export default function BookingsClient() {
+  const searchParams = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('All');
+  const initialStatus = searchParams.get('status');
+  const [activeTab, setActiveTab] = useState(STATUS_TABS.includes(initialStatus) ? initialStatus : 'All');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -27,7 +31,7 @@ export default function BookingsClient() {
   const [total, setTotal] = useState(0);
   
   // New filters
-  const [venueFilter, setVenueFilter] = useState('');
+  const [venueFilter, setVenueFilter] = useState(searchParams.get('venueId') || '');
   const [cityFilter, setCityFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -199,7 +203,16 @@ export default function BookingsClient() {
                               {b.userName?.charAt(0)?.toUpperCase() || '?'}
                             </div>
                             <div>
-                              <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px' }}>{b.userName}</div>
+                              {b.userId ? (
+                                <Link
+                                  href={`/admin/users/${b.userId}`}
+                                  style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px', textDecoration: 'none' }}
+                                >
+                                  {b.userName}
+                                </Link>
+                              ) : (
+                                <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px' }}>{b.userName}</div>
+                              )}
                               {b.userEmail && (
                                 <div style={{ fontSize: '11px', color: 'var(--admin-text-muted)' }}>{b.userEmail}</div>
                               )}
@@ -240,7 +253,7 @@ export default function BookingsClient() {
                               )}
                               {b.cancellationReason && (
                                 <div style={{ color: '#64748b', fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
-                                  "{b.cancellationReason.length > 30 ? b.cancellationReason.substring(0, 30) + '...' : b.cancellationReason}"
+                                  &quot;{b.cancellationReason.length > 30 ? b.cancellationReason.substring(0, 30) + '...' : b.cancellationReason}&quot;
                                 </div>
                               )}
                             </div>

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   LayoutDashboard, Users, Building2, CalendarCheck,
-  LogOut, Shield, ChevronRight, Menu, X, Home, Wallet
+  LogOut, Shield, ChevronRight, Menu, X, Wallet
 } from 'lucide-react';
 import { useAdminTheme } from './AdminThemeProvider';
 import styles from './admin.module.css';
@@ -17,7 +17,6 @@ const NAV_ITEMS = [
   { href: '/admin/venues', label: 'Venues', Icon: Building2 },
   { href: '/admin/bookings', label: 'Bookings', Icon: CalendarCheck },
   { href: '/admin/withdrawals', label: 'Withdrawals', Icon: Wallet },
-  { href: '/', label: 'Platform Home', Icon: Home },
 ];
 
 const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut, setMobileOpen }) => (
@@ -37,7 +36,7 @@ const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut
     <nav className={styles.nav}>
       <div className={styles.navLabel}>Navigation</div>
       {NAV_ITEMS.map(({ href, label, Icon }) => {
-        const isActive = href === '/' ? pathname === '/' : href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
+        const isActive = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
         return (
           <Link
             key={href}

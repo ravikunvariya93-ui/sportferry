@@ -3,6 +3,7 @@
 import React from 'react';
 import { MapPin, Star, Zap } from 'lucide-react';
 import Link from 'next/link';
+import { discountPercentOf, discountedPrice } from '@/lib/pricing';
 
 const SPORT_COLORS = {
   'Box Cricket':        '#16a34a',
@@ -13,9 +14,14 @@ const SPORT_COLORS = {
   'Table Tennis':       '#14b8a6',
 };
 
-export default function VenueCard({ venue }) {
+export default function VenueCard({ venue, showBookedCount = true }) {
   const fallbackImg = 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=600';
   const bookedTotal = venue._bookedTotal ?? venue.bookedTotal ?? 0;
+  const rating = venue.rating || 0;
+  const ratingColor = rating >= 4 ? '#16a34a' : rating > 0 ? '#d97706' : '#94a3b8';
+  const sportTypes = venue.sportTypes || [];
+  const discount = discountPercentOf(venue);
+  const finalPrice = discountedPrice(venue.pricePerHour, discount);
 
   return (
     <Link href={`/venue/${venue.id}`} style={{ textDecoration: 'none', display: 'block' }}>
@@ -55,40 +61,45 @@ export default function VenueCard({ venue }) {
           {/* Rating chip — top right */}
           <div style={{
             position: 'absolute', top: '12px', right: '12px',
-            background: venue.rating >= 4 ? '#16a34a' : '#d97706',
+            background: ratingColor,
             color: 'white', padding: '4px 10px', borderRadius: '100px',
             display: 'flex', alignItems: 'center', gap: '4px',
             fontSize: '13px', fontWeight: '700', backdropFilter: 'blur(4px)',
           }}>
-            <Star size={12} fill="white" color="white" />
-            {(venue.rating || 4.5).toFixed(1)}
+            {rating > 0 ? (
+              <><Star size={12} fill="white" color="white" /> {rating.toFixed(1)}</>
+            ) : (
+              'New'
+            )}
           </div>
 
-          {/* Booked count chip — top left */}
-          {bookedTotal > 0 ? (
-            <div style={{
-              position: 'absolute', top: '12px', left: '12px',
-              background: bookedTotal >= 5 ? '#dc2626' : 'rgba(0,0,0,0.65)',
-              color: 'white', padding: '4px 10px', borderRadius: '100px',
-              display: 'flex', alignItems: 'center', gap: '4px',
-              fontSize: '12px', fontWeight: '700', backdropFilter: 'blur(4px)',
-            }}>
-              🔥 {bookedTotal}/12 booked
-            </div>
-          ) : (
-            <div style={{
-              position: 'absolute', top: '12px', left: '12px',
-              background: 'rgba(0,0,0,0.45)',
-              color: 'white', padding: '4px 10px', borderRadius: '100px',
-              fontSize: '11px', fontWeight: '600', backdropFilter: 'blur(4px)',
-            }}>
-              0 booked — Be first!
-            </div>
+          {/* Booked count chip — top left (only when real popularity data is provided) */}
+          {showBookedCount && (
+            bookedTotal > 0 ? (
+              <div style={{
+                position: 'absolute', top: '12px', left: '12px',
+                background: bookedTotal >= 5 ? '#dc2626' : 'rgba(0,0,0,0.65)',
+                color: 'white', padding: '4px 10px', borderRadius: '100px',
+                display: 'flex', alignItems: 'center', gap: '4px',
+                fontSize: '12px', fontWeight: '700', backdropFilter: 'blur(4px)',
+              }}>
+                🔥 {bookedTotal}/12 booked
+              </div>
+            ) : (
+              <div style={{
+                position: 'absolute', top: '12px', left: '12px',
+                background: 'rgba(0,0,0,0.45)',
+                color: 'white', padding: '4px 10px', borderRadius: '100px',
+                fontSize: '11px', fontWeight: '600', backdropFilter: 'blur(4px)',
+              }}>
+                0 booked — Be first!
+              </div>
+            )
           )}
 
           {/* Sport badges — bottom left */}
           <div style={{ position: 'absolute', bottom: '12px', left: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {venue.sportTypes.slice(0, 2).map(s => (
+            {sportTypes.slice(0, 2).map(s => (
               <span key={s} style={{
                 background: SPORT_COLORS[s] || 'var(--primary)',
                 color: 'white', padding: '3px 10px', borderRadius: '100px',
@@ -97,12 +108,23 @@ export default function VenueCard({ venue }) {
                 {s}
               </span>
             ))}
-            {venue.sportTypes.length > 2 && (
+            {sportTypes.length > 2 && (
               <span style={{ background: 'rgba(0,0,0,0.5)', color: 'white', padding: '3px 8px', borderRadius: '100px', fontSize: '11px', fontWeight: '600' }}>
-                +{venue.sportTypes.length - 2}
+                +{sportTypes.length - 2}
               </span>
             )}
           </div>
+
+          {/* Discount badge — bottom right */}
+          {discount > 0 && (
+            <div style={{
+              position: 'absolute', bottom: '12px', right: '12px',
+              background: '#ef4444', color: 'white', padding: '4px 10px', borderRadius: '100px',
+              fontSize: '12px', fontWeight: '800', letterSpacing: '0.2px',
+            }}>
+              {discount}% OFF
+            </div>
+          )}
         </div>
 
         {/* Content Section */}
@@ -123,8 +145,11 @@ export default function VenueCard({ venue }) {
           {/* Price + CTA */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)' }}>₹{venue.pricePerHour}</span>
+              <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)' }}>₹{finalPrice}</span>
               <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>/hr</span>
+              {discount > 0 && (
+                <span style={{ fontSize: '13px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{venue.pricePerHour}</span>
+              )}
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: '6px',

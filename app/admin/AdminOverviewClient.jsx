@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   Users, Building2, CalendarCheck, TrendingUp,
-  BarChart3, Activity, Clock, CheckCircle2, XCircle, AlertCircle
+  BarChart3, Activity, CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';
 import styles from './admin.module.css';
 
@@ -35,6 +36,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: Users,
       color: '#6366f1',
       bg: 'rgba(99,102,241,0.12)',
+      href: '/admin/users',
     },
     {
       label: 'Vendors',
@@ -43,6 +45,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: Building2,
       color: '#f59e0b',
       bg: 'rgba(245,158,11,0.12)',
+      href: '/admin/users?role=VENDOR',
     },
     {
       label: 'Total Venues',
@@ -51,6 +54,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: Building2,
       color: '#22c55e',
       bg: 'rgba(34,197,94,0.12)',
+      href: '/admin/venues',
     },
     {
       label: 'Total Bookings',
@@ -59,6 +63,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: CalendarCheck,
       color: '#06b6d4',
       bg: 'rgba(6,182,212,0.12)',
+      href: '/admin/bookings',
     },
     {
       label: 'Revenue',
@@ -67,6 +72,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: TrendingUp,
       color: '#22c55e',
       bg: 'rgba(34,197,94,0.12)',
+      href: '/admin/bookings?status=CONFIRMED',
     },
     {
       label: 'Confirmed',
@@ -75,6 +81,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: CheckCircle2,
       color: '#22c55e',
       bg: 'rgba(34,197,94,0.12)',
+      href: '/admin/bookings?status=CONFIRMED',
     },
     {
       label: 'Pending',
@@ -83,6 +90,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: AlertCircle,
       color: '#fbbf24',
       bg: 'rgba(251,191,36,0.12)',
+      href: '/admin/bookings?status=PENDING',
     },
     {
       label: 'Cancelled',
@@ -91,6 +99,7 @@ export default function AdminOverviewClient({ stats }) {
       Icon: XCircle,
       color: '#f87171',
       bg: 'rgba(239,68,68,0.12)',
+      href: '/admin/bookings?status=CANCELLED',
     },
   ];
 
@@ -108,7 +117,7 @@ export default function AdminOverviewClient({ stats }) {
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
         {STAT_CARDS.map((s) => (
-          <div key={s.label} className={styles.statCard}>
+          <Link key={s.label} href={s.href} className={styles.statCard} style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className={styles.statIconWrap} style={{ background: s.bg, color: s.color }}>
               <s.Icon size={22} />
             </div>
@@ -117,7 +126,7 @@ export default function AdminOverviewClient({ stats }) {
               <div className={styles.statValue}>{s.value}</div>
               <div className={styles.statSub}>{s.sub}</div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -170,10 +179,12 @@ export default function AdminOverviewClient({ stats }) {
                   {topVenues.map((v, i) => (
                     <tr key={v.id}>
                       <td>
-                        <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', marginBottom: '2px' }}>
-                          {i + 1}. {v.name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>{v.city}</div>
+                        <Link href={`/admin/bookings?venueId=${v.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', marginBottom: '2px' }}>
+                            {i + 1}. {v.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>{v.city}</div>
+                        </Link>
                       </td>
                       <td>
                         <span className={`${styles.badge} ${styles.badgeConfirmed}`}>{v.count}</span>
@@ -204,7 +215,12 @@ export default function AdminOverviewClient({ stats }) {
         ) : (
           <div>
             {recentBookings.map((b) => (
-              <div key={b.id} className={styles.activityItem}>
+              <Link
+                key={b.id}
+                href="/admin/bookings"
+                className={styles.activityItem}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
                 <div
                   className={styles.activityDot}
                   style={{ background: STATUS_DOT[b.status] || '#64748b' }}
@@ -214,7 +230,9 @@ export default function AdminOverviewClient({ stats }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--admin-text-main)' }}>
-                    {b.userName}
+                    {b.userId ? (
+                      <Link href={`/admin/users/${b.userId}`} style={{ color: 'inherit', textDecoration: 'none' }}>{b.userName}</Link>
+                    ) : b.userName}
                     <span style={{ color: '#64748b', fontWeight: 400 }}> booked </span>
                     {b.venueName}
                   </div>
@@ -226,10 +244,10 @@ export default function AdminOverviewClient({ stats }) {
                   </span>
                   <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>{b.dateStr}</div>
                 </div>
-                <div style={{ fontWeight: 700, color: '#22c55e', fontSize: '13px', flexShrink: 0, marginLeft: '8px' }}>
+                <div style={{ fontWeight: '700', color: '#22c55e', fontSize: '13px', flexShrink: 0, marginLeft: '8px' }}>
                   ₹{b.amount}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

@@ -12,7 +12,7 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: false,
+    required: [true, 'Email is required.'],
     unique: true,
   },
   password: {
@@ -21,14 +21,21 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['USER', 'VENDOR', 'ADMIN'],
-    default: 'USER',
+    enum: ['PLAYER', 'VENDOR', 'ADMIN'],
+    default: 'PLAYER',
   },
   phone: {
     type: String,
   },
   city: {
     type: String,
+  },
+  // Password reset (stores a hash of the token, never the raw token).
+  resetToken: {
+    type: String,
+  },
+  resetTokenExpires: {
+    type: Date,
   },
 }, {
   timestamps: true,

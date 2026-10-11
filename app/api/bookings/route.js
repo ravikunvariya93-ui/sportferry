@@ -5,9 +5,9 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import crypto from 'crypto';
-import { parseSlot, autoConfirmIfReady, getISTDayRange } from '@/lib/booking-utils';
-
-const COMMISSION_PERCENT = 12;
+import { parseSlot, getISTDayRange } from '@/lib/ist';
+import { allocateBooking, turfCountOf } from '@/lib/capacity';
+import { COMMISSION_PERCENT } from '@/lib/constants';
 
 export async function POST(request) {
   let session = null;
@@ -28,10 +28,22 @@ export async function POST(request) {
 
     // Support both single slot and multiple slots
     const slotList = slots && Array.isArray(slots) && slots.length > 0 ? slots : (slot ? [slot] : []);
+    if (slotList.length > 20) {
+      return NextResponse.json({ message: 'Too many slots in a single booking.' }, { status: 400 });
+    }
 
     // 1. Basic Validation
     if (!venueId || !date || slotList.length === 0 || !sport || !classification) {
       return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
+    }
+
+    // This endpoint is reserved for OFFLINE (walk-in) blocks only. Online bookings
+    // must go through /api/payments/create-order so payment is actually captured.
+    if (bookingType !== 'OFFLINE') {
+      return NextResponse.json(
+        { message: 'Online bookings must be made through the payment flow.' },
+        { status: 400 }
+      );
     }
 
     const playersCount = Math.floor(Number(rawPlayersCount));
@@ -93,8 +105,10 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
 
+    const turfCount = turfCountOf(venue.numberOfTurfs);
+
     // 5. Authorization for Offline
-    if (bookingType === 'OFFLINE' && venue.owner.toString() !== authSession.user.id) {
+    if (venue.owner.toString() !== authSession.user.id) {
       await session.abortTransaction();
       return NextResponse.json({ message: 'Unauthorized for offline booking.' }, { status: 403 });
     }
@@ -117,82 +131,43 @@ export async function POST(request) {
         status: { $ne: 'CANCELLED' },
       }).session(session).lean();
 
-      const team1Count = existingBookings.filter(b => b.teamSide === 1).reduce((s, b) => s + b.playersCount, 0);
-      const team2Count = existingBookings.filter(b => b.teamSide === 2).reduce((s, b) => s + b.playersCount, 0);
-      const hasSoloSide1 = existingBookings.some(b => b.teamSide === 1 && b.classification === 'SOLO');
-      const hasSoloSide2 = existingBookings.some(b => b.teamSide === 2 && b.classification === 'SOLO');
-
-      let assignedSide = 1;
-
-      if (classification === 'GROUP') {
-        if (existingBookings.length > 0) {
-          await session.abortTransaction();
-          return NextResponse.json({ message: `Slot ${slotList[i]} is not empty for Group booking.` }, { status: 409 });
-        }
-      } else {
-        // Imbalance rule
-        if (team1Count === 5 && playersCount === 4) {
-          await session.abortTransaction();
-          return NextResponse.json({ message: 'Choose another turf because there is more players are playing against this turf' }, { status: 409 });
-        }
-
-        // Side-filling logic
-        if (classification === 'SOLO') {
-          if (hasSoloSide2 && team2Count < 6) {
-            assignedSide = 2;
-          } else if (hasSoloSide1 && team1Count < 6) {
-            assignedSide = 1;
-          } else if (team2Count > 0 && team2Count < 6 && !hasSoloSide1) { 
-            assignedSide = 1;
-          } else if (team1Count < 6) {
-            assignedSide = 1;
-          } else if (team2Count < 6) {
-            assignedSide = 2;
-          } else {
-            await session.abortTransaction();
-            return NextResponse.json({ message: 'Capacity full.' }, { status: 409 });
-          }
-        } else {
-          // TEAM booking
-          if (team1Count + playersCount <= 6) {
-            assignedSide = 1;
-          } else if (team2Count + playersCount <= 6) {
-            assignedSide = 2;
-          } else {
-            await session.abortTransaction();
-            return NextResponse.json({ message: 'No side has enough space.' }, { status: 409 });
-          }
-        }
+      const allocation = allocateBooking({
+        existingBookings,
+        playersCount,
+        classification,
+        turfCount,
+      });
+      if (allocation.error) {
+        await session.abortTransaction();
+        const messages = {
+          'group-needs-empty': `Slot ${slotList[i]} has no free turf for a Group booking.`,
+          'capacity-full': 'All turfs are full for this slot.',
+        };
+        return NextResponse.json({ message: messages[allocation.error] || 'Slot unavailable.' }, { status: 409 });
       }
-
-      const slotAmount = bookingType === 'OFFLINE' ? 0 : venue.pricePerHour * playersCount;
-      const commissionAmount = Math.round(slotAmount * COMMISSION_PERCENT / 100);
 
       const booking = await Booking.create([{
         venue: venueId,
-        user: bookingType === 'ONLINE' ? authSession.user.id : null,
+        user: null,
         date: bookingDate,
         startTime: times.startTime,
         endTime: times.endTime,
-        totalAmount: slotAmount,
+        totalAmount: 0,
         commissionPercent: COMMISSION_PERCENT,
-        commissionAmount,
-        status: bookingType === 'OFFLINE' ? 'CONFIRMED' : 'PENDING',
-        bookingType,
+        commissionAmount: 0,
+        status: 'CONFIRMED',
+        bookingType: 'OFFLINE',
         sport,
         classification,
         playersCount,
-        teamSide: assignedSide,
+        teamSide: allocation.assignedSide,
+        turf: allocation.turf,
         groupId,
-        offlineCustomerName: bookingType === 'OFFLINE' ? (offlineCustomerName || 'Manual Block') : undefined,
+        offlineCustomerName: offlineCustomerName || 'Manual Block',
+        offlineCustomerPhone: offlineCustomerPhone || undefined,
       }], { session });
 
       createdBookings.push(booking[0]);
-
-      // Auto-confirm check: if both teams now have >= 3 players, confirm all PENDING
-      if (bookingType === 'ONLINE') {
-        await autoConfirmIfReady(venueId, bookingDate, times.startTime, times.endTime, session);
-      }
     }
 
     await session.commitTransaction();
@@ -204,6 +179,7 @@ export async function POST(request) {
       bookingId: bookingIds[0], 
       bookingIds,
       slotsBooked: slotList.length,
+      turf: createdBookings[0]?.turf,
     }, { status: 201 });
   } catch (error) {
     if (session) {

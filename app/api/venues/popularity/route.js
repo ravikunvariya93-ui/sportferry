@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { getISTDayRange, parseSlot, cleanupExpiredPayments } from '@/lib/booking-utils';
+import { getISTDayRange, parseSlot } from '@/lib/ist';
+import { cleanupExpiredPayments } from '@/lib/booking-utils';
 
 export async function GET(request) {
   try {

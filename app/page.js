@@ -1,12 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
+import Booking from '@/models/Booking';
 import HomeHero from '@/components/Home/HomeHero';
 import QuickActions from '@/components/Home/QuickActions';
 import TonightsGames from '@/components/Home/TonightsGames';
-import VenueCard from '@/components/VenueCard/VenueCard';
+import FeaturedVenues from '@/components/Home/FeaturedVenues';
+import { getISTDayRange, istTodayISO, SLOT_LABELS, isSlotLabelPast, parseSlot } from '@/lib/ist';
+import { slotCapacityFor } from '@/lib/capacity';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,36 +16,80 @@ export default async function Home() {
   await dbConnect();
 
   const rawAll = await Venue.find({}).lean();
-  const allVenues = rawAll.map(v => ({
-    ...v,
-    _id: v._id.toString(),
-    owner: v.owner.toString(),
-    id: v._id.toString(),
-  }));
+  const allVenues = rawAll
+    .map(v => ({
+      ...v,
+      _id: v._id.toString(),
+      owner: v.owner.toString(),
+      id: v._id.toString(),
+    }))
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0));
+
+  const todayDateString = istTodayISO();
+  const { startUTC: todayStart, endUTC: todayEnd } = getISTDayRange(todayDateString);
+
+  // Only TODAY's games: grouping a slot label across two dates would double-count
+  // "joined" and under-report the venue's remaining spots.
+  const todayBookings = await Booking.find({
+    date: { $gte: todayStart, $lte: todayEnd },
+    status: { $ne: 'CANCELLED' },
+  }).lean();
+
+  const venueSlotMap = {};
+  for (const b of todayBookings) {
+    const vid = b.venue.toString();
+    const key = `${vid}::${b.startTime}::${b.endTime}`;
+    if (!venueSlotMap[key]) {
+      venueSlotMap[key] = {
+        venueId: vid,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        team1Players: 0,
+        team2Players: 0,
+      };
+    }
+    if (b.teamSide === 1) venueSlotMap[key].team1Players += b.playersCount || 0;
+    else venueSlotMap[key].team2Players += b.playersCount || 0;
+  }
+
+  const turfsByVenue = {};
+  for (const v of allVenues) turfsByVenue[v.id] = Math.max(1, Number(v.numberOfTurfs) || 1);
+
+  const venueGames = {};
+  for (const slot of Object.values(venueSlotMap)) {
+    if (!venueGames[slot.venueId]) venueGames[slot.venueId] = [];
+    const totalJoined = slot.team1Players + slot.team2Players;
+    const maxPlayers = slotCapacityFor(turfsByVenue[slot.venueId]);
+    venueGames[slot.venueId].push({
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      joined: totalJoined,
+      maxPlayers,
+      spotsLeft: Math.max(0, maxPlayers - totalJoined),
+    });
+  }
+
+  // Every venue should show a joinable game, even with no bookings yet — so start
+  // one at the next upcoming slot (0 joined).
+  const nextSlot = parseSlot(SLOT_LABELS.find(l => !isSlotLabelPast(l, todayDateString)) || SLOT_LABELS[0]);
+  for (const v of allVenues) {
+    if (venueGames[v.id]?.length) continue;
+    const maxPlayers = slotCapacityFor(turfsByVenue[v.id]);
+    venueGames[v.id] = [{
+      startTime: nextSlot.startTime,
+      endTime: nextSlot.endTime,
+      joined: 0,
+      maxPlayers,
+      spotsLeft: maxPlayers,
+    }];
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '36px', paddingBottom: '40px' }}>
       <HomeHero />
       <QuickActions />
-      <TonightsGames venues={allVenues} />
-
-      <section style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>All Venues</h2>
-            <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>Browse and book box cricket turfs across Gujarat</p>
-          </div>
-          <Link href="/explore" style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--primary)', fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            See All <ArrowRight size={14} />
-          </Link>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
-          {allVenues.map(venue => (
-            <VenueCard key={venue.id} venue={venue} />
-          ))}
-        </div>
-      </section>
+      <TonightsGames venues={allVenues} venueGames={venueGames} date={todayDateString} />
+      <FeaturedVenues venues={allVenues} />
     </div>
   );
 }

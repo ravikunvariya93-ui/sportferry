@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Building2, MapPin, Trash2, Edit2, User, RefreshCw, Star } from 'lucide-react';
 import styles from '../admin.module.css';
 import VenueModal from '@/components/VenueModal';
@@ -122,7 +123,10 @@ export default function VenuesClient() {
                   <div className={styles.venueCardFooter}>
                     <div>
                       <div style={{ fontSize: '12px', color: 'var(--admin-text-sub)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <User size={11} /> {v.ownerName}
+                        <User size={11} />
+                        {v.ownerId ? (
+                          <Link href={`/admin/users/${v.ownerId}`} style={{ color: 'inherit', textDecoration: 'none' }}>{v.ownerName}</Link>
+                        ) : v.ownerName}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--admin-text-muted)', marginTop: '2px' }}>{v.ownerEmail}</div>
                     </div>

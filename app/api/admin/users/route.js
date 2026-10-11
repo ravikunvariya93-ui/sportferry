@@ -71,8 +71,11 @@ export async function PATCH(request) {
 
     const { userId, role } = await request.json();
     if (!userId || !role) return NextResponse.json({ message: 'userId and role are required' }, { status: 400 });
-    if (!['USER', 'VENDOR', 'ADMIN'].includes(role)) {
+    if (!['PLAYER', 'VENDOR', 'ADMIN'].includes(role)) {
       return NextResponse.json({ message: 'Invalid role' }, { status: 400 });
+    }
+    if (userId === session.user.id) {
+      return NextResponse.json({ message: 'You cannot change your own role.' }, { status: 400 });
     }
 
     await dbConnect();

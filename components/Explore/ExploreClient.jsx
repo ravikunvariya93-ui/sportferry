@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
+import { SLOT_LABELS, isSlotLabelPast, istTodayISO } from '@/lib/ist';
+import { slotCapacityFor } from '@/lib/capacity';
 
 const SPORTS = ['Box Cricket'];
 
@@ -14,30 +16,11 @@ const SORT_OPTIONS = [
   { value: 'rating',     label: 'Top Rated' },
 ];
 
-const SLOTS = [
-  '06:00 AM – 07:00 AM','07:00 AM – 08:00 AM','08:00 AM – 09:00 AM',
-  '09:00 AM – 10:00 AM','10:00 AM – 11:00 AM','11:00 AM – 12:00 PM',
-  '12:00 PM – 01:00 PM','01:00 PM – 02:00 PM','02:00 PM – 03:00 PM',
-  '03:00 PM – 04:00 PM','04:00 PM – 05:00 PM','05:00 PM – 06:00 PM',
-  '06:00 PM – 07:00 PM','07:00 PM – 08:00 PM','08:00 PM – 09:00 PM',
-  '09:00 PM – 10:00 PM','10:00 PM – 11:00 PM','11:00 PM – 12:00 AM',
-];
+const SLOTS = SLOT_LABELS;
 
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+const todayISO = () => istTodayISO();
 
-function slotHasPassed(slot, dateISO) {
-  if (dateISO !== todayISO()) return false;
-  const [startTimeStr] = slot.split(' – ');
-  const [time, meridiem] = startTimeStr.split(' ');
-  let [h, m] = time.split(':').map(Number);
-  if (meridiem === 'PM' && h !== 12) h += 12;
-  if (meridiem === 'AM' && h === 12) h = 0;
-  const t = new Date(); t.setHours(h, m, 0, 0);
-  return t < new Date();
-}
+const slotHasPassed = isSlotLabelPast;
 
 function getFirstUpcomingSlot(dateISO) {
   const upcoming = SLOTS.filter(s => !slotHasPassed(s, dateISO));
@@ -176,8 +159,9 @@ export default function ExploreClient({ initialVenues }) {
       const matchesSport = selectedSport === 'All Sports' || venue.sportTypes?.includes(selectedSport);
       // When a specific upcoming slot is picked, hide venues where that slot already passed today
       const matchesUpcoming = selectedSlot === 'All Slots' || !slotHasPassed(selectedSlot, selectedDate);
-      // Only available venues for this slot (full = 12/12 players)
-      const matchesAvailable = selectedSlot === 'All Slots' || venue._bookedTotal < 12;
+      // Only available venues for this slot (capacity = 12 players per turf)
+      const capacity = slotCapacityFor(venue.numberOfTurfs);
+      const matchesAvailable = selectedSlot === 'All Slots' || venue._bookedTotal < capacity;
       return matchesCity && matchesSport && matchesUpcoming && matchesAvailable;
     })
     .sort((a, b) => {

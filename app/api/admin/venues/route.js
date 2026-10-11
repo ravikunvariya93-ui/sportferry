@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
+import { escapeRegex } from '@/lib/validation';
 
 async function requireAdmin() {
   const session = await auth();
@@ -24,8 +25,8 @@ export async function GET(request) {
     await dbConnect();
 
     const query = {};
-    if (city) query.city = { $regex: city, $options: 'i' };
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (city) query.city = { $regex: escapeRegex(city), $options: 'i' };
+    if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
 
     const [venues, total] = await Promise.all([
       Venue.find(query)
@@ -55,11 +56,14 @@ export async function GET(request) {
         address: v.address,
         sportTypes: v.sportTypes,
         pricePerHour: v.pricePerHour,
+        discountPercent: v.discountPercent || 0,
         numberOfTurfs: v.numberOfTurfs || 1,
         images: v.images,
         amenities: v.amenities,
         rating: v.rating,
+        location: v.location,
         ownerName: v.owner?.name || 'Unknown',
+        ownerId: v.owner?._id?.toString() || null,
         ownerEmail: v.owner?.email || '',
         bookingCount: countMap[v._id.toString()] || 0,
         createdAt: v.createdAt,

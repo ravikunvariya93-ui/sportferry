@@ -33,7 +33,6 @@ const Sidebar = () => {
   if (session?.user?.role === 'ADMIN') {
     navItems = [
       { name: 'Admin Dashboard', icon: LayoutDashboard, path: '/admin' },
-      { name: 'Platform Home', icon: Home, path: '/' },
       { name: 'Find Venues', icon: Search, path: '/explore' },
       { name: 'My Bookings', icon: Calendar, path: '/bookings' },
       { name: 'Instructions', icon: Info, path: '/instructions' },
@@ -42,11 +41,6 @@ const Sidebar = () => {
   } else if (session?.user?.role === 'VENDOR') {
     navItems = [
       { name: 'Vendor Dashboard', icon: LayoutDashboard, path: '/vendor' },
-      { name: 'Platform Home', icon: Home, path: '/' },
-      { name: 'Find Venues', icon: Search, path: '/explore' },
-      { name: 'My Bookings', icon: Calendar, path: '/bookings' },
-      { name: 'Instructions', icon: Info, path: '/instructions' },
-      { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else {
     // Player or Unauthenticated view
@@ -69,8 +63,10 @@ const Sidebar = () => {
   return (
     <div className={styles.sidebar} data-auth-state={authState}>
       <div className={styles.logo}>
-        <Trophy size={28} />
-        <span>Sportferry</span>
+        <span className={styles.logoMark}>
+          <Trophy size={20} strokeWidth={2.5} />
+        </span>
+        <span className={styles.logoText}>Sportferry</span>
       </div>
 
       <nav className={styles.nav}>
@@ -102,7 +98,7 @@ const Sidebar = () => {
               </div>
               <div className={styles.userInfo}>
                 <span className={styles.userName}>{session.user.name}</span>
-                <span className={styles.userRole}>{session.user.role === 'USER' ? 'PLAYER' : session.user.role}</span>
+                <span className={styles.userRole}>{session.user.role}</span>
               </div>
             </div>
             <button

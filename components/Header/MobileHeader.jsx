@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Trophy, UserCircle } from 'lucide-react';
+import { Trophy, User } from 'lucide-react';
 import styles from './MobileHeader.module.css';
+import LocationPill from './LocationPill';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 
@@ -16,21 +17,21 @@ const MobileHeader = () => {
 
   return (
     <header className={styles.mobileHeader}>
-      <Link href="/" className={styles.logo}>
-        <Trophy size={24} />
-        <span>Sportferry</span>
+      <Link href="/" className={styles.logo} aria-label="Sportferry home">
+        <span className={styles.logoMark}>
+          <Trophy size={16} strokeWidth={2.5} />
+        </span>
+        <span className={styles.logoText}>Sportferry</span>
       </Link>
 
       <div className={styles.actions}>
+        <LocationPill />
         {session ? (
-          <Link href="/profile" className={styles.profileBtn}>
-            <UserCircle size={24} />
+          <Link href="/profile" className={styles.avatar} aria-label="Profile">
+            {session.user?.name?.charAt(0) || <User size={18} />}
           </Link>
         ) : (
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Link href="/login" className={styles.loginBtn}>Sign In</Link>
-            <Link href="/register" className={styles.registerBtn}>Register</Link>
-          </div>
+          <Link href="/login" className={styles.loginBtn}>Log In</Link>
         )}
       </div>
     </header>

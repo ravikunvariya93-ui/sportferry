@@ -31,6 +31,13 @@ const VenueSchema = new mongoose.Schema({
   pricePerHour: {
     type: Number,
     required: true,
+    min: [0, 'Price per hour cannot be negative.'],
+  },
+  discountPercent: {
+    type: Number,
+    default: 0,
+    min: [0, 'Discount cannot be negative.'],
+    max: [90, 'Discount cannot exceed 90%.'],
   },
   numberOfTurfs: {
     type: Number,
@@ -48,6 +55,10 @@ const VenueSchema = new mongoose.Schema({
   rating: {
     type: Number,
     default: 0,
+  },
+  location: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
   },
 }, {
   timestamps: true,

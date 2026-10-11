@@ -10,7 +10,7 @@ import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
-import { formatToAMPM } from '@/lib/booking-utils';
+import { formatToAMPM } from '@/lib/ist';
 import BookingsClient from './BookingsClient';
 
 export const dynamic = 'force-dynamic';

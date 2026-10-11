@@ -3,7 +3,8 @@ import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
 import { calculateRefund } from '@/lib/cancellationPolicy';
-import { getISTDayRange } from '@/lib/booking-utils';
+import { getISTDayRange } from '@/lib/ist';
+import { escapeRegex } from '@/lib/validation';
 
 async function requireAdmin() {
   const session = await auth();
@@ -59,7 +60,7 @@ export async function GET(request) {
     let userFilter = null;
     if (search) {
       const User = (await import('@/models/User')).default;
-      const searchRegex = new RegExp(search, 'i');
+      const searchRegex = new RegExp(escapeRegex(search), 'i');
       const matchingUsers = await User.find({
         $or: [
           { name: searchRegex },
@@ -95,6 +96,7 @@ export async function GET(request) {
         venueCity: b.venue?.city || '',
         venueArea: b.venue?.area || '',
         userName: b.user?.name || b.offlineCustomerName || 'Walk-in',
+        userId: b.user?._id?.toString() || null,
         userEmail: b.user?.email || '',
         userPhone: b.user?.phone || b.offlineCustomerPhone || '',
         date: b.date,
@@ -140,6 +142,10 @@ export async function PATCH(request) {
     await dbConnect();
     const booking = await Booking.findById(bookingId);
     if (!booking) return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
+
+    if (booking.status === 'CANCELLED' && status !== 'CANCELLED') {
+      return NextResponse.json({ message: 'A cancelled booking cannot be re-activated.' }, { status: 400 });
+    }
 
     booking.status = status;
 

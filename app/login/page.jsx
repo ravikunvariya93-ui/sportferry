@@ -34,7 +34,7 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError('Invalid username or password');
+      setError('Invalid username/email or password');
       setLoading(false);
     } else {
       const session = await getSession();
@@ -45,6 +45,9 @@ export default function LoginPage() {
       } else {
         router.push('/');
       }
+      // Re-render the root layout with the new session so server-provided
+      // defaults (e.g. the profile city seeded into the location pill) update.
+      router.refresh();
     }
   };
 
@@ -110,18 +113,18 @@ export default function LoginPage() {
           marginBottom: '24px', color: 'var(--muted)', fontSize: '13px',
         }}>
           <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
-          <span>or sign in with username</span>
+          <span>or sign in with username or email</span>
           <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }} />
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>Username</label>
+            <label style={{ display: 'block', fontSize: '13px', marginBottom: '8px', color: 'var(--muted)', fontWeight: '600' }}>Username or Email</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
+              placeholder="Enter your username or email"
               style={inputStyle}
               required
             />
@@ -164,8 +167,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: 'var(--muted)' }}>
-          Don't have an account? <Link href="/register" style={{ color: 'var(--primary)', fontWeight: '500' }}>Sign up</Link>
+        <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px' }}>
+          <Link href="/forgot-password" style={{ color: 'var(--primary)', fontWeight: '500' }}>Forgot password?</Link>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: 'var(--muted)' }}>
+          Don&apos;t have an account? <Link href="/register" style={{ color: 'var(--primary)', fontWeight: '500' }}>Sign up</Link>
         </div>
       </div>
 

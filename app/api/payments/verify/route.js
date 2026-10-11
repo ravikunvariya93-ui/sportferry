@@ -24,7 +24,10 @@ export async function POST(request) {
     }
 
     // 1. Verify Signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || 'secret_placeholder';
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+      return NextResponse.json({ message: 'Payments are not configured.' }, { status: 503 });
+    }
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', secret)
@@ -42,8 +45,13 @@ export async function POST(request) {
     session.startTransaction();
 
     try {
-      // 2. Find and update bookings
-      const bookings = await Booking.find({ razorpayOrderId: razorpay_order_id, status: 'PAYMENT_PENDING' }).session(session);
+      // 2. Find and update bookings — scoped to the caller so one user can never
+      // confirm another user's order.
+      const bookings = await Booking.find({
+        razorpayOrderId: razorpay_order_id,
+        status: 'PAYMENT_PENDING',
+        user: authSession.user.id,
+      }).session(session);
       
       if (bookings.length === 0) {
         await session.abortTransaction();
@@ -57,7 +65,7 @@ export async function POST(request) {
         await booking.save({ session });
 
         // Trigger auto-confirm logic
-        await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, session);
+        await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, booking.turf, session);
       }
 
       await session.commitTransaction();

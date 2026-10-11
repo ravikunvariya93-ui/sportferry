@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Wallet, RefreshCw, CheckCircle2, XCircle, Clock, X } from 'lucide-react';
 import styles from '../admin.module.css';
 
@@ -118,10 +119,19 @@ export default function WithdrawalsPage() {
                   {withdrawals.map(w => (
                     <tr key={w.id}>
                       <td>
-                        <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: '13px' }}>{w.vendorName}</div>
+                        {w.vendorId ? (
+                          <Link
+                            href={`/admin/users/${w.vendorId}`}
+                            style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px', textDecoration: 'none' }}
+                          >
+                            {w.vendorName}
+                          </Link>
+                        ) : (
+                          <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px' }}>{w.vendorName}</div>
+                        )}
                         <div style={{ fontSize: '11px', color: '#64748b' }}>{w.vendorEmail}</div>
                       </td>
-                      <td style={{ fontSize: '13px', color: '#e2e8f0' }}>{MONTHS[w.month]} {w.year}</td>
+                      <td style={{ fontSize: '13px', color: 'var(--admin-text-sub)' }}>{MONTHS[w.month]} {w.year}</td>
                       <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{w.amount?.toLocaleString('en-IN')}</td>
                       <td style={{ fontSize: '13px', color: '#f87171' }}>₹{w.commissionDeducted?.toLocaleString('en-IN')}</td>
                       <td style={{ fontWeight: 700, fontSize: '13px', color: '#22c55e' }}>₹{w.netAmount?.toLocaleString('en-IN')}</td>

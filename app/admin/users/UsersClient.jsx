@@ -1,20 +1,24 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Users, Trash2, RefreshCw } from 'lucide-react';
 import styles from '../admin.module.css';
 
 const ROLE_BADGE = {
   ADMIN: styles.badgeAdmin,
   VENDOR: styles.badgeVendor,
-  USER: styles.badgeUser,
+  PLAYER: styles.badgeUser,
 };
 
 export default function UsersClient({ currentAdminId }) {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const initialRole = searchParams.get('role');
+  const [roleFilter, setRoleFilter] = useState(['PLAYER', 'VENDOR', 'ADMIN'].includes(initialRole) ? initialRole : '');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -108,7 +112,7 @@ export default function UsersClient({ currentAdminId }) {
             onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
           >
             <option value="">All Roles</option>
-            <option value="USER">User</option>
+            <option value="PLAYER">Player</option>
             <option value="VENDOR">Vendor</option>
             <option value="ADMIN">Admin</option>
           </select>
@@ -153,7 +157,12 @@ export default function UsersClient({ currentAdminId }) {
                             {u.name?.charAt(0)?.toUpperCase() || '?'}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: '13px' }}>{u.name}</div>
+                            <Link
+                              href={`/admin/users/${u.id}`}
+                              style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px', textDecoration: 'none' }}
+                            >
+                              {u.name}
+                            </Link>
                             <div style={{ fontSize: '11px', color: '#64748b' }}>{u.email}</div>
                           </div>
                         </div>
@@ -167,7 +176,7 @@ export default function UsersClient({ currentAdminId }) {
                           disabled={u.id === currentAdminId || updatingRole === u.id}
                           onChange={(e) => handleRoleChange(u.id, e.target.value)}
                         >
-                          <option value="USER">USER</option>
+                          <option value="PLAYER">PLAYER</option>
                           <option value="VENDOR">VENDOR</option>
                           <option value="ADMIN">ADMIN</option>
                         </select>
@@ -223,7 +232,7 @@ export default function UsersClient({ currentAdminId }) {
           <div className={styles.modalCard}>
             <h2 className={styles.modalTitle}>Delete User?</h2>
             <p className={styles.modalDesc}>
-              Are you sure you want to delete <strong style={{ color: '#f1f5f9' }}>{deleteTarget.name}</strong>?
+              Are you sure you want to delete <strong style={{ color: 'var(--admin-text-main)' }}>{deleteTarget.name}</strong>?
               This action cannot be undone.
             </p>
             <div className={styles.modalActions}>

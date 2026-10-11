@@ -15,17 +15,17 @@ async function getStats() {
     totalUsers, totalVendors, totalVenues, totalBookings,
     confirmedBookings, pendingBookings, cancelledBookings,
   ] = await Promise.all([
-    User.countDocuments({ role: 'USER' }),
+    User.countDocuments(),
     User.countDocuments({ role: 'VENDOR' }),
     Venue.countDocuments(),
-    Booking.countDocuments({ bookingType: { $ne: 'OFFLINE' }, status: { $ne: 'PAYMENT_PENDING' } }),
-    Booking.countDocuments({ status: 'CONFIRMED', bookingType: { $ne: 'OFFLINE' } }),
-    Booking.countDocuments({ status: 'PENDING', bookingType: { $ne: 'OFFLINE' } }),
-    Booking.countDocuments({ status: 'CANCELLED', bookingType: { $ne: 'OFFLINE' } }),
+    Booking.countDocuments({ status: { $ne: 'PAYMENT_PENDING' } }),
+    Booking.countDocuments({ status: 'CONFIRMED' }),
+    Booking.countDocuments({ status: 'PENDING' }),
+    Booking.countDocuments({ status: 'CANCELLED' }),
   ]);
 
   const revenueAgg = await Booking.aggregate([
-    { $match: { status: 'CONFIRMED', bookingType: { $ne: 'OFFLINE' } } },
+    { $match: { status: 'CONFIRMED' } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
   const totalRevenue = revenueAgg[0]?.total || 0;
@@ -33,7 +33,6 @@ async function getStats() {
   const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
   const bookingsToday = await Booking.countDocuments({ 
     createdAt: { $gte: startOfDay },
-    bookingType: { $ne: 'OFFLINE' },
     status: { $ne: 'PAYMENT_PENDING' }
   });
 
@@ -52,6 +51,7 @@ async function getStats() {
     venueName: b.venue?.name || 'N/A',
     venueCity: b.venue?.city || '',
     userName: b.user?.name || b.offlineCustomerName || 'Walk-in',
+    userId: b.user?._id?.toString() || null,
     status: b.status,
     amount: b.totalAmount,
     dateStr: new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
@@ -60,7 +60,7 @@ async function getStats() {
 
   // Top venues
   const topVenuesRaw = await Booking.aggregate([
-    { $match: { bookingType: { $ne: 'OFFLINE' }, status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
+    { $match: { status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
     { $group: { _id: '$venue', count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
     { $sort: { count: -1 } }, { $limit: 5 },
     { $lookup: { from: 'venues', localField: '_id', foreignField: '_id', as: 'v' } },
@@ -76,7 +76,7 @@ async function getStats() {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1); sixMonthsAgo.setHours(0, 0, 0, 0);
   const monthlyRaw = await Booking.aggregate([
-    { $match: { createdAt: { $gte: sixMonthsAgo }, bookingType: { $ne: 'OFFLINE' }, status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
+    { $match: { createdAt: { $gte: sixMonthsAgo }, status: { $nin: ['PAYMENT_PENDING', 'CANCELLED'] } } },
     { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 }, revenue: { $sum: '$totalAmount' } } },
     { $sort: { '_id.year': 1, '_id.month': 1 } },
   ]);

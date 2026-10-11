@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, CheckCircle2, MapPin, DollarSign } from 'lucide-react';
+import { X, AlertCircle, CheckCircle2, MapPin, DollarSign, Crosshair } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { parseLatLng, mapsEmbedUrl } from '@/lib/geo';
+import { discountedPrice } from '@/lib/pricing';
 
 const SPORT_OPTIONS = ['Box Cricket'];
 const AMENITY_OPTIONS = ['Parking', 'Drinking Water', 'Restrooms', 'Floodlights', 'Seating Area', 'Equipment Provided', 'Changing Room', 'Cafeteria'];
@@ -17,10 +19,23 @@ export default function VenueModal({ onClose, editingVenue = null }) {
     area: editingVenue?.area || '',
     address: editingVenue?.address || '',
     pricePerHour: editingVenue?.pricePerHour || '',
+    discountPercent: editingVenue?.discountPercent || 0,
     numberOfTurfs: editingVenue?.numberOfTurfs || 1,
     sportTypes: editingVenue?.sportTypes || [],
     amenities: editingVenue?.amenities || [],
   });
+
+  // Exact location (optional) — coordinates parsed from a Google Maps link / "lat, lng".
+  const [locInput, setLocInput] = useState(() => {
+    const l = editingVenue?.location;
+    return l && l.lat != null && l.lng != null ? `${l.lat}, ${l.lng}` : '';
+  });
+  const [coords, setCoords] = useState(() => {
+    const l = editingVenue?.location;
+    return l && l.lat != null && l.lng != null ? { lat: Number(l.lat), lng: Number(l.lng) } : null;
+  });
+  const [locError, setLocError] = useState('');
+  const [locating, setLocating] = useState(false);
 
   // Cover + gallery images (Vercel Blob). Existing URLs kept until removed.
   const [existingImages, setExistingImages] = useState(editingVenue?.images || []);
@@ -56,6 +71,39 @@ export default function VenueModal({ onClose, editingVenue = null }) {
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
     setError('');
+  };
+
+  const handleLocationChange = (e) => {
+    const value = e.target.value;
+    setLocInput(value);
+    setLocError('');
+    if (!value.trim()) { setCoords(null); return; }
+    const parsed = parseLatLng(value);
+    setCoords(parsed);
+    if (!parsed) setLocError('Paste a Google Maps link or "lat, lng" (e.g. 23.0225, 72.5714).');
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocError('Location is not available in this browser — paste a link instead.');
+      return;
+    }
+    setLocating(true);
+    setLocError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setCoords({ lat, lng });
+        setLocInput(`${lat}, ${lng}`);
+        setLocating(false);
+      },
+      () => {
+        setLocError('Could not get your location — paste a Google Maps link instead.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const pickCover = (e) => {
@@ -115,7 +163,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
       }
 
       // 2. Save venue with final images array
-      const payload = { ...form, images };
+      const payload = { ...form, images, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
       const url = isEdit ? `/api/venues/${editingVenue.id || editingVenue._id}` : '/api/venues';
       const method = isEdit ? 'PATCH' : 'POST';
       const res = await fetch(url, {
@@ -209,6 +257,50 @@ export default function VenueModal({ onClose, editingVenue = null }) {
               <input name="address" value={form.address} onChange={handleChange} placeholder="Street, landmark, etc." style={inputStyle} required />
             </div>
 
+            {/* Exact Location */}
+            <div>
+              <label style={labelStyle}>Exact Location (optional)</label>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <input
+                  value={locInput}
+                  onChange={handleLocationChange}
+                  placeholder='Paste a Google Maps link or "23.0225, 72.5714"'
+                  style={{ ...inputStyle, flex: '1 1 220px' }}
+                />
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  disabled={locating}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap',
+                    padding: '12px 16px', borderRadius: '10px', cursor: locating ? 'wait' : 'pointer',
+                    border: '1px dashed var(--glass-border)', background: 'var(--glass-bg)',
+                    color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '13px', fontWeight: '600',
+                  }}
+                >
+                  <Crosshair size={14} /> {locating ? 'Locating…' : 'Use my location'}
+                </button>
+              </div>
+              {locError && <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '6px' }}>{locError}</div>}
+              <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                In Google Maps, long-press (or right-click) the exact spot, then copy the link or the coordinates. Players get a precise pin + Directions.
+              </p>
+              {coords && (
+                <div style={{ marginTop: '12px' }}>
+                  <div style={{ height: '180px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
+                    <iframe title="Venue location preview" width="100%" height="100%" style={{ border: 0 }} loading="lazy" src={mapsEmbedUrl(coords.lat, coords.lng, 16)} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{coords.lat}, {coords.lng}</span>
+                    <button type="button" onClick={() => { setCoords(null); setLocInput(''); setLocError(''); }}
+                      style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '12px', fontWeight: '600', fontFamily: 'inherit' }}>
+                      Clear location
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Price + Number of Turfs */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
@@ -219,6 +311,17 @@ export default function VenueModal({ onClose, editingVenue = null }) {
                 <label style={labelStyle}>Number of Turfs *</label>
                 <input name="numberOfTurfs" value={form.numberOfTurfs} type="number" min="1" step="1" onChange={handleChange} placeholder="e.g. 2" style={inputStyle} required />
               </div>
+            </div>
+
+            {/* Discount */}
+            <div>
+              <label style={labelStyle}>Discount (%) — optional</label>
+              <input name="discountPercent" value={form.discountPercent} type="number" min="0" max="90" step="1" onChange={handleChange} placeholder="0" style={inputStyle} />
+              {Number(form.discountPercent) > 0 && Number(form.pricePerHour) > 0 && (
+                <p style={{ fontSize: '12px', color: 'var(--primary)', marginTop: '6px', fontWeight: '600' }}>
+                  Players pay ₹{discountedPrice(form.pricePerHour, form.discountPercent)}/hr instead of ₹{form.pricePerHour} ({Math.min(90, Math.round(Number(form.discountPercent)))}% off)
+                </p>
+              )}
             </div>
 
             {/* Cover Image — upload */}

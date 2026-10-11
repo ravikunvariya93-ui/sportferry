@@ -1,15 +1,27 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Clock, CheckCircle, Navigation, Zap, Shield, CalendarCheck, AlertCircle, Trophy, LayoutGrid } from 'lucide-react';
+import { MapPin, Clock, CheckCircle, Navigation, Zap, Shield, CalendarCheck, AlertCircle, Trophy, LayoutGrid, IndianRupee } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import styles from './VenueDetail.module.css';
+import { SLOT_LABELS, isSlotLabelPast, formatToAMPM } from '@/lib/ist';
+import { PLAYERS_PER_SIDE, slotCapacityFor } from '@/lib/capacity';
+import { hasCoords, mapsEmbedUrl, mapsDirectionsUrl } from '@/lib/geo';
+import { discountPercentOf, discountedPrice } from '@/lib/pricing';
 
 export default function VenueDetailClient({ venue }) {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // One match per turf → up to 6 players per side (12 total) per turf.
+  const sideCapacity = PLAYERS_PER_SIDE;
+  const slotCapacity = slotCapacityFor(venue.numberOfTurfs);
+  // Effective price after the venue's discount (0 discount → full price).
+  const discount = discountPercentOf(venue);
+  const price = discountedPrice(venue.pricePerHour, discount);
 
   // Internal value stays YYYY-MM-DD (API-compatible); display is always DD-MM-YYYY
   const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -42,20 +54,35 @@ export default function VenueDetailClient({ venue }) {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   };
-  const newBookingForm = () => ({
+  // Pre-select the date+slot when arriving from a "Games Near You" card
+  // (/venue/[id]?date=YYYY-MM-DD&slot=<12h label | HH:mm>).
+  const findSlotLabel = (raw) => {
+    if (!raw) return null;
+    if (SLOT_LABELS.includes(raw)) return raw;
+    const m = /^(\d{2}):(\d{2})$/.exec(raw);
+    if (m) {
+      const start = formatToAMPM(`${m[1]}:${m[2]}`);
+      return SLOT_LABELS.find(l => l.startsWith(`${start} `)) || null;
+    }
+    return null;
+  };
+  const paramDate = searchParams.get('date');
+  const initialDate = paramDate && /^\d{4}-\d{2}-\d{2}$/.test(paramDate) ? paramDate : todayISO();
+  const initialSlot = findSlotLabel(searchParams.get('slot'));
+
+  const newBookingForm = (selectedDate = todayISO(), selectedSlot = null) => ({
     key: Math.random().toString(36).slice(2),
-    selectedDate: todayISO(), // one date per booking
-    selectedSlot: null, // one slot per booking
+    selectedDate, // one date per booking
+    selectedSlot, // one slot per booking
     classification: 'SOLO',
     playersCount: 1,
     preferredTeam: 'team1', // 'team1' | 'team2'
   });
-  const [bookingForms, setBookingForms] = useState(() => [newBookingForm()]);
+  const [bookingForms, setBookingForms] = useState(() => [newBookingForm(initialDate, initialSlot)]);
   const [busyByDate, setBusyByDate] = useState({}); // { 'YYYY-MM-DD': slotStats } (shared)
   const [bookingState, setBookingState] = useState('idle');
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingId, setBookingId] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
   const [activeImg, setActiveImg] = useState(0); // gallery hero index
 
   const updateForm = (key, patch) => {
@@ -80,26 +107,9 @@ export default function VenueDetailClient({ venue }) {
     return () => ctrls.forEach(c => c.abort());
   }, [allUsedDates.join(','), venue._id]);
 
-  const slots = [
-    '06:00 AM – 07:00 AM','07:00 AM – 08:00 AM','08:00 AM – 09:00 AM',
-    '09:00 AM – 10:00 AM','10:00 AM – 11:00 AM','11:00 AM – 12:00 PM',
-    '12:00 PM – 01:00 PM','01:00 PM – 02:00 PM','02:00 PM – 03:00 PM',
-    '03:00 PM – 04:00 PM','04:00 PM – 05:00 PM','05:00 PM – 06:00 PM',
-    '06:00 PM – 07:00 PM','07:00 PM – 08:00 PM','08:00 PM – 09:00 PM',
-    '09:00 PM – 10:00 PM','10:00 PM – 11:00 PM','11:00 PM – 12:00 AM',
-  ];
+  const slots = SLOT_LABELS;
 
-  const hasPassedFor = (slot, iso) => {
-    const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-    if (iso !== today) return false;
-    const [startTimeStr] = slot.split(' – ');
-    const [time, meridiem] = startTimeStr.split(' ');
-    let [h, m] = time.split(':').map(Number);
-    if (meridiem === 'PM' && h !== 12) h += 12;
-    if (meridiem === 'AM' && h === 12) h = 0;
-    const t = new Date(); t.setHours(h, m, 0, 0);
-    return t < new Date();
-  };
+  const hasPassedFor = (slot, iso) => isSlotLabelPast(slot, iso);
 
   const toggleDateFor = (formKey, iso) => {
     setBookingState('idle');
@@ -173,9 +183,26 @@ export default function VenueDetailClient({ venue }) {
   /* ── BookMyShow-style lineup block for one date+slot cell ── */
   // animIdx staggers entrance so 2nd, 3rd… lineups cascade in visibly
   const renderLineup = (form, iso, slotLabel, isPreview, animIdx = 0) => {
-    const stats = busyByDate[iso]?.[slotLabel] || { total: 0, team1: 0, team2: 0, team1Slots: [], team2Slots: [] };
+    const stats = busyByDate[iso]?.[slotLabel] || { total: 0, turfs: [] };
+    const turfCount = Math.max(1, Number(venue.numberOfTurfs) || 1);
+    const turfMap = {};
+    (stats.turfs || []).forEach(t => { turfMap[t.turf] = t; });
     const isSelected = form.selectedSlot === slotLabel;
     const past = hasPassedFor(slotLabel, iso);
+    // Show one turf at a time: the first turf that can take this booking on the
+    // chosen side, else the first turf with any room, else turf 1.
+    const prefSide = form.preferredTeam === 'team2' ? 'team2' : 'team1';
+    const currentTurf = (() => {
+      for (let t = 1; t <= turfCount; t++) {
+        const ts = turfMap[t] || {};
+        if (((ts[prefSide]) || 0) + form.playersCount <= PLAYERS_PER_SIDE) return t;
+      }
+      for (let t = 1; t <= turfCount; t++) {
+        const ts = turfMap[t] || {};
+        if ((ts.team1 || 0) < PLAYERS_PER_SIDE || (ts.team2 || 0) < PLAYERS_PER_SIDE) return t;
+      }
+      return 1;
+    })();
     return (
       <div key={`${form.key}|${iso}|${slotLabel}`} className={styles.lineupEnter} style={{ padding: '20px 16px 16px', background: 'var(--background)', borderRadius: '16px', border: isPreview ? '1px dashed var(--glass-border)' : '1px solid var(--glass-border)', marginBottom: '12px', animationDelay: `${Math.min(animIdx, 6) * 110}ms` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -185,7 +212,7 @@ export default function VenueDetailClient({ venue }) {
             {isPreview && <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--muted)', background: 'var(--secondary)', padding: '3px 10px', borderRadius: '100px' }}>PREVIEW — tap a seat to add</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)' }}>{stats.total || 0}/12 JOINED</span>
+            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)' }}>{stats.total || 0}/{slotCapacity} JOINED</span>
             {isSelected && (
               <button onClick={() => { updateForm(form.key, { selectedSlot: null }); setBookingState('idle'); }} title="Remove this slot"
                 style={{ background: 'none', border: '1px solid var(--glass-border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', padding: '2px 8px', fontFamily: 'inherit' }}>✕</button>
@@ -206,10 +233,19 @@ export default function VenueDetailClient({ venue }) {
           </span>
         </div>
 
-        {[
-          { key: 'team1', label: 'TEAM A', color: '#16a34a', light: 'rgba(22,163,74,0.12)', count: stats.team1 || 0, slotsArr: stats.team1Slots || [] },
-          { key: 'team2', label: 'TEAM B', color: '#3b82f6', light: 'rgba(59,130,246,0.12)', count: stats.team2 || 0, slotsArr: stats.team2Slots || [] },
-        ].map((row, rowIdx) => {
+        {(() => {
+          const t = currentTurf;
+          const ts = turfMap[t] || { turf: t, total: 0, team1: 0, team2: 0, team1Slots: [], team2Slots: [] };
+          return (
+            <div key={t} style={{ border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '0.5px' }}>TURF {t}{turfCount > 1 ? ` of ${turfCount}` : ''}</span>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{ts.total}/12</span>
+              </div>
+              {[
+                { key: 'team1', label: 'TEAM A', color: '#16a34a', light: 'rgba(22,163,74,0.12)', count: ts.team1 || 0, slotsArr: ts.team1Slots || [] },
+                { key: 'team2', label: 'TEAM B', color: '#3b82f6', light: 'rgba(59,130,246,0.12)', count: ts.team2 || 0, slotsArr: ts.team2Slots || [] },
+              ].map((row, rowIdx) => {
                   const isPreferred = form.preferredTeam === row.key || form.classification === 'GROUP';
                   const spotsToHighlight = isSelected && isPreferred ? (form.classification === 'GROUP' ? 6 : form.playersCount) : 0;
           let highlighted = 0;
@@ -231,10 +267,10 @@ export default function VenueDetailClient({ venue }) {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '11px', fontWeight: '900', letterSpacing: '1px', color: row.color }}>{row.label}</span>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{row.count}/6</span>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{row.count}/{sideCapacity}</span>
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                {[...Array(6)].map((_, i) => {
+                {[...Array(sideCapacity)].map((_, i) => {
                   const p = row.slotsArr[i];
                   if (p) {
                     return (
@@ -284,6 +320,9 @@ export default function VenueDetailClient({ venue }) {
             </React.Fragment>
           );
         })}
+            </div>
+          );
+        })()}
 
         <div style={{ borderTop: '1px dashed var(--glass-border)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
@@ -291,14 +330,18 @@ export default function VenueDetailClient({ venue }) {
               ? `${form.playersCount} seat${form.playersCount > 1 ? 's' : ''} • ${form.preferredTeam === 'team1' ? 'Team A' : form.preferredTeam === 'team2' ? 'Team B' : ''}`
               : 'Tap an available seat to pick your side'}
           </span>
-          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{venue.pricePerHour * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{price * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
         </div>
       </div>
     );
   };
 
   const mapQ = encodeURIComponent(`${venue.area}, ${venue.city}, Sports`);
-  const total = allCells.reduce((s, c) => s + venue.pricePerHour * (c.playersCount || 1), 0);
+  const hasLoc = hasCoords(venue.location);
+  const mapSrc = hasLoc
+    ? mapsEmbedUrl(venue.location.lat, venue.location.lng, 16)
+    : `https://maps.google.com/maps?width=100%25&height=600&hl=en&q=${mapQ}&t=&z=14&ie=UTF8&iwloc=B&output=embed`;
+  const total = allCells.reduce((s, c) => s + price * (c.playersCount || 1), 0);
 
   return (
     <div className={styles.page}>
@@ -338,24 +381,35 @@ export default function VenueDetailClient({ venue }) {
         </div>
       </section>
 
-      {/* ════════ TABS + CONTENT ════════ */}
-      <div className={styles.card}>
-        <div className={styles.tabsRow}>
-          {['overview','amenities','location'].map(t => (
-            <button key={t} onClick={() => setActiveTab(t)} className={`${styles.tab} ${activeTab === t ? styles.activeTab : ''}`}>{t}</button>
-          ))}
-        </div>
+      {/* ════════ INFO + BOOKING ════════ */}
+      <div className={styles.layout}>
+        <main className={styles.infoCol}>
 
-        {activeTab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: '800' }}>About the Venue</h2>
-            <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '15px' }}>
-              Welcome to <strong style={{ color: 'var(--foreground)' }}>{venue.name}</strong> in {venue.area}. We offer top-tier {venue.sportTypes[0]} facilities with professional-grade surfaces and floodlights for night play. Perfect for casual matches, corporate events, or tournaments.
+          <div className={styles.card}>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '14px' }}>About {venue.name}</h2>
+            <p style={{ color: 'var(--muted)', lineHeight: '1.8', fontSize: '15px', marginBottom: '18px' }}>
+              Welcome to <strong style={{ color: 'var(--foreground)' }}>{venue.name}</strong> in {venue.area}. Top-tier {venue.sportTypes[0]} with professional-grade surfaces and floodlights for night play — perfect for casual matches, corporate events, or tournaments.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px', fontSize: '14px' }}><Clock size={16} color="var(--primary)" /> Timing</div>
                 <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Everyday: 6:00 AM – 11:59 PM</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px', fontSize: '14px' }}><LayoutGrid size={16} color="var(--primary)" /> Turfs</div>
+                <div style={{ color: 'var(--muted)', fontSize: '13px' }}>{venue.numberOfTurfs || 1} turf{(venue.numberOfTurfs || 1) !== 1 ? 's' : ''} — play more, wait less</div>
+              </div>
+              <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px', fontSize: '14px' }}><IndianRupee size={16} color="var(--primary)" /> Price</div>
+                <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span>₹{price} per hour per player</span>
+                  {discount > 0 && (
+                    <>
+                      <span style={{ textDecoration: 'line-through' }}>₹{venue.pricePerHour}</span>
+                      <span style={{ background: '#ef4444', color: '#fff', padding: '1px 8px', borderRadius: '100px', fontSize: '11px', fontWeight: '800' }}>{discount}% OFF</span>
+                    </>
+                  )}
+                </div>
               </div>
               <div style={{ padding: '16px', background: 'var(--background)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', marginBottom: '6px', fontSize: '14px' }}><Shield size={16} color="var(--primary)" /> Rules</div>
@@ -363,11 +417,9 @@ export default function VenueDetailClient({ venue }) {
               </div>
             </div>
           </div>
-        )}
 
-        {activeTab === 'amenities' && (
-          <div>
-            <h2 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '20px' }}>Amenities</h2>
+          <div className={styles.card}>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '18px' }}>Amenities</h2>
             <div className={styles.amenitiesGrid}>
               {(venue.amenities?.length ? venue.amenities : ['Parking','Drinking Water','Restrooms','Floodlights','Seating Area','Equipment']).map(a => (
                 <div key={a} className={styles.amenityItem}>
@@ -377,18 +429,29 @@ export default function VenueDetailClient({ venue }) {
               ))}
             </div>
           </div>
-        )}
 
-        {activeTab === 'location' && (
-          <div>
+          <div className={styles.card}>
             <h2 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '12px' }}>Location</h2>
-            <div style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontSize: '14px' }}><Navigation size={16} /> {venue.address}, {venue.city}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              <div style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}><Navigation size={16} /> {venue.address}, {venue.city}</div>
+              {hasLoc && (
+                <a
+                  href={mapsDirectionsUrl(venue.location.lat, venue.location.lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--primary)', color: '#fff', padding: '9px 16px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                >
+                  <Navigation size={14} /> Get Directions
+                </a>
+              )}
+            </div>
             <div style={{ height: '300px', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
-              <iframe width="100%" height="100%" frameBorder="0" scrolling="no" src={`https://maps.google.com/maps?width=100%25&height=600&hl=en&q=${mapQ}&t=&z=14&ie=UTF8&iwloc=B&output=embed`}></iframe>
+              <iframe width="100%" height="100%" frameBorder="0" scrolling="no" src={mapSrc}></iframe>
             </div>
           </div>
-        )}
-      </div>
+
+        </main>
+        <aside className={styles.bookCol}>
 
 
 
@@ -408,8 +471,14 @@ export default function VenueDetailClient({ venue }) {
             {/* Price header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
-                <span style={{ fontSize: '28px', fontWeight: '800' }}>₹{venue.pricePerHour}</span>
+                <span style={{ fontSize: '28px', fontWeight: '800' }}>₹{price}</span>
                 <span style={{ fontSize: '14px', color: 'var(--muted)' }}> /hour</span>
+                {discount > 0 && (
+                  <>
+                    <span style={{ fontSize: '15px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{venue.pricePerHour}</span>
+                    <span style={{ marginLeft: '8px', background: '#ef4444', color: '#fff', padding: '2px 9px', borderRadius: '100px', fontSize: '12px', fontWeight: '800' }}>{discount}% OFF</span>
+                  </>
+                )}
               </div>
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--primary)', background: 'rgba(22,163,74,0.1)', padding: '6px 14px', borderRadius: '100px' }}>Best Price</span>
             </div>
@@ -418,7 +487,7 @@ export default function VenueDetailClient({ venue }) {
               {/* Booking forms — Booking 1 first; "Add More Slots" appends Booking 2, 3… each with own date, type, players, slots, lineups */}
               {bookingForms.map((form, fi) => {
                 const hasSlot = !!form.selectedSlot;
-                const formSubtotal = hasSlot ? venue.pricePerHour * form.playersCount : 0;
+                const formSubtotal = hasSlot ? price * form.playersCount : 0;
                 return (
                 <div key={form.key} className={styles.dateSectionEnter} style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '16px', borderRadius: '18px', border: '1.5px solid var(--glass-border)', background: 'var(--secondary)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -524,7 +593,7 @@ export default function VenueDetailClient({ venue }) {
                     <div className={styles.slotGrid}>
                       {slots.map(slot => {
                         const stats = dayBusy[slot] || { total: 0 };
-                        const full = stats.total >= 12;
+                        const full = stats.total >= slotCapacity;
                         const hp = hasPassedFor(slot, iso);
                         const isSel = sel === slot;
                         const dis = full || hp;
@@ -534,7 +603,7 @@ export default function VenueDetailClient({ venue }) {
                             onClick={() => toggleSlotFor(form.key, slot)}>
                             {slot.split(' – ')[0]}
                             <span style={{ fontSize: '10px', marginTop: '1px', opacity: 0.9 }}>– {slot.split(' – ')[1]}</span>
-                            <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{hp ? 'PASSED' : full ? 'FULL' : `${stats.total}/12`}</span>
+                            <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{hp ? 'PASSED' : full ? 'FULL' : `${stats.total}/${slotCapacity}`}</span>
                           </button>
                         );
                       })}
@@ -571,7 +640,7 @@ export default function VenueDetailClient({ venue }) {
                 return (
                   <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
                     <span>Booking {i + 1}: {toDDMMYYYY(f.selectedDate)} • {f.selectedSlot} • {f.playersCount}p</span>
-                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>₹{venue.pricePerHour * f.playersCount}</span>
+                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>₹{price * f.playersCount}</span>
                   </div>
                 );
               })}
@@ -593,6 +662,8 @@ export default function VenueDetailClient({ venue }) {
             <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--muted)', marginTop: '12px' }}>🔒 Secure payment via Razorpay</p>
           </>
         )}
+      </div>
+        </aside>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
+import { normalizeCoords } from '@/lib/geo';
 
 export async function GET(request, { params }) {
   try {
@@ -44,7 +45,7 @@ export async function PATCH(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, city, area, address, sportTypes, pricePerHour, numberOfTurfs, amenities, images, imageUrl } = body;
+    const { name, city, area, address, sportTypes, pricePerHour, discountPercent, numberOfTurfs, amenities, images, imageUrl, lat, lng } = body;
 
     // Validation
     if (!name || !city || !area || !address || !sportTypes?.length || !pricePerHour) {
@@ -58,8 +59,14 @@ export async function PATCH(request, { params }) {
     venue.address = address.trim();
     venue.sportTypes = sportTypes;
     venue.pricePerHour = Number(pricePerHour);
+    if ('discountPercent' in body) {
+      venue.discountPercent = Math.min(90, Math.max(0, Math.round(Number(discountPercent)) || 0));
+    }
     venue.numberOfTurfs = Math.max(1, Math.floor(Number(numberOfTurfs)) || 1);
     venue.amenities = amenities || [];
+    if ('lat' in body || 'lng' in body) {
+      venue.location = normalizeCoords(lat, lng);
+    }
     if (Array.isArray(images)) {
       venue.images = images.filter(Boolean).slice(0, 6);
     } else if (imageUrl) {

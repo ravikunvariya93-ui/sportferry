@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { getISTDayRange, cleanupExpiredPayments, formatToAMPM } from '@/lib/booking-utils';
+import { getISTDayRange, formatToAMPM, isSlotPast } from '@/lib/ist';
+import { cleanupExpiredPayments } from '@/lib/booking-utils';
+
+const emptyTurf = (turf) => ({
+  turf, total: 0, team1: 0, team2: 0, hasSolo: false, soloSide: null, team1Slots: [], team2Slots: [],
+});
 
 export async function GET(request, { params }) {
   try {
@@ -13,7 +18,7 @@ export async function GET(request, { params }) {
     }
 
     await dbConnect();
-    
+
     // Cleanup expired payments before checking availability
     await cleanupExpiredPayments();
 
@@ -27,61 +32,66 @@ export async function GET(request, { params }) {
       status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     })
     .populate('user', 'name')
-    .select('startTime endTime status playersCount teamSide classification user offlineCustomerName date')
+    .select('startTime endTime status playersCount teamSide classification turf user offlineCustomerName date')
     .lean();
-    
-    console.log(`[Availability API] Found ${bookings.length} bookings for venue ${params.id} on ${date}`);
 
-    // Post-filter: Remove PENDING bookings if the slot has already passed
+    // Post-filter: drop PENDING bookings whose slot has already started (IST-aware,
+    // independent of the server's timezone).
     const now = new Date();
     bookings = bookings.filter(b => {
       if (b.status === 'CONFIRMED') return true;
-      if (b.status === 'PENDING') {
-        const [h, m] = b.startTime.split(':').map(Number);
-        const slotDate = new Date(b.date);
-        slotDate.setHours(h, m, 0, 0);
-        return slotDate > now; // Only keep if it's in the future
-      }
+      if (b.status === 'PENDING') return !isSlotPast(date, b.startTime, now);
       return true; // Keep PAYMENT_PENDING (it will be cleaned up by cleanupExpiredPayments)
     });
 
-    // Group by slot
+    // Group by slot, then by turf within the slot.
     const slotStats = {};
 
     bookings.forEach(b => {
-      const startAMPM = formatToAMPM(b.startTime);
-      const endAMPM = formatToAMPM(b.endTime);
-      const slotKey = `${startAMPM} – ${endAMPM}`;
+      const slotKey = `${formatToAMPM(b.startTime)} – ${formatToAMPM(b.endTime)}`;
       if (!slotStats[slotKey]) {
-        slotStats[slotKey] = { 
-          team1: 0, team2: 0, total: 0, 
+        slotStats[slotKey] = {
+          total: 0, team1: 0, team2: 0,
           hasSolo: false, soloSide: null,
-          team1Slots: [], team2Slots: [] 
+          team1Slots: [], team2Slots: [],
+          turfs: {},
         };
       }
-      
+      const s = slotStats[slotKey];
+
+      const turf = Math.max(1, Number(b.turf) || 1);
+      if (!s.turfs[turf]) s.turfs[turf] = emptyTurf(turf);
+      const ts = s.turfs[turf];
+
       const rosterItem = {
         userId: b.user?._id,
-        name: b.user?.name || b.offlineCustomerName || 'Manual Block',
+        // Public endpoint — never expose walk-in customer names.
+        name: b.user?.name || 'Reserved',
         count: b.playersCount,
-        type: b.classification
+        type: b.classification,
       };
 
-      if (b.teamSide === 2) {
-        slotStats[slotKey].team2 += b.playersCount;
-        slotStats[slotKey].team2Slots.push(rosterItem);
-      } else {
-        slotStats[slotKey].team1 += b.playersCount;
-        slotStats[slotKey].team1Slots.push(rosterItem);
-      }
-      
-      slotStats[slotKey].total += b.playersCount;
-      
+      const side = b.teamSide === 2 ? 'team2' : 'team1';
+      const slotsKey = b.teamSide === 2 ? 'team2Slots' : 'team1Slots';
+
+      s[side] += b.playersCount;
+      s[slotsKey].push(rosterItem);
+      s.total += b.playersCount;
+
+      ts[side] += b.playersCount;
+      ts[slotsKey].push(rosterItem);
+      ts.total += b.playersCount;
+
       if (b.classification === 'SOLO') {
-        slotStats[slotKey].hasSolo = true;
-        slotStats[slotKey].soloSide = b.teamSide;
+        s.hasSolo = true; s.soloSide = b.teamSide;
+        ts.hasSolo = true; ts.soloSide = b.teamSide;
       }
     });
+
+    // Expose each slot's turfs as a sorted array.
+    for (const key of Object.keys(slotStats)) {
+      slotStats[key].turfs = Object.values(slotStats[key].turfs).sort((a, b) => a.turf - b.turf);
+    }
 
     return NextResponse.json({ slotStats });
   } catch (error) {

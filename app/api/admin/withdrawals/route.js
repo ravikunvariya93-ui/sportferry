@@ -38,6 +38,7 @@ export async function GET(request) {
       withdrawals: withdrawals.map(w => ({
         id: w._id.toString(),
         vendorName: w.vendor?.name || 'Unknown',
+        vendorId: w.vendor?._id?.toString() || null,
         vendorEmail: w.vendor?.email || '',
         amount: w.amount,
         commissionDeducted: w.commissionDeducted,
