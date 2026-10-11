@@ -113,6 +113,10 @@ const BookingSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  // ── Venue check-in (scanned at the gate) ──────────────────────────────
+  checkedInAt: {
+    type: Date,
+  },
 }, {
   timestamps: true,
 });

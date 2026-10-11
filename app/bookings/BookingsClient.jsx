@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Calendar, MapPin, Clock, XCircle, AlertCircle, Info, ArrowDownCircle, ShieldCheck } from 'lucide-react';
+import { Calendar, MapPin, Clock, XCircle, AlertCircle, Info, ArrowDownCircle, ShieldCheck, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
 const STATUS_STYLES = {
@@ -145,6 +145,7 @@ export default function BookingsClient({ initialBookings }) {
         const preview = previewMap[booking.id];
         const isPreviewLoading = previewLoading === booking.id;
         const isCancelled = booking.status === 'CANCELLED';
+        const isConfirmed = booking.status === 'CONFIRMED';
 
         return (
           <div
@@ -162,7 +163,9 @@ export default function BookingsClient({ initialBookings }) {
           >
             {/* Left info */}
             <div className="responsive-w-full" style={{ flex: 1, minWidth: '200px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>{booking.venue}</h3>
+              <Link href={`/bookings/${booking.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>{booking.venue}</h3>
+              </Link>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', color: 'var(--muted)', fontSize: '13px', marginBottom: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <MapPin size={13} /> {booking.area}
@@ -219,7 +222,16 @@ export default function BookingsClient({ initialBookings }) {
 
             {/* Right: amount + action */}
             <div className="responsive-card-right" style={{ textAlign: 'right', flexShrink: 0, marginTop: '8px' }}>
-              <div style={{ fontSize: '22px', fontWeight: '800', marginBottom: '12px' }}>{booking.amount}</div>
+              <div style={{ fontSize: '22px', fontWeight: '800', marginBottom: '10px' }}>{booking.amount}</div>
+
+              <Link
+                href={`/bookings/${booking.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: isConfirmed ? 'var(--primary)' : 'var(--muted)', textDecoration: 'none', marginBottom: '12px' }}
+              >
+                {isConfirmed
+                  ? <><Ticket size={15} /> View E-Ticket</>
+                  : <><Info size={15} /> View Booking</>}
+              </Link>
 
               {canCancel && (
                 isConfirming ? (
