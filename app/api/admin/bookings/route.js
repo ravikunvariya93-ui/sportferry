@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { calculateRefund } from '@/lib/cancellationPolicy';
+import { executeRefund } from '@/lib/refunds';
+import { autoConfirmIfReady } from '@/lib/booking-utils';
 import { getISTDayRange } from '@/lib/ist';
 import { escapeRegex } from '@/lib/validation';
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || session.user?.role !== 'ADMIN') return null;
+  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
   return session;
 }
 
@@ -117,6 +119,7 @@ export async function GET(request) {
         cancellationReason: b.cancellationReason || null,
         refundPercent: b.refundPercent ?? 0,
         refundAmount: b.refundAmount ?? 0,
+        refundStatus: b.refundStatus ?? 'NONE',
       })),
       total,
       page,
@@ -157,11 +160,29 @@ export async function PATCH(request) {
       booking.cancellationReason = cancellationReason?.trim() || 'Cancelled by admin';
       booking.refundPercent = refund.refundPercent;
       booking.refundAmount = refund.refundAmount;
+
+      // Return the money for real — the booking is cancelled either way, but
+      // the refund status records whether Razorpay actually paid it back.
+      const refundResult = await executeRefund(booking, refund.refundAmount);
+      booking.refundStatus = refundResult.status;
+      booking.refundId = refundResult.refundId;
+      if (refundResult.status === 'FAILED') {
+        console.error('[PATCH /api/admin/bookings] refund failed', refundResult.error);
+      }
     }
 
     await booking.save();
 
-    return NextResponse.json({ id: booking._id.toString(), status: booking.status });
+    // An admin approval can be what fills a turf up — confirm the rest of it.
+    if (booking.status === 'CONFIRMED') {
+      await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, booking.turf);
+    }
+
+    return NextResponse.json({
+      id: booking._id.toString(),
+      status: booking.status,
+      refundStatus: booking.refundStatus ?? 'NONE',
+    });
   } catch (error) {
     console.error('[PATCH /api/admin/bookings]', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });

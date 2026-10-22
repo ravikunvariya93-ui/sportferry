@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import { Trophy, MapPin, Ticket, Clock, XCircle } from 'lucide-react';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
+import { auth } from '@/lib/auth';
 import { formatToAMPM } from '@/lib/ist';
 
 export const dynamic = 'force-dynamic';
@@ -24,16 +25,26 @@ const STATUS_STYLES = {
 export default async function BookingTicketPage({ params }) {
   await dbConnect();
 
+  // The ticket shows the customer's name and email — only the customer, the
+  // venue that hosts the game and an admin may see it.
+  const session = await auth();
+  if (!session?.user?.id) return notFound();
+
   let booking = null;
   try {
     booking = await Booking.findById(params.id)
-      .populate('venue', 'name area city address')
-      .populate('user', 'name email phone')
+      .populate('venue', 'name area city address owner')
+      .populate('user', 'name email')
       .lean();
   } catch {
     booking = null; // malformed id
   }
   if (!booking || booking.status === 'PAYMENT_PENDING') return notFound();
+
+  const isCustomer = booking.user?._id?.toString() === session.user.id;
+  const isVenueOwner = booking.venue?.owner?.toString() === session.user.id;
+  const isAdmin = session.user.role === 'ADMIN';
+  if (!isCustomer && !isVenueOwner && !isAdmin) return notFound();
 
   const h = headers();
   const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000';

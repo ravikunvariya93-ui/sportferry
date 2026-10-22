@@ -4,7 +4,7 @@
 **No AI/ML is used anywhere in Sportferry today.** No model APIs, no LLM SDKs, no vector stores, no recommendation/embedding code, no AI in `package.json` dependencies. Verified by dependency list + repo-wide grep (2026-10-08).
 
 ## What exists that is *not* AI (don't confuse them)
-- `components/` icons/UX copy like "Find Players — We'll match you with players" is **marketing UI**, not a matching model. Actual "matching" is the deterministic capacity rule in `lib/booking-utils.js` (≥6 players → confirm).
+- `components/` icons/UX copy like "Find Players — We'll match you with players" is **marketing UI**, not a matching model. Actual "matching" is the deterministic capacity rule in `lib/booking-utils.js` (6 players on a turf → confirm).
 - Popularity sort (`/api/venues/popularity`) is a plain DB aggregation, not ML ranking.
 - `lib/mockData.js` is static sample data (also dead code).
 

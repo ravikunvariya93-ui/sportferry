@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { escapeRegex } from '@/lib/validation';
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || session.user?.role !== 'ADMIN') return null;
+  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
   return session;
 }
 

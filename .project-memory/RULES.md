@@ -16,7 +16,7 @@
 2. **New API routes default to private** (middleware 401s). Public? add to the allowlist in `middleware.js` (keep `/api/auth`, `/api/cities`, venue GETs working).
 3. **Role checks in two places** — middleware AND the handler (handlers are the source of truth; middleware alone was historically bypassed for direct API calls).
 4. **Never do date/time math inline** — use `getISTDayRange`, `parseSlot`, `formatToAMPM` from `lib/booking-utils.js`, and `calculateRefund` from `lib/cancellationPolicy.js`.
-5. **Capacity rules exist in two files** (`app/api/bookings/route.js` and `app/api/payments/create-order/route.js`) — if you change 6/side, 12/slot, or the ≥6 auto-confirm, change both + `lib/booking-utils.js`'s `autoConfirmIfReady`.
+5. **Capacity rules live in one place** (`lib/capacity.js` — `allocateBooking`, `PLAYERS_PER_SIDE`) and are called by both `app/api/bookings/route.js` and `app/api/payments/create-order/route.js`, plus the booking UIs. If you change 6/side, 12/slot, the team-match rule or the auto-confirm rule, change `lib/capacity.js` + `lib/booking-utils.js`'s `autoConfirmIfReady` — never a route's copy.
 6. **Multi-write operations go through a mongoose session/transaction** (precedent: booking creation, payment verify). Don't insert partial state outside a transaction when the flow has money or capacity involved.
 7. **Model exports** keep the `(mongoose.models.X || mongoose.model(...))` hot-reload guard.
 8. **Don't hardcode secrets** or read `.env.local` values into scripts (secrets incident `d3fd994`). `scratch/` is gitignored — put debug scripts there.

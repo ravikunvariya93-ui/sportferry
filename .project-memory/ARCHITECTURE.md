@@ -36,7 +36,7 @@ Request
 PAYMENT_PENDING → PENDING   [POST /api/payments/verify: HMAC signature check,
                              then autoConfirmIfReady]
 PAYMENT_PENDING → (deleted) [15-min expiry, cleanupExpiredPayments on next create-order]
-PENDING → CONFIRMED         [autoConfirmIfReady when slot reaches ≥6 players]
+PENDING → CONFIRMED         [autoConfirmIfReady: 6 players on the turf, any split]
 CONFIRMED/PENDING → CANCELLED [PATCH /api/bookings/:id, refund via cancellationPolicy]
 ```
 - Multi-slot purchases share a `groupId` (UUID).

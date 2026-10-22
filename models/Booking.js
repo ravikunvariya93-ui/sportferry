@@ -113,6 +113,16 @@ const BookingSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  // Whether the refund actually left the merchant. `refundAmount` is only the
+  // intended amount — money moves when Razorpay confirms it.
+  refundStatus: {
+    type: String,
+    enum: ['NONE', 'PENDING', 'COMPLETED', 'FAILED'],
+    default: 'NONE',
+  },
+  refundId: {
+    type: String,
+  },
   // ── Venue check-in (scanned at the gate) ──────────────────────────────
   checkedInAt: {
     type: Date,

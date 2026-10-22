@@ -15,7 +15,7 @@
 - **Pure-function policy module** (`lib/cancellationPolicy.js`) — refund tiers are tested by reading, shared by API + UI, and the policy text ships from the same source as the logic (no drift).
 - **Denormalized commission snapshot** on each booking (`commissionPercent`/`commissionAmount` at creation) — historical payouts immune to future policy changes.
 - **Lazy cleanup** (`cleanupExpiredPayments` piggybacked on create-order/availability reads) — no cron infra needed at this scale.
-- **Auto-confirm at ≥6 players** (`autoConfirmIfReady`) — makes "match found" emerge from booking writes rather than a separate matching job.
+- **Auto-confirm at 6 players per turf** (`autoConfirmIfReady`) — a turf confirms once it holds 6 players in total, whatever the split (6v0, 4v2, 3v3) — makes "match found" emerge from booking writes rather than a separate matching job.
 - **IST helpers centralized** (`getISTDayRange` etc.) — one correct implementation instead of N wrong ones; date bugs stop at the module boundary.
 
 ## Product

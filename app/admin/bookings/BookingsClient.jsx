@@ -247,8 +247,11 @@ export default function BookingsClient() {
                                 <XCircle size={10} /> By {b.cancelledBy}
                               </div>
                               {b.refundAmount > 0 && (
-                                <div style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <ShieldCheck size={10} /> ₹{b.refundAmount} ({b.refundPercent}%)
+                                <div style={{ color: b.refundStatus === 'COMPLETED' ? '#22c55e' : b.refundStatus === 'FAILED' ? '#f87171' : '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <ShieldCheck size={10} />
+                                  {b.refundStatus === 'COMPLETED' && `₹${b.refundAmount} refunded (${b.refundPercent}%)`}
+                                  {b.refundStatus === 'FAILED' && `₹${b.refundAmount} refund FAILED`}
+                                  {(b.refundStatus === 'PENDING' || b.refundStatus === 'NONE') && `₹${b.refundAmount} refund pending (${b.refundPercent}%)`}
                                 </div>
                               )}
                               {b.cancellationReason && (

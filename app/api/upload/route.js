@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { rateLimit } from '@/lib/rateLimit';
 
 const MAX_FILES = 6;
@@ -9,7 +9,7 @@ const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
 export async function POST(request) {
   try {
     const session = await auth();
-    if (!session || !['VENDOR', 'ADMIN'].includes(session.user.role)) {
+    if (!session || !(await hasRole(session, 'VENDOR', 'ADMIN'))) {
       return NextResponse.json({ message: 'Only vendors can upload images.' }, { status: 401 });
     }
 

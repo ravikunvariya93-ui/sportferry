@@ -40,7 +40,9 @@ export default auth((req) => {
   if (pathname.startsWith('/api')) {
     // Allow public auth routes, cities, and venue availability/details/popularity
     const isPublicVenueApi = pathname.match(/^\/api\/venues\/[a-f\d]{24}(\/availability)?$/);
-    if (pathname.startsWith('/api/auth') || pathname === '/api/cities' || pathname === '/api/venues/popularity' || isPublicVenueApi) {
+    // The Razorpay webhook authenticates itself with its own signature.
+    const isPaymentWebhook = pathname === '/api/payments/webhook';
+    if (pathname.startsWith('/api/auth') || pathname === '/api/cities' || pathname === '/api/venues/popularity' || isPublicVenueApi || isPaymentWebhook) {
       return NextResponse.next();
     }
     

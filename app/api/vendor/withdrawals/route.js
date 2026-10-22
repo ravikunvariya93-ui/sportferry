@@ -3,13 +3,13 @@ import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 
 const COMMISSION_PERCENT = 12;
 
 async function requireVendor() {
   const session = await auth();
-  if (!session || session.user?.role !== 'VENDOR') return null;
+  if (!session || !(await hasRole(session, 'VENDOR'))) return null;
   return session;
 }
 

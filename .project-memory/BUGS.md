@@ -1,36 +1,58 @@
-# BUGS — confirmed or strongly suspected (verified 2026-10-08 by reading code)
+# BUGS — status of every known issue (updated 2026-10-22)
 
-## 🔴 B1 — PII leak: customer names exposed on the public availability API
-`app/api/venues/[id]/availability/route.js:30,65` selects `user` + `offlineCustomerName` and returns `name: b.user?.name || b.offlineCustomerName || 'Manual Block'` per slot. This route is on the **middleware public allowlist** (no auth), so any anonymous visitor sees who booked each slot — including offline walk-ins' names.
-**Fix direction:** return only counts/side/status to anonymous callers; or drop the name field entirely and show "Booked".
+## ✅ Fixed in this pass
 
-## 🟡 B2 — Race on registration uniqueness
-`app/api/auth/register/route.js` does a non-atomic `findOne` + `create`. Two simultaneous registrations with the same username/email can both pass the check; `unique: true` on the schema then causes the second `create` to throw E11000 → generic 500 instead of a clean 409. Same pattern is *correctly* avoided elsewhere via transactions.
+### B1 — PII leak on the public availability API
+**Fixed.** `app/api/venues/[id]/availability/route.js` now checks the session: anonymous callers get counts only (label `"Booked"`, no `userId`), signed-in callers keep the name and the profile link. Walk-in customer names were already never exposed. A malformed venue id now returns 400 instead of a Mongoose CastError → 500.
 
-## 🟡 B3 — Duplicate-slot double-booking window in `POST /api/bookings`
-Capacity check + insert run inside a Mongo transaction, but the capacity query filters on `date/startTime/endTime` **without a unique constraint** backing it. Transactions on a replica set give snapshot isolation, not predicate locks — two concurrent creates for the same slot can both pass the check (write conflict only if they touch the same doc). Payment path (`create-order`) has the same shape.
-**Fix direction:** a unique index on `{venue, date, startTime, endTime, status-not-cancelled}` isn't directly possible (partial filter on enum), so either a per-slot lock doc or a partial unique index with `partialFilterExpression`.
+### B2 — Race on registration uniqueness
+**Fixed.** `app/api/auth/register/route.js` catches the `E11000` duplicate-key error and answers 409 ("Username/Email already exists") instead of a generic 500.
 
-## 🟡 B4 — `role` accepted from client in register, silently ignored
-`register/route.js` destructures `role` from the body but hardcodes `role: 'PLAYER'`. Not a vulnerability (good!), but the deceptively-accepted field invites a future dev to "use" it — privilege escalation if wired naively. Also `scripts/create-admin.cjs` exists as the intended promotion path.
+### B3 — Duplicate-slot double-booking window
+**Fixed.** A transaction gives snapshot isolation, not predicate locks, so two bookings for the same slot could both pass the capacity check. Every booking transaction now writes a per-slot lock document (`models/SlotLock.js`), so concurrent transactions collide on the same document; the loser aborts and the whole transaction is retried (`lib/bookingTransactions.js` → `runBookingTransaction`, 6 attempts with a short backoff). Exhausting the retries answers a clean 409 ("that slot is being booked right now"), never a 500. Verified live: 20 concurrent bookings on a 12-seat turf produced 8 bookings and 12 clean 409s — no overbooking.
 
-## 🟡 B5 — JWT role staleness
-`role` is baked into the JWT at sign-in. Promoting a user via `scripts/create-admin.cjs` or `/api/admin/users` PATCH doesn't change `session.user.role` until they log in again. Admin/Vendor may appear "still a user" (and vice-versa for demotions — an ex-admin keeps access until token expiry).
+### B5 — JWT role staleness
+**Fixed.** The role is still baked into the JWT, but every API handler now re-reads it from the database (`lib/auth.js` → `hasRole`), so a promotion or demotion takes effect immediately instead of at the next sign-in. The middleware still uses the token's role as a coarse first gate — the handlers are the source of truth.
 
-## 🟡 B6 — Google users can't password-login; credentials users have no Google link
-Google sign-in creates `username = email`, `password = ''` (`lib/auth.js` signIn callback). Credentials `authorize()` bails when `user.password` is falsy — so the same person registering with email+password and then clicking Google gets **two separate accounts** (different `_id`s), and a Google user can never password-login. No account-linking logic exists.
+### B6 — Google and credentials accounts
+**Fixed (and corrected).** The app never created a second account for an email that already existed — the old bug report was stale. The real problem was the opposite: a Google sign-in for an email that belonged to a *password* account silently signed into that account, which hands the account to whoever controls the Google identity (email registration is not verified). Google sign-in is now refused for password accounts (`/login?error=email_in_use`); a Google-only account is linked to the existing record.
 
-## 🟡 B7 — Email uniqueness with nullable field
-`User.email` is `unique: true` but `required: false`. In MongoDB, unique indexes treat missing/null as a value: **two users without an email** → second insert throws E11000 on `email: null`. Registration path sets `email: undefined` when omitted. Works only as long as at most one email-less user exists. (`sparse`/`partialFilterExpression` index missing.)
+### B7 — Email uniqueness with a nullable field
+**Already fixed.** `User.email` is `required: true` in the schema, so the null-duplicate case cannot happen. The bug report was stale.
 
-## 🟢 B8 — Styling: `tailwind-merge` installed but Tailwind isn't
-`tailwind-merge` (and `clsx`, which *is* used) sit in deps; no `tailwind.config`, no `@tailwind` directives anywhere. Dead dependency — harmless but misleading (it made an earlier agent mislabel the stack as "Tailwind").
+### B9 — `lib/mockData.js` dead code
+**Already fixed.** The file no longer exists. The bug report was stale.
 
-## 🟢 B9 — `lib/mockData.js` is dead code
-Grep: zero imports of `mockData` anywhere. Either delete or wire up.
+## 🆕 Fixed now (from the 2026-10-22 review)
 
-## 🟢 B10 — Sample-data pages presented as real
-`/players` (`PlayersClient` over a `players` prop) and `/tournaments` (`SAMPLE_TOURNAMENTS`) render static data with no API. Fine as prototypes; misleading if shipped as product.
+### N1 — Refunds were never executed 🔴
+Cancellation only wrote `refundAmount` to the database — there was no Razorpay refund call anywhere in the app, while the UI told the player "₹1,200 refunded". Now every cancel path (player, vendor, admin, and the auto-cancel of a slot that passed) calls Razorpay through `lib/refunds.js`, and the booking records `refundStatus` (`NONE`/`PENDING`/`COMPLETED`/`FAILED`) plus the Razorpay `refundId`. The UI only says "refunded" when the money actually moved.
 
-## ⚠️ Not verified
-`npm run build` was not run in this session; no runtime repro was attempted for B2/B3/B7 (they're race/null-edge conditions read from code).
+### N2 — No payment-status check, no webhook 🔴
+`/api/payments/verify` only checked the signature; it never asked Razorpay whether the payment was captured. It now fetches the payment and requires `status === 'captured'` and an amount that covers the booking. A new `/api/payments/webhook` endpoint (signature-verified with `RAZORPAY_WEBHOOK_SECRET`) confirms bookings when the player closes the browser after paying, and refunds payments whose 15-minute hold expired.
+
+### N3 — Unauthenticated e-ticket page leaked PII 🔴
+`/bookings/{id}` loaded any booking by id with no session and printed the customer's name and email. It now requires a session and only allows the booking's customer, the venue owner or an admin.
+
+### N4 — `create-order` validated far less than the offline route 🔴
+The online route accepted a slot in the past, a 17-hour slot ("06:00 AM – 11:00 PM") and slots outside the venue's 06:00–23:00 hours, all at the 1-hour price. Both routes now use `parseBookableSlot` (`lib/ist.js`) and compare the date against the IST calendar day instead of the server's local midnight.
+
+### N5 — "Spots left" advertised unbookable seats 🟡
+The homepage and `/play-now` counted every free seat, including the ones a team owns and the side reserved for the opposing team. They now use `openSeatsFor` (`lib/capacity.js`), so the number matches what the booking API will actually accept.
+
+### N6 — A manual approval did not confirm the rest of the turf 🟡
+`autoConfirmIfReady` had a single caller (the payment path), so a slot filled by a mix of online bookings and a vendor-approved walk-in left the online bookings `PENDING` until the slot passed. Vendor and admin approvals now re-check the whole turf.
+
+### N7 — Deleting a venue deleted paid bookings 🟡
+`DELETE /api/venues/{id}` used to `deleteMany` every booking. It now refuses with 409 while the venue has upcoming bookings and keeps the rest as history.
+
+### N8 — Negative or non-numeric prices 🟢
+`pricePerHour` must be a finite number > 0 on both create and update.
+
+## ⚠️ Still open (not code bugs — they need a decision or infra)
+
+1. **The rate limiter is per-process** (`lib/rateLimit.js`). It resets on deploy and does nothing across instances, so on serverless hosting the registration/upload limits are weak. Fixing it properly needs a shared store (Upstash Redis or a TTL-indexed Mongo collection).
+2. **Email addresses are never verified.** Registration accepts any well-formed address, so an account can be registered with someone else's email. That is what made the Google-account takeover possible, and it also makes "forgot password" a way to probe accounts. Fixing it needs a mail provider.
+3. **The webhook secret must be configured** — set `RAZORPAY_WEBHOOK_SECRET` and point the Razorpay dashboard at `/api/payments/webhook`, otherwise the endpoint answers 503 and confirmations still depend on the browser returning after checkout.
+4. **`tailwind-merge` is installed but Tailwind is not configured** (harmless dead dependency; removing it churns the lockfile).
+5. **`/players` and `/tournaments` render sample data** with no API behind them — prototypes, labelled as such in the docs.

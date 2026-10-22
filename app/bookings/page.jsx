@@ -10,6 +10,7 @@ import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
+import { executeRefund } from '@/lib/refunds';
 import { formatToAMPM } from '@/lib/ist';
 import BookingsClient from './BookingsClient';
 
@@ -31,26 +32,34 @@ export default async function BookingsPage() {
     .sort({ createdAt: -1 })
     .lean();
 
-  // Proactive Auto-Refund: If any PENDING booking has passed, mark it as CANCELLED with 100% refund
+  // Proactive auto-cancel: a PENDING booking whose slot has passed never got
+  // its match — cancel it and return the money (Razorpay, not just the DB).
   const now = new Date();
   for (const b of rawBookings) {
     if (b.status === 'PENDING') {
       const isPast = hoursUntilSlot(b) <= 0;
       if (isPast) {
-        // Update in DB (fire and forget for this request, or wait)
+        const refundResult = await executeRefund(b, b.totalAmount);
         await Booking.findByIdAndUpdate(b._id, {
           status: 'CANCELLED',
           cancelledBy: 'ADMIN',
-          cancellationReason: 'Slot passed without enough players (Auto-Refunded)',
+          cancellationReason: 'Slot passed without enough players (auto-refunded)',
           refundPercent: 100,
-          refundAmount: b.totalAmount
+          refundAmount: b.totalAmount,
+          refundStatus: refundResult.status,
+          refundId: refundResult.refundId,
         });
+        if (refundResult.status === 'FAILED') {
+          console.error('[bookings] auto-refund failed', refundResult.error);
+        }
         // Update the local object for immediate UI feedback
         b.status = 'CANCELLED';
         b.cancelledBy = 'ADMIN';
-        b.cancellationReason = 'Slot passed without enough players (Auto-Refunded)';
+        b.cancellationReason = 'Slot passed without enough players (auto-refunded)';
         b.refundPercent = 100;
         b.refundAmount = b.totalAmount;
+        b.refundStatus = refundResult.status;
+        b.refundId = refundResult.refundId;
       }
     }
   }
@@ -73,6 +82,7 @@ export default async function BookingsPage() {
       cancellationReason: b.cancellationReason || ((b.status === 'PENDING' && isPast) ? 'Slot passed without enough players' : null),
       refundPercent: b.refundPercent ?? 0,
       refundAmount: b.refundAmount ?? 0,
+      refundStatus: b.refundStatus ?? 'NONE',
       isPast,
     };
   });

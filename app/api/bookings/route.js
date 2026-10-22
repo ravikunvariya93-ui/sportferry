@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import crypto from 'crypto';
-import { parseSlot, getISTDayRange } from '@/lib/ist';
-import { allocateBooking, turfCountOf } from '@/lib/capacity';
+import { getISTDayRange, istTodayISO, parseBookableSlot } from '@/lib/ist';
+import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
+import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 
 export async function POST(request) {
-  let session = null;
   try {
     const authSession = await auth();
     if (!authSession) {
@@ -20,7 +19,8 @@ export async function POST(request) {
     const body = await request.json();
     const { 
       venueId, date, slot, slots, sport, classification, 
-      playersCount: rawPlayersCount = 1,
+      playersCount: rawPlayersCount = 1, 
+      preferredSide,
       bookingType = 'ONLINE', 
       offlineCustomerName, 
       offlineCustomerPhone 
@@ -54,31 +54,23 @@ export async function POST(request) {
     // Use robust UTC-based date for storing
     const [year, month, day] = date.split('-').map(Number);
     const bookingDate = new Date(Date.UTC(year, month - 1, day));
-    
+
     const { startUTC, endUTC } = getISTDayRange(date);
 
-    // 2. Date Validation (Must be today or future)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (bookingDate < today) {
+    // 2. Date Validation (Must be today or future) — against the IST calendar
+    // day, not the server's local midnight, which silently rejected same-day
+    // bookings on hosts that run west of UTC.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || date < istTodayISO()) {
       return NextResponse.json({ message: 'Cannot book for a past date.' }, { status: 400 });
     }
 
-    // 3. Validate all slots
+    // 3. Validate all slots — a bookable slot is one 1-hour slot inside the
+    // venue's grid (06:00–23:00 IST).
     const parsedSlots = [];
     for (const s of slotList) {
-      const times = parseSlot(s);
+      const times = parseBookableSlot(s);
       if (!times) {
-        return NextResponse.json({ message: `Invalid slot format: ${s}` }, { status: 400 });
-      }
-
-      // Verify 1-hour duration
-      const [startH, startM] = times.startTime.split(':').map(Number);
-      const [endH, endM] = times.endTime.split(':').map(Number);
-      const endHAdjusted = endH === 0 ? 24 : endH;
-      const duration = (endHAdjusted * 60 + endM) - (startH * 60 + startM);
-      if (duration !== 60) {
-        return NextResponse.json({ message: 'Invalid slot duration. Only 1-hour slots are allowed.' }, { status: 400 });
+        return NextResponse.json({ message: `Invalid slot: ${s}. Only 1-hour slots between 06:00 and 23:00 can be booked.` }, { status: 400 });
       }
       parsedSlots.push(times);
     }
@@ -95,13 +87,9 @@ export async function POST(request) {
     }
 
     await dbConnect();
-    const mongooseConnection = mongoose.connection;
-    session = await mongooseConnection.startSession();
-    session.startTransaction();
 
-    const venue = await Venue.findById(venueId).session(session).lean();
+    const venue = await Venue.findById(venueId).lean();
     if (!venue) {
-      await session.abortTransaction();
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
 
@@ -109,69 +97,85 @@ export async function POST(request) {
 
     // 5. Authorization for Offline
     if (venue.owner.toString() !== authSession.user.id) {
-      await session.abortTransaction();
       return NextResponse.json({ message: 'Unauthorized for offline booking.' }, { status: 403 });
     }
 
     // Generate a groupId if booking multiple slots
     const groupId = slotList.length > 1 ? crypto.randomUUID() : undefined;
 
-    const createdBookings = [];
+    // 6. Process each slot. The slot lock makes two bookings for the same
+    // slot collide instead of both passing the capacity check.
+    let createdBookings;
+    try {
+      createdBookings = await runBookingTransaction(async (session) => {
+        const lockKeys = [...new Set(parsedSlots.map(
+          (times) => slotLockKey(venueId, date, times.startTime, times.endTime)
+        ))].sort();
+        for (const key of lockKeys) {
+          await lockSlot(key, session);
+        }
 
-    // 6. Process each slot
-    for (let i = 0; i < parsedSlots.length; i++) {
-      const times = parsedSlots[i];
+        const created = [];
+        for (let i = 0; i < parsedSlots.length; i++) {
+          const times = parsedSlots[i];
 
-      // Capacity Check (Atomic within Transaction)
-      const existingBookings = await Booking.find({
-        venue: venueId,
-        date: { $gte: startUTC, $lte: endUTC },
-        startTime: times.startTime,
-        endTime: times.endTime,
-        status: { $ne: 'CANCELLED' },
-      }).session(session).lean();
+          // Capacity Check (Atomic within Transaction)
+          const existingBookings = await Booking.find({
+            venue: venueId,
+            date: { $gte: startUTC, $lte: endUTC },
+            startTime: times.startTime,
+            endTime: times.endTime,
+            status: { $ne: 'CANCELLED' },
+          }).session(session).lean();
 
-      const allocation = allocateBooking({
-        existingBookings,
-        playersCount,
-        classification,
-        turfCount,
+          const allocation = allocateBooking({
+            existingBookings,
+            playersCount,
+            classification,
+            turfCount,
+            preferredSide: preferredSide === 2 ? 2 : preferredSide === 1 ? 1 : undefined,
+          });
+          if (allocation.error) {
+            const messages = {
+              'group-needs-empty': `Slot ${slotList[i]} has no free turf for a Group booking.`,
+              'capacity-full': 'No team slot available for this slot.',
+            };
+            const reason = blockReason(existingBookings, { playersCount, classification });
+            throw new BookingError(reason || messages[allocation.error] || 'Slot unavailable.', 409);
+          }
+
+          const booking = await Booking.create([{
+            venue: venueId,
+            user: null,
+            date: bookingDate,
+            startTime: times.startTime,
+            endTime: times.endTime,
+            totalAmount: 0,
+            commissionPercent: COMMISSION_PERCENT,
+            commissionAmount: 0,
+            status: 'CONFIRMED',
+            bookingType: 'OFFLINE',
+            sport,
+            classification,
+            playersCount,
+            teamSide: allocation.assignedSide,
+            turf: allocation.turf,
+            groupId,
+            offlineCustomerName: offlineCustomerName || 'Manual Block',
+            offlineCustomerPhone: offlineCustomerPhone || undefined,
+          }], { session });
+
+          created.push(booking[0]);
+        }
+
+        return created;
       });
-      if (allocation.error) {
-        await session.abortTransaction();
-        const messages = {
-          'group-needs-empty': `Slot ${slotList[i]} has no free turf for a Group booking.`,
-          'capacity-full': 'All turfs are full for this slot.',
-        };
-        return NextResponse.json({ message: messages[allocation.error] || 'Slot unavailable.' }, { status: 409 });
+    } catch (err) {
+      if (err instanceof BookingError) {
+        return NextResponse.json({ message: err.message }, { status: err.status });
       }
-
-      const booking = await Booking.create([{
-        venue: venueId,
-        user: null,
-        date: bookingDate,
-        startTime: times.startTime,
-        endTime: times.endTime,
-        totalAmount: 0,
-        commissionPercent: COMMISSION_PERCENT,
-        commissionAmount: 0,
-        status: 'CONFIRMED',
-        bookingType: 'OFFLINE',
-        sport,
-        classification,
-        playersCount,
-        teamSide: allocation.assignedSide,
-        turf: allocation.turf,
-        groupId,
-        offlineCustomerName: offlineCustomerName || 'Manual Block',
-        offlineCustomerPhone: offlineCustomerPhone || undefined,
-      }], { session });
-
-      createdBookings.push(booking[0]);
+      throw err;
     }
-
-    await session.commitTransaction();
-    session.endSession();
 
     const bookingIds = createdBookings.map(b => b._id.toString());
 
@@ -182,10 +186,6 @@ export async function POST(request) {
       turf: createdBookings[0]?.turf,
     }, { status: 201 });
   } catch (error) {
-    if (session) {
-      await session.abortTransaction();
-      session.endSession();
-    }
     console.error('[POST /api/bookings]', error);
     return NextResponse.json({ message: 'Booking failed. Please try again.' }, { status: 500 });
   }

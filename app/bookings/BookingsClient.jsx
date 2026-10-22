@@ -76,6 +76,7 @@ export default function BookingsClient({ initialBookings }) {
           cancelledBy: 'PLAYER',
           refundPercent: d.refundPercent,
           refundAmount: d.refundAmount,
+          refundStatus: d.refundStatus,
         } : b));
         setConfirmingId(null);
       } else {
@@ -202,9 +203,11 @@ export default function BookingsClient({ initialBookings }) {
                     </div>
                   )}
                   {booking.refundAmount > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#16a34a', fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: booking.refundStatus === 'COMPLETED' ? '#16a34a' : booking.refundStatus === 'FAILED' ? '#dc2626' : '#d97706', fontWeight: '600' }}>
                       <ArrowDownCircle size={12} />
-                      ₹{booking.refundAmount} refunded ({booking.refundPercent}%)
+                      {booking.refundStatus === 'COMPLETED' && `₹${booking.refundAmount} refunded (${booking.refundPercent}%)`}
+                      {booking.refundStatus === 'FAILED' && `₹${booking.refundAmount} refund failed — contact support`}
+                      {(booking.refundStatus === 'PENDING' || !booking.refundStatus || booking.refundStatus === 'NONE') && `₹${booking.refundAmount} refund pending (${booking.refundPercent}%)`}
                     </div>
                   ) : (
                     <div style={{ color: 'var(--muted)' }}>No refund applicable</div>

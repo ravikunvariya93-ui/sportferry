@@ -17,7 +17,7 @@
   1. Player availability (city, sport, skill, times) — users table already has `city`.
   2. Surface players near a booking/slot — bookings already know date/time/sport/`teamSide`.
   3. Fill-the-slot nudges: when a slot is 1 side short, notify the other side's users.
-- Leverages existing rules (≥6 auto-confirm) — no new booking semantics needed.
+- Leverages existing rules (auto-confirm at 6 players per turf) — no new booking semantics needed.
 
 ## Phase 3 — Supply growth (vendors)
 - Vendor onboarding funnel: claim venue → verification → first booking.

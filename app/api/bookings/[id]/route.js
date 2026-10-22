@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { calculateRefund, getPlayerCancellationTier, hoursUntilSlot } from '@/lib/cancellationPolicy';
+import { executeRefund } from '@/lib/refunds';
+import { autoConfirmIfReady } from '@/lib/booking-utils';
 
 export async function PATCH(request, { params }) {
   try {
@@ -28,7 +30,7 @@ export async function PATCH(request, { params }) {
 
     const isCustomer = booking.user?.toString() === session.user.id;
     const isVenueOwner = booking.venue?.owner?.toString() === session.user.id;
-    const isAdmin = session.user.role === 'ADMIN';
+    const isAdmin = await hasRole(session, 'ADMIN');
 
     // 1. Handle Approval
     if (status === 'CONFIRMED') {
@@ -86,6 +88,16 @@ export async function PATCH(request, { params }) {
       booking.cancellationReason = cancellationReason?.trim() || undefined;
       booking.refundPercent = refund.refundPercent;
       booking.refundAmount = refund.refundAmount;
+
+      // The refund is not a note in the DB — ask Razorpay to actually return
+      // the money. If it fails the slot still frees up, but the status records
+      // that the money is still owed.
+      const refundResult = await executeRefund(booking, refund.refundAmount);
+      booking.refundStatus = refundResult.status;
+      booking.refundId = refundResult.refundId;
+      if (refundResult.status === 'FAILED') {
+        console.error('[PATCH /api/bookings/[id]] refund failed', refundResult.error);
+      }
     } 
     else {
       return NextResponse.json({ message: 'Invalid status update.' }, { status: 400 });
@@ -93,12 +105,20 @@ export async function PATCH(request, { params }) {
 
     await booking.save();
 
+    // A vendor approval is one of the ways a turf fills up — re-check the whole
+    // turf so the other bookings on it confirm as well.
+    if (booking.status === 'CONFIRMED') {
+      const venueId = booking.venue?._id || booking.venue;
+      await autoConfirmIfReady(venueId, booking.date, booking.startTime, booking.endTime, booking.turf);
+    }
+
     return NextResponse.json({ 
       success: true, 
       status: booking.status,
       message: `Booking successfully ${status.toLowerCase()}.`,
       refundPercent: booking.refundPercent ?? null,
       refundAmount: booking.refundAmount ?? null,
+      refundStatus: booking.refundStatus ?? 'NONE',
       cancelledBy: booking.cancelledBy ?? null,
     });
   } catch (error) {
@@ -126,7 +146,7 @@ export async function GET(request, { params }) {
 
     const isCustomer = booking.user?.toString() === session.user.id;
     const isVenueOwner = booking.venue?.owner?.toString() === session.user.id;
-    const isAdmin = session.user.role === 'ADMIN';
+    const isAdmin = await hasRole(session, 'ADMIN');
 
     if (!isCustomer && !isVenueOwner && !isAdmin) {
       return NextResponse.json({ message: 'Not authorized.' }, { status: 403 });

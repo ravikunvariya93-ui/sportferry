@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { istTodayISO, slotStartInstant } from '@/lib/ist';
 
 const ID_RE = /[a-f0-9]{24}/i;
@@ -15,7 +15,7 @@ function parseBookingId(code) {
 export async function POST(request) {
   try {
     const session = await auth();
-    if (!session || session.user?.role !== 'VENDOR') {
+    if (!session || !(await hasRole(session, 'VENDOR'))) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 

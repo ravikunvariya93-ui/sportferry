@@ -25,18 +25,22 @@ components/              # Colocated *.jsx + *.module.css
   Home/ (HomeHero, QuickActions, FeaturedVenues, HomeRecommended, HomeCitySelector)
   Explore/  VenueCard/  VenueModal  CitySelector/  AuthProvider.jsx
 lib/
-  auth.js                # NextAuth full config (providers, DB callbacks)
+  auth.js                # NextAuth full config (providers, DB callbacks) + hasRole (DB-backed role check)
   auth.config.js         # Edge-safe auth config used by middleware
   mongodb.js             # Cached mongoose connection (global.mongoose)
-  booking-utils.js       # parseSlot, autoConfirmIfReady, cleanupExpiredPayments,
-                         # getISTDayRange, formatToAMPM  ← time truth lives here
+  booking-utils.js       # autoConfirmIfReady, cleanupExpiredPayments
+  bookingTransactions.js # runBookingTransaction (retry on slot races), lockSlot, BookingError
+  capacity.js            # allocateBooking (side/team rules), openSeatsFor, blockReason
+  razorpay.js            # The only module that talks to Razorpay: orders, payments, refunds
+  refunds.js             # executeRefund — runs the refund and reports its real status
+  ist.js                 # parseSlot, parseBookableSlot, getISTDayRange, formatToAMPM
   cancellationPolicy.js  # Refund tiers (24h/12h/now), calculateRefund, policy text
-  indiaCities.js  mockData.js
-models/                  # Mongoose schemas: User, Venue, Booking, Withdrawal
+  indiaCities.js
+models/                  # Mongoose schemas: User, Venue, Booking, Withdrawal, SlotLock
 middleware.js            # Role-based route/API protection (edge)
 scripts/                 # seed*.mjs/.js/.cjs, make-admin.js, clear_bookings, add_10_venues
 scratch/                 # ⚠ gitignored DB debug scripts (may hold secrets — never commit)
-test files: components/**/*.test.jsx (3 suites, 15 tests)
+test files: components/**/*.test.jsx and lib/*.test.js (15 suites, 131 tests)
 ```
 
 ## Conventions
@@ -54,4 +58,4 @@ test files: components/**/*.test.jsx (3 suites, 15 tests)
 2. New API routes are **private by default** (middleware 401s) — add to the public allowlist in `middleware.js` if anonymous access is needed (precedent: commit `dd5e6a3` for venue availability).
 3. Don't call `new Date(dateStr)` for day boundaries — use `getISTDayRange`.
 4. `Venue.sportTypes` enum only allows `'Box Cricket'`.
-5. Capacity math (6/side, 12/slot, ≥6 auto-confirm) appears in **two** places: `app/api/bookings/route.js` and `app/api/payments/create-order/route.js` — change both.
+5. Capacity math (6/side, 12/slot, team-match rule) lives in **one** place: `lib/capacity.js` (`allocateBooking`) — used by both booking routes and the booking UIs. The auto-confirm rule lives in `lib/booking-utils.js` (`autoConfirmIfReady`). Change those, never a route's copy.

@@ -7,9 +7,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import styles from './VenueDetail.module.css';
 import { SLOT_LABELS, isSlotLabelPast, formatToAMPM } from '@/lib/ist';
-import { PLAYERS_PER_SIDE, slotCapacityFor } from '@/lib/capacity';
+import { PLAYERS_PER_SIDE, slotCapacityFor, allocateBooking, existingFromSlotStats, blockReason } from '@/lib/capacity';
 import { hasCoords, mapsEmbedUrl, mapsDirectionsUrl } from '@/lib/geo';
 import { discountPercentOf, discountedPrice } from '@/lib/pricing';
+
+// A roster item covers as many seats as it has players — a team of 3 fills
+// three seats of its side, not one.
+const seatsFor = (slotsArr = []) => {
+  const out = [];
+  for (const r of slotsArr) {
+    const n = Math.max(1, r.count || 1);
+    for (let i = 0; i < n; i++) out.push(r);
+  }
+  return out;
+};
 
 export default function VenueDetailClient({ venue }) {
   const { data: session } = useSession();
@@ -19,6 +30,7 @@ export default function VenueDetailClient({ venue }) {
   // One match per turf → up to 6 players per side (12 total) per turf.
   const sideCapacity = PLAYERS_PER_SIDE;
   const slotCapacity = slotCapacityFor(venue.numberOfTurfs);
+  const turfCount = Math.max(1, Number(venue.numberOfTurfs) || 1);
   // Effective price after the venue's discount (0 discount → full price).
   const discount = discountPercentOf(venue);
   const price = discountedPrice(venue.pricePerHour, discount);
@@ -83,6 +95,7 @@ export default function VenueDetailClient({ venue }) {
   const [bookingState, setBookingState] = useState('idle');
   const [bookingMessage, setBookingMessage] = useState('');
   const [bookingId, setBookingId] = useState(null);
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [activeImg, setActiveImg] = useState(0); // gallery hero index
 
   const updateForm = (key, patch) => {
@@ -143,6 +156,7 @@ export default function VenueDetailClient({ venue }) {
     .map(f => ({
       date: f.selectedDate, slot: f.selectedSlot,
       classification: f.classification, playersCount: f.playersCount,
+      preferredSide: f.preferredTeam === 'team2' ? 2 : 1,
     }));
 
   /* ── Payment flow (multi-date + multi-slot) ── */
@@ -167,7 +181,7 @@ export default function VenueDetailClient({ venue }) {
             body: JSON.stringify({ razorpay_order_id: res.razorpay_order_id, razorpay_payment_id: res.razorpay_payment_id, razorpay_signature: res.razorpay_signature }),
           });
           const vd = await r2.json();
-          if (r2.ok) { setBookingId(vd.bookingIds[0]); setBookingState('success'); }
+          if (r2.ok) { setBookingId(vd.bookingIds[0]); setBookingConfirmed(!!vd.confirmed); setBookingState('success'); }
           else { setBookingState('error'); setBookingMessage(vd.message || 'Verification failed.'); }
         },
         prefill: { name: od.customerName, email: od.customerEmail, contact: od.customerPhone },
@@ -180,29 +194,32 @@ export default function VenueDetailClient({ venue }) {
 
   const firstUpcomingFor = (iso) => slots.filter(s => !hasPassedFor(s, iso))[0];
 
+  /* ── The server's allocation, mirrored locally so the preview is truthful ── */
+  const allocFor = (form, iso, slotLabel) => {
+    const stat = busyByDate[iso]?.[slotLabel];
+    const existing = existingFromSlotStats(stat);
+    const alloc = allocateBooking({
+      existingBookings: existing,
+      playersCount: form.playersCount,
+      classification: form.classification,
+      turfCount,
+      preferredSide: form.preferredTeam === 'team2' ? 2 : 1,
+    });
+    return { ...alloc, existing, stat };
+  };
+
   /* ── BookMyShow-style lineup block for one date+slot cell ── */
   // animIdx staggers entrance so 2nd, 3rd… lineups cascade in visibly
   const renderLineup = (form, iso, slotLabel, isPreview, animIdx = 0) => {
     const stats = busyByDate[iso]?.[slotLabel] || { total: 0, turfs: [] };
-    const turfCount = Math.max(1, Number(venue.numberOfTurfs) || 1);
     const turfMap = {};
     (stats.turfs || []).forEach(t => { turfMap[t.turf] = t; });
     const isSelected = form.selectedSlot === slotLabel;
     const past = hasPassedFor(slotLabel, iso);
-    // Show one turf at a time: the first turf that can take this booking on the
-    // chosen side, else the first turf with any room, else turf 1.
-    const prefSide = form.preferredTeam === 'team2' ? 'team2' : 'team1';
-    const currentTurf = (() => {
-      for (let t = 1; t <= turfCount; t++) {
-        const ts = turfMap[t] || {};
-        if (((ts[prefSide]) || 0) + form.playersCount <= PLAYERS_PER_SIDE) return t;
-      }
-      for (let t = 1; t <= turfCount; t++) {
-        const ts = turfMap[t] || {};
-        if ((ts.team1 || 0) < PLAYERS_PER_SIDE || (ts.team2 || 0) < PLAYERS_PER_SIDE) return t;
-      }
-      return 1;
-    })();
+    // The turf and side the server will place this booking on.
+    const alloc = allocFor(form, iso, slotLabel);
+    const currentTurf = alloc.turf || 1;
+    const assignedKey = alloc.assignedSide === 2 ? 'team2' : alloc.assignedSide === 1 ? 'team1' : null;
     return (
       <div key={`${form.key}|${iso}|${slotLabel}`} className={styles.lineupEnter} style={{ padding: '20px 16px 16px', background: 'var(--background)', borderRadius: '16px', border: isPreview ? '1px dashed var(--glass-border)' : '1px solid var(--glass-border)', marginBottom: '12px', animationDelay: `${Math.min(animIdx, 6) * 110}ms` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -243,11 +260,19 @@ export default function VenueDetailClient({ venue }) {
                 <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{ts.total}/12</span>
               </div>
               {[
-                { key: 'team1', label: 'TEAM A', color: '#16a34a', light: 'rgba(22,163,74,0.12)', count: ts.team1 || 0, slotsArr: ts.team1Slots || [] },
-                { key: 'team2', label: 'TEAM B', color: '#3b82f6', light: 'rgba(59,130,246,0.12)', count: ts.team2 || 0, slotsArr: ts.team2Slots || [] },
+                { key: 'team1', label: 'TEAM A', color: '#16a34a', light: 'rgba(22,163,74,0.12)', count: ts.team1 || 0, slotsArr: ts.team1Slots || [], teamSize: ts.team1Size ?? null },
+                { key: 'team2', label: 'TEAM B', color: '#3b82f6', light: 'rgba(59,130,246,0.12)', count: ts.team2 || 0, slotsArr: ts.team2Slots || [], teamSize: ts.team2Size ?? null },
               ].map((row, rowIdx) => {
-                  const isPreferred = form.preferredTeam === row.key || form.classification === 'GROUP';
+                  // A team owns its side; the opposite side is reserved for a team of the same size.
+                  const oppositeTeamSize = row.key === 'team1' ? ts.team2Size : ts.team1Size;
+                  const isTeamSide = row.teamSize != null;
+                  const isReserved = !row.slotsArr.length && oppositeTeamSize != null;
+                  const isPreferred = form.classification === 'GROUP'
+                    || (assignedKey ? assignedKey === row.key : form.preferredTeam === row.key);
                   const spotsToHighlight = isSelected && isPreferred ? (form.classification === 'GROUP' ? 6 : form.playersCount) : 0;
+                  const sideLocked = isTeamSide
+                    || (isReserved && !(form.classification === 'TEAM' && form.playersCount === oppositeTeamSize));
+                  const seats = seatsFor(row.slotsArr);
           let highlighted = 0;
           return (
             <React.Fragment key={row.key}>
@@ -269,19 +294,33 @@ export default function VenueDetailClient({ venue }) {
                 <span style={{ fontSize: '11px', fontWeight: '900', letterSpacing: '1px', color: row.color }}>{row.label}</span>
                 <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--muted)' }}>{row.count}/{sideCapacity}</span>
               </div>
+              {(isTeamSide || isReserved) && (
+                <div style={{ fontSize: '10px', fontWeight: '800', color: row.color, textAlign: 'center', marginTop: '-2px', marginBottom: '8px' }}>
+                  {isTeamSide ? `TEAM OF ${row.teamSize}` : `RESERVED FOR ${oppositeTeamSize}-PLAYER TEAM`}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                 {[...Array(sideCapacity)].map((_, i) => {
-                  const p = row.slotsArr[i];
+                  const p = seats[i];
                   if (p) {
+                    const seatStyle = {
+                      width: '46px', height: '44px', borderRadius: '10px 10px 6px 6px',
+                      background: '#d1d5db', border: '1.5px solid #d1d5db', color: '#6b7280',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '14px', fontWeight: '800', textDecoration: 'none',
+                    };
+                    // No user id (anonymous visitor) — a plain seat, not a link.
+                    if (!p.userId) {
+                      return (
+                        <div key={i} title={p.name} style={seatStyle}>
+                          {(p.name || 'B').charAt(0).toUpperCase()}
+                        </div>
+                      );
+                    }
                     return (
-                      <Link key={i} href={`/profile/${p.userId || ''}`} title={p.name}
+                      <Link key={i} href={`/profile/${p.userId}`} title={p.name}
                         onClick={(e) => e.stopPropagation()}
-                        style={{
-                          width: '46px', height: '44px', borderRadius: '10px 10px 6px 6px',
-                          background: '#d1d5db', border: '1.5px solid #d1d5db', color: '#6b7280',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '14px', fontWeight: '800', textDecoration: 'none',
-                        }}>
+                        style={seatStyle}>
                         {(p.name || 'M').charAt(0).toUpperCase()}
                       </Link>
                     );
@@ -290,9 +329,9 @@ export default function VenueDetailClient({ venue }) {
                   if (isMySeat) highlighted++;
                   return (
                     <button key={i} title={isMySeat ? 'Your seat' : `${row.label} seat ${i + 1}`}
-                      disabled={past} className={isMySeat ? styles.seatPop : undefined}
+                      disabled={past || sideLocked} className={isMySeat ? styles.seatPop : undefined}
                               onClick={() => {
-                                if (past) return;
+                                if (past || sideLocked) return;
                                 // BMS-style: tapping a seat picks this slot (one slot per booking)
                                 updateForm(form.key, { preferredTeam: row.key, selectedSlot: slotLabel });
                                 setBookingState('idle');
@@ -302,8 +341,8 @@ export default function VenueDetailClient({ venue }) {
                         border: `1.5px solid ${row.color}`,
                         background: isMySeat ? row.color : 'transparent',
                         color: isMySeat ? 'white' : row.color,
-                        fontSize: '13px', fontWeight: '800', cursor: past ? 'not-allowed' : 'pointer',
-                        opacity: past ? 0.4 : 1, fontFamily: 'inherit',
+                        fontSize: '13px', fontWeight: '800', cursor: past || sideLocked ? 'not-allowed' : 'pointer',
+                        opacity: past ? 0.4 : sideLocked ? 0.45 : 1, fontFamily: 'inherit',
                         boxShadow: isMySeat ? `0 3px 10px ${row.light}` : 'none',
                       }}>
                       {isMySeat ? '✓' : i + 1}
@@ -327,7 +366,7 @@ export default function VenueDetailClient({ venue }) {
         <div style={{ borderTop: '1px dashed var(--glass-border)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
             {isSelected
-              ? `${form.playersCount} seat${form.playersCount > 1 ? 's' : ''} • ${form.preferredTeam === 'team1' ? 'Team A' : form.preferredTeam === 'team2' ? 'Team B' : ''}`
+              ? `${form.playersCount} seat${form.playersCount > 1 ? 's' : ''} • ${assignedKey === 'team2' ? 'Team B' : assignedKey === 'team1' ? 'Team A' : ''}`
               : 'Tap an available seat to pick your side'}
           </span>
           <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{price * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
@@ -462,8 +501,14 @@ export default function VenueDetailClient({ venue }) {
             <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <CalendarCheck size={36} color="var(--primary)" />
             </div>
-            <h3 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '8px' }}>Booking Confirmed!</h3>
-            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>Ref: {bookingId}</p>
+            <h3 style={{ fontSize: '22px', fontWeight: '800', marginBottom: '8px' }}>
+              {bookingConfirmed ? 'Booking Confirmed!' : 'Payment received'}
+            </h3>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '24px' }}>
+              {bookingConfirmed
+                ? `Ref: ${bookingId}`
+                : `Ref: ${bookingId} — your spot is held. It confirms once enough players join this turf.`}
+            </p>
             <button onClick={() => router.push('/bookings')} className={styles.bookBtn}>View My Bookings</button>
           </div>
         ) : (
@@ -593,17 +638,29 @@ export default function VenueDetailClient({ venue }) {
                     <div className={styles.slotGrid}>
                       {slots.map(slot => {
                         const stats = dayBusy[slot] || { total: 0 };
-                        const full = stats.total >= slotCapacity;
                         const hp = hasPassedFor(slot, iso);
                         const isSel = sel === slot;
-                        const dis = full || hp;
+                        // Same allocation the server runs — a slot can be
+                        // partly booked yet unavailable for this booking.
+                        const alloc = allocFor(form, iso, slot);
+                        const reason = alloc.error
+                          ? blockReason(alloc.existing, { playersCount: form.playersCount, classification: form.classification })
+                          : null;
+                        const groupBlocked = form.classification === 'GROUP' && stats.total > 0;
+                        const dis = hp || groupBlocked || !!alloc.error;
+                        const note = hp ? 'PASSED'
+                          : groupBlocked ? 'NO FREE TURF'
+                          : reason ? (form.classification === 'TEAM' ? 'TEAM SIZE' : 'TEAM ONLY')
+                          : alloc.error ? 'FULL'
+                          : `${stats.total}/${slotCapacity}`;
                         return (
-                          <button key={slot} disabled={dis || (form.classification==='GROUP' && stats.total > 0)}
+                          <button key={slot} disabled={dis}
                             className={`${styles.slotBtn} ${isSel ? styles.slotBtnSelected : ''}`}
-                            onClick={() => toggleSlotFor(form.key, slot)}>
+                            onClick={() => toggleSlotFor(form.key, slot)}
+                            title={reason || (groupBlocked ? 'Group booking only available for completely empty slots' : '')}>
                             {slot.split(' – ')[0]}
                             <span style={{ fontSize: '10px', marginTop: '1px', opacity: 0.9 }}>– {slot.split(' – ')[1]}</span>
-                            <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{hp ? 'PASSED' : full ? 'FULL' : `${stats.total}/${slotCapacity}`}</span>
+                            <span style={{ fontSize: '9px', marginTop: '3px', opacity: 0.6 }}>{note}</span>
                           </button>
                         );
                       })}

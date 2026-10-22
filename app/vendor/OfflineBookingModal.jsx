@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, AlertCircle, CheckCircle2, Lock, LayoutGrid } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SLOT_LABELS, istTodayISO, isSlotLabelPast } from '@/lib/ist';
-import { slotCapacityFor, turfCountOf, allocateBooking, PLAYERS_PER_SIDE } from '@/lib/capacity';
+import { slotCapacityFor, turfCountOf, allocateBooking, existingFromSlotStats, PLAYERS_PER_SIDE } from '@/lib/capacity';
 
 const TIME_SLOTS = SLOT_LABELS;
 // Allowed player counts per category — mirrors the server's validation.
@@ -82,16 +82,7 @@ export default function OfflineBookingModal({ venues, onClose }) {
 
   // Rebuild each slot's individual bookings from the availability stats so the
   // client reuses the SAME per-turf allocation the server runs on submit.
-  const existingFor = (slotLabel) => {
-    const stat = slotStats[slotLabel];
-    if (!stat?.turfs?.length) return [];
-    const out = [];
-    for (const ts of stat.turfs) {
-      for (const r of (ts.team1Slots || [])) out.push({ playersCount: r.count || 1, classification: r.type || 'SOLO', teamSide: 1, turf: ts.turf });
-      for (const r of (ts.team2Slots || [])) out.push({ playersCount: r.count || 1, classification: r.type || 'SOLO', teamSide: 2, turf: ts.turf });
-    }
-    return out;
-  };
+  const existingFor = (slotLabel) => existingFromSlotStats(slotStats[slotLabel]);
 
   const allocationFor = (slotLabel) => allocateBooking({
     existingBookings: existingFor(slotLabel),

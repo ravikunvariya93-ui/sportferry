@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -7,15 +6,15 @@ import User from '@/models/User';
 import { auth } from '@/lib/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import { parseSlot, getISTDayRange } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, parseBookableSlot } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
-import { allocateBooking, turfCountOf } from '@/lib/capacity';
+import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
+import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { discountedPrice } from '@/lib/pricing';
 import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request) {
-  let session = null;
   try {
     const authSession = await auth();
     if (!authSession) {
@@ -49,6 +48,7 @@ export async function POST(request) {
           slot: s.slot,
           classification: ['SOLO', 'TEAM', 'GROUP'].includes(s.classification) ? s.classification : fallbackClassification,
           playersCount: Math.max(1, Math.floor(Number(s.playersCount)) || fallbackPlayers),
+          preferredSide: s.preferredSide === 2 ? 2 : s.preferredSide === 1 ? 1 : undefined,
         }));
     } else {
       const slotList = Array.isArray(slots) ? slots : [];
@@ -64,22 +64,15 @@ export async function POST(request) {
     }
 
     await dbConnect();
-    const mongooseConnection = mongoose.connection;
-    session = await mongooseConnection.startSession();
-    session.startTransaction();
 
-    await cleanupExpiredPayments(session);
-
-    const venue = await Venue.findById(venueId).session(session).lean();
+    const venue = await Venue.findById(venueId).lean();
     if (!venue) {
-      await session.abortTransaction();
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
 
     const turfCount = turfCountOf(venue.numberOfTurfs);
 
     if (!Array.isArray(venue.sportTypes) || !venue.sportTypes.includes(sport)) {
-      await session.abortTransaction();
       return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
     }
 
@@ -90,11 +83,17 @@ export async function POST(request) {
     const customer = await User.findById(authSession.user.id).select('phone').lean();
 
     const parsedCells = [];
+    const todayISO = istTodayISO();
     for (const c of cells) {
-      const times = parseSlot(c.slot);
+      // A bookable slot is one 1-hour slot inside the venue's grid.
+      const times = parseBookableSlot(c.slot);
       if (!times || !/^\d{4}-\d{2}-\d{2}$/.test(c.date)) {
-        await session.abortTransaction();
         return NextResponse.json({ message: `Invalid date/slot: ${c.date} ${c.slot}` }, { status: 400 });
+      }
+      // Past dates are rejected against the IST calendar day, not the
+      // server's local midnight (which broke same-day bookings on some hosts).
+      if (c.date < todayISO) {
+        return NextResponse.json({ message: 'Cannot book for a past date.' }, { status: 400 });
       }
       const [year, month, day] = c.date.split('-').map(Number);
       parsedCells.push({
@@ -103,6 +102,7 @@ export async function POST(request) {
         dateStr: c.date,
         classification: c.classification,
         playersCount: c.playersCount,
+        preferredSide: c.preferredSide,
         bookingDate: new Date(Date.UTC(year, month - 1, day)),
         ...getISTDayRange(c.date),
       });
@@ -112,7 +112,6 @@ export async function POST(request) {
     for (const pc of parsedCells) {
       const [min, max] = CLASSIFICATION_LIMITS[pc.classification] || [1, 99];
       if (pc.playersCount < min || pc.playersCount > max) {
-        await session.abortTransaction();
         return NextResponse.json(
           { message: `${pc.classification} bookings must have ${min}-${max} players.` },
           { status: 400 }
@@ -123,12 +122,12 @@ export async function POST(request) {
     const groupId = parsedCells.length > 1 ? crypto.randomUUID() : undefined;
     const totalAmount = parsedCells.reduce((s, pc) => s + unitPrice * pc.playersCount, 0);
 
-    // 1. Create Razorpay Order (fail fast if payments aren't configured)
+    // 1. Create Razorpay Order (fail fast if payments aren't configured).
+    //    Created once, outside the booking transaction, so a retry after a
+    //    slot race reuses the same order instead of leaving a second one.
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
     if (!razorpayKeyId || !razorpayKeySecret) {
-      await session.abortTransaction();
-      session.endSession();
       return NextResponse.json({ message: 'Payments are not configured.' }, { status: 503 });
     }
     const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
@@ -141,62 +140,86 @@ export async function POST(request) {
 
     const order = await razorpay.orders.create(options);
 
-    // 2. Create PAYMENT_PENDING bookings (one per date+slot cell)
-    const createdBookings = [];
-    for (let i = 0; i < parsedCells.length; i++) {
-      const times = parsedCells[i];
+    // 2. Create PAYMENT_PENDING bookings (one per date+slot cell).
+    //    The slot lock makes two bookings for the same slot collide instead of
+    //    both passing the capacity check.
+    let createdBookings;
+    try {
+      createdBookings = await runBookingTransaction(async (session) => {
+        await cleanupExpiredPayments(session);
 
-      // Capacity Check (Atomic within Transaction) — per date+slot
-      const existingBookings = await Booking.find({
-        venue: venueId,
-        date: { $gte: times.startUTC, $lte: times.endUTC },
-        startTime: times.startTime,
-        endTime: times.endTime,
-        status: { $ne: 'CANCELLED' },
-      }).session(session).lean();
+        // Lock every slot this order touches, in a stable order so two
+        // multi-slot orders can never deadlock on each other.
+        const lockKeys = [...new Set(parsedCells.map(
+          (pc) => slotLockKey(venueId, pc.dateStr, pc.startTime, pc.endTime)
+        ))].sort();
+        for (const key of lockKeys) {
+          await lockSlot(key, session);
+        }
 
-      const allocation = allocateBooking({
-        existingBookings,
-        playersCount: times.playersCount,
-        classification: times.classification,
-        turfCount,
+        const created = [];
+        for (const times of parsedCells) {
+          // Capacity Check (Atomic within Transaction) — per date+slot
+          const existingBookings = await Booking.find({
+            venue: venueId,
+            date: { $gte: times.startUTC, $lte: times.endUTC },
+            startTime: times.startTime,
+            endTime: times.endTime,
+            status: { $ne: 'CANCELLED' },
+          }).session(session).lean();
+
+          const allocation = allocateBooking({
+            existingBookings,
+            playersCount: times.playersCount,
+            classification: times.classification,
+            turfCount,
+            preferredSide: times.preferredSide,
+          });
+          if (allocation.error) {
+            const messages = {
+              'group-needs-empty': `Slot ${times.dateStr} ${times.slotLabel} has no free turf for a Group booking.`,
+              'capacity-full': `No team slot available for ${times.dateStr} ${times.slotLabel}.`,
+            };
+            const reason = blockReason(existingBookings, {
+              playersCount: times.playersCount,
+              classification: times.classification,
+            });
+            throw new BookingError(reason || messages[allocation.error] || 'Slot unavailable.', 409);
+          }
+
+          const commissionAmount = Math.round((unitPrice * times.playersCount) * COMMISSION_PERCENT / 100);
+
+          const booking = await Booking.create([{
+            venue: venueId,
+            user: authSession.user.id,
+            date: times.bookingDate,
+            startTime: times.startTime,
+            endTime: times.endTime,
+            totalAmount: unitPrice * times.playersCount,
+            commissionPercent: COMMISSION_PERCENT,
+            commissionAmount,
+            status: 'PAYMENT_PENDING',
+            bookingType: 'ONLINE',
+            sport,
+            classification: times.classification,
+            playersCount: times.playersCount,
+            teamSide: allocation.assignedSide,
+            turf: allocation.turf,
+            groupId,
+            razorpayOrderId: order.id,
+          }], { session });
+
+          created.push(booking[0]);
+        }
+
+        return created;
       });
-      if (allocation.error) {
-        await session.abortTransaction();
-        const messages = {
-          'group-needs-empty': `Slot ${times.dateStr} ${times.slotLabel} has no free turf for a Group booking.`,
-          'capacity-full': `All turfs for ${times.dateStr} ${times.slotLabel} are full.`,
-        };
-        return NextResponse.json({ message: messages[allocation.error] || 'Slot unavailable.' }, { status: 409 });
+    } catch (err) {
+      if (err instanceof BookingError) {
+        return NextResponse.json({ message: err.message }, { status: err.status });
       }
-
-      const commissionAmount = Math.round((unitPrice * times.playersCount) * COMMISSION_PERCENT / 100);
-
-      const booking = await Booking.create([{
-        venue: venueId,
-        user: authSession.user.id,
-        date: times.bookingDate,
-        startTime: times.startTime,
-        endTime: times.endTime,
-        totalAmount: unitPrice * times.playersCount,
-        commissionPercent: COMMISSION_PERCENT,
-        commissionAmount,
-        status: 'PAYMENT_PENDING',
-        bookingType: 'ONLINE',
-        sport,
-        classification: times.classification,
-        playersCount: times.playersCount,
-        teamSide: allocation.assignedSide,
-        turf: allocation.turf,
-        groupId,
-        razorpayOrderId: order.id,
-      }], { session });
-
-      createdBookings.push(booking[0]);
+      throw err;
     }
-
-    await session.commitTransaction();
-    session.endSession();
 
     return NextResponse.json({
       orderId: order.id,
@@ -210,10 +233,6 @@ export async function POST(request) {
     }, { status: 201 });
 
   } catch (error) {
-    if (session) {
-      await session.abortTransaction();
-      session.endSession();
-    }
     console.error('[POST /api/payments/create-order]', error);
     return NextResponse.json({ message: 'Failed to initiate payment.' }, { status: 500 });
   }

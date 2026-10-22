@@ -73,6 +73,12 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
+    // Two simultaneous sign-ups with the same username/email both pass the
+    // check above — the unique index is what actually stops the second one.
+    if (error?.code === 11000) {
+      const field = error.keyPattern?.email ? 'Email' : 'Username';
+      return NextResponse.json({ message: `${field} already exists` }, { status: 409 });
+    }
     console.error('Registration error:', error);
     return NextResponse.json(
       { message: 'Internal Server Error' },

@@ -8,7 +8,7 @@ import QuickActions from '@/components/Home/QuickActions';
 import TonightsGames from '@/components/Home/TonightsGames';
 import FeaturedVenues from '@/components/Home/FeaturedVenues';
 import { getISTDayRange, istTodayISO, SLOT_LABELS, isSlotLabelPast, parseSlot } from '@/lib/ist';
-import { slotCapacityFor } from '@/lib/capacity';
+import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +44,15 @@ export default async function Home() {
         venueId: vid,
         startTime: b.startTime,
         endTime: b.endTime,
-        team1Players: 0,
-        team2Players: 0,
+        bookings: [],
       };
     }
-    if (b.teamSide === 1) venueSlotMap[key].team1Players += b.playersCount || 0;
-    else venueSlotMap[key].team2Players += b.playersCount || 0;
+    venueSlotMap[key].bookings.push({
+      turf: b.turf,
+      teamSide: b.teamSide,
+      playersCount: b.playersCount || 0,
+      classification: b.classification,
+    });
   }
 
   const turfsByVenue = {};
@@ -58,14 +61,17 @@ export default async function Home() {
   const venueGames = {};
   for (const slot of Object.values(venueSlotMap)) {
     if (!venueGames[slot.venueId]) venueGames[slot.venueId] = [];
-    const totalJoined = slot.team1Players + slot.team2Players;
+    const totalJoined = slot.bookings.reduce((s, b) => s + b.playersCount, 0);
     const maxPlayers = slotCapacityFor(turfsByVenue[slot.venueId]);
+    // Only the seats an individual could actually take — a team owns its side
+    // and the side opposite it is reserved for the opposing team.
+    const spotsLeft = openSeatsFor({ bookings: slot.bookings, turfCount: turfsByVenue[slot.venueId] });
     venueGames[slot.venueId].push({
       startTime: slot.startTime,
       endTime: slot.endTime,
       joined: totalJoined,
       maxPlayers,
-      spotsLeft: Math.max(0, maxPlayers - totalJoined),
+      spotsLeft,
     });
   }
 

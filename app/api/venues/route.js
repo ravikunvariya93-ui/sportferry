@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 import { normalizeCoords } from '@/lib/geo';
 
 export async function POST(request) {
   try {
     const session = await auth();
-    if (!session || session.user.role !== 'VENDOR') {
+    if (!session || !(await hasRole(session, 'VENDOR'))) {
       return NextResponse.json({ message: 'Only vendors can register venues.' }, { status: 401 });
     }
 
@@ -18,6 +18,13 @@ export async function POST(request) {
       return NextResponse.json({ message: 'All required fields must be filled.' }, { status: 400 });
     }
 
+    // A price must be a real, positive number — a negative price would flow
+    // into the Razorpay order amount.
+    const price = Number(pricePerHour);
+    if (!Number.isFinite(price) || price <= 0) {
+      return NextResponse.json({ message: 'Price per hour must be a positive number.' }, { status: 400 });
+    }
+
     await dbConnect();
 
     const venue = await Venue.create({
@@ -26,7 +33,7 @@ export async function POST(request) {
       area: area.trim(),
       address: address.trim(),
       sportTypes,
-      pricePerHour: Number(pricePerHour),
+      pricePerHour: price,
       discountPercent: Math.min(90, Math.max(0, Math.round(Number(discountPercent)) || 0)),
       numberOfTurfs: Math.max(1, Math.floor(Number(numberOfTurfs)) || 1),
       amenities: amenities || [],

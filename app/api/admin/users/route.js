@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
-import { auth } from '@/lib/auth';
+import { auth, hasRole } from '@/lib/auth';
 
 async function requireAdmin() {
   const session = await auth();
-  if (!session || session.user?.role !== 'ADMIN') return null;
+  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
   return session;
 }
 

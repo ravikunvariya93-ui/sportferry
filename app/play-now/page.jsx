@@ -5,7 +5,7 @@ import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getISTDayRange, istTodayISO, istHour } from '@/lib/ist';
-import { slotCapacityFor } from '@/lib/capacity';
+import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
 import PlayNowClient from './PlayNowClient';
 
 export const dynamic = 'force-dynamic';
@@ -77,8 +77,10 @@ export default async function PlayNowPage() {
         endTime: booking.endTime,
         playersCount: 0,
         maxPlayers: slotCapacityFor(booking.venue.numberOfTurfs),
+        turfCount: Math.max(1, Number(booking.venue.numberOfTurfs) || 1),
         sport: booking.sport,
         bookings: [],
+        slotBookings: [],
       });
     }
     
@@ -88,6 +90,12 @@ export default async function PlayNowPage() {
       id: booking._id.toString(),
       classification: booking.classification,
       playersCount: booking.playersCount || 1,
+    });
+    game.slotBookings.push({
+      turf: booking.turf,
+      teamSide: booking.teamSide,
+      playersCount: booking.playersCount || 1,
+      classification: booking.classification,
     });
   }
 
@@ -110,19 +118,25 @@ export default async function PlayNowPage() {
       endTime: nextSlot.endTime,
       playersCount: 0,
       maxPlayers: slotCapacityFor(v.numberOfTurfs),
+      turfCount: Math.max(1, Number(v.numberOfTurfs) || 1),
       sport: v.sportTypes?.[0] || 'Box Cricket',
       bookings: [],
+      slotBookings: [],
     });
   }
 
-  // Filter to games with available spots
+  // Filter to games with available spots — only the seats an individual could
+  // actually take (a team owns its side, the opposite side is reserved).
   const availableGames = Array.from(gamesMap.values())
-    .filter(g => g.playersCount < g.maxPlayers)
     .map(g => ({
       ...g,
-      spotsLeft: g.maxPlayers - g.playersCount,
+      spotsLeft: openSeatsFor({
+        bookings: g.slotBookings,
+        turfCount: g.turfCount,
+      }),
       timeDisplay: `${formatTime(g.startTime)} – ${formatTime(g.endTime)}`,
     }))
+    .filter(g => g.spotsLeft > 0)
     .sort((a, b) => a.spotsLeft - b.spotsLeft); // Most urgent first
 
   return <PlayNowClient games={availableGames} date={dateStr} />;

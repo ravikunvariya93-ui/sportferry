@@ -22,7 +22,7 @@
 ## 🧹 P3 — cleanup
 14. Remove or wire `lib/mockData.js` (currently imported nowhere). (`BUGS B9`)
 15. Drop unused `tailwind-merge` dependency (Tailwind isn't configured). (`BUGS B8`)
-16. Deduplicate capacity/commission constants — `COMMISSION_PERCENT` and the 6/12/≥6 rules are duplicated across `bookings` and `payments/create-order` routes. Single source in `lib/`.
+16. Deduplicate the remaining commission constant — `COMMISSION_PERCENT` already lives in `lib/constants.js` and the 6/12/team rules in `lib/capacity.js`; only the `Booking.commissionPercent` default of 12 still duplicates it. Single source in `lib/`.
 17. Booking hot-path indexes: `{venue, date, startTime}`, `{user, date}`.
 18. Seed scripts re-declare local schemas — import `models/` instead to avoid drift.
 19. Fix commit hygiene (no more lockfile churn inside feature commits).
