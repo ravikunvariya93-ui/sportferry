@@ -30,16 +30,23 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [callbackUrl, setCallbackUrl] = useState(null);
   const router = useRouter();
 
-  // Surface OAuth failures (Google sign-in redirects back with ?error=…)
-  // instead of landing on a silent dead end.
+  // Read the query string once on mount: OAuth errors (Google redirects back
+  // with ?error=…) and the page to return to after sign-in (?callbackUrl=…).
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('error');
+    const params = new URLSearchParams(window.location.search);
+
+    const code = params.get('error');
     if (code) {
       setError(OAUTH_ERRORS[code] || 'Sign-in failed. Please try again.');
       setGoogleLoading(false);
     }
+
+    // Only same-site paths — never an absolute URL (open-redirect guard).
+    const raw = params.get('callbackUrl');
+    if (raw && raw.startsWith('/') && !raw.startsWith('//')) setCallbackUrl(raw);
   }, []);
 
   const handleSubmit = async (e) => {
@@ -57,7 +64,9 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       const session = await getSession();
-      if (session?.user?.role === 'ADMIN') {
+      if (callbackUrl) {
+        router.push(callbackUrl);
+      } else if (session?.user?.role === 'ADMIN') {
         router.push('/admin');
       } else if (session?.user?.role === 'VENDOR') {
         router.push('/vendor');
@@ -72,7 +81,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = () => {
     setGoogleLoading(true);
-    signIn('google', { callbackUrl: '/' });
+    signIn('google', { callbackUrl: callbackUrl || '/' });
   };
 
   const inputStyle = {

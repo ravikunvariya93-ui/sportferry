@@ -1,5 +1,5 @@
 import React from 'react';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import QRCode from 'qrcode';
@@ -28,7 +28,10 @@ export default async function BookingTicketPage({ params }) {
   // The ticket shows the customer's name and email — only the customer, the
   // venue that hosts the game and an admin may see it.
   const session = await auth();
-  if (!session?.user?.id) return notFound();
+  // A shareable ticket link is often opened while signed out (or after the
+  // session expired) — send them to sign in and straight back, instead of a
+  // bare 404 that looks like the booking is gone.
+  if (!session?.user?.id) redirect(`/login?callbackUrl=${encodeURIComponent(`/bookings/${params.id}`)}`);
 
   let booking = null;
   try {

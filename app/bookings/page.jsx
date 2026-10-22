@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function BookingsPage() {
   const session = await auth();
   if (!session) {
-    redirect('/login');
+    redirect(`/login?callbackUrl=${encodeURIComponent('/bookings')}`);
   }
 
   await dbConnect();
