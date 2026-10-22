@@ -22,7 +22,7 @@
 ## Known gaps (⚠ open)
 1. **Rate limiting is per-process** (`lib/rateLimit.js`) — it resets on deploy and does nothing across instances, so on serverless hosting the register/upload limits are weak. Needs a shared store (Upstash Redis or a TTL-indexed Mongo collection).
 2. **No rate limiting on credentials login** — only registration and upload are limited. Brute-forcing a password is unthrottled.
-3. **No email verification** — registration accepts any well-formed address, so an account can be registered with someone else's email. This is what made the Google-account takeover possible and it also makes "forgot password" a way to probe accounts. Needs a mail provider.
+3. **No email verification** — registration accepts any well-formed address, so an account can be registered with someone else's email. That is what makes the Google "pre-hogging" takeover possible (someone registers your address, then claims your later Google sign-in), and it also makes "forgot password" a way to probe accounts. Fixing it needs a mail provider — `lib/email.js` (Resend) is already wired, it only needs `RESEND_API_KEY`. Until then, Google sign-in links to the existing account rather than refusing it: refusing locked out every password-registered player, which was worse than the risk.
 4. **No CSRF hardening beyond NextAuth defaults**; no extra origin checks on payment verify (signature check mitigates forgery).
 5. **No audit logging** for admin actions (role changes, withdrawal approvals, cancellations).
 6. **`trustHost: true`** — fine behind Vercel, must be revisited if host headers are user-controllable in the deploy target.

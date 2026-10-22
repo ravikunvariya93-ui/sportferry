@@ -15,7 +15,11 @@
 **Fixed.** The role is still baked into the JWT, but every API handler now re-reads it from the database (`lib/auth.js` → `hasRole`), so a promotion or demotion takes effect immediately instead of at the next sign-in. The middleware still uses the token's role as a coarse first gate — the handlers are the source of truth.
 
 ### B6 — Google and credentials accounts
-**Fixed (and corrected).** The app never created a second account for an email that already existed — the old bug report was stale. The real problem was the opposite: a Google sign-in for an email that belonged to a *password* account silently signed into that account, which hands the account to whoever controls the Google identity (email registration is not verified). Google sign-in is now refused for password accounts (`/login?error=email_in_use`); a Google-only account is linked to the existing record.
+**Corrected, then partly reverted after it broke real logins.** The app never created a second account for an email that already existed — the old bug report was stale. The real gap was the reverse: a Google sign-in for an email that belonged to a *password* account silently signed into that account, and because registration does not verify emails, someone could register another person's address and claim their later Google sign-in (pre-hogging).
+
+Refusing the sign-in closed that hole but locked out **every player who registered with a password** (7 of 11 accounts) from the "Continue with Google" button, with only a silent redirect to explain it. Linking is what the rest of the industry does — Google has verified that the person controls the address — so the app now **links the Google identity to the existing account** and never creates a duplicate. The login page now explains any OAuth failure instead of dead-ending.
+
+The residual pre-hogging risk stays open until registration verifies emails (see "Still open" below).
 
 ### B7 — Email uniqueness with a nullable field
 **Already fixed.** `User.email` is `required: true` in the schema, so the null-duplicate case cannot happen. The bug report was stale.

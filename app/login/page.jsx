@@ -1,10 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trophy, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+
+const OAUTH_ERRORS = {
+  google_no_email: 'Google did not share an email address with us. Please sign in with your email and password.',
+  email_in_use: 'An account already exists with this email. Sign in with your password, or reset it if you have forgotten it.',
+  OAuthAccountNotLinked: 'This email is already registered. Sign in with your password to link Google to your account.',
+  OAuthSignin: 'We could not sign you in with Google. Please try again or use your email and password.',
+  AccessDenied: 'Google sign-in was declined. Please try again or use your email and password.',
+  Configuration: 'Google sign-in is not configured on this server right now. Please use your email and password.',
+};
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24">
@@ -22,6 +31,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+
+  // Surface OAuth failures (Google sign-in redirects back with ?error=…)
+  // instead of landing on a silent dead end.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('error');
+    if (code) {
+      setError(OAUTH_ERRORS[code] || 'Sign-in failed. Please try again.');
+      setGoogleLoading(false);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
