@@ -13,11 +13,15 @@ export default async function VendorDashboard() {
     redirect('/login');
   }
 
-  const { venues, bookings, stats } = await loadVendorData(session.user.id);
+  const { venues, bookings, kpis, earnings, sourceSplit, trend, onboarding } = await loadVendorData(session.user.id);
+
+  if (onboarding.needsOnboarding) {
+    redirect('/vendor/onboarding');
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <VendorOverview venues={venues} stats={stats} />
+      <VendorOverview venues={venues} kpis={kpis} earnings={earnings} sourceSplit={sourceSplit} trend={trend} />
       <VendorVenuesList venues={venues} />
       <VendorBookingsTable bookings={bookings} />
     </div>

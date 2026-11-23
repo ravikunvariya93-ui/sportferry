@@ -1,0 +1,56 @@
+import { NextResponse } from 'next/server';
+import dbConnect from '@/lib/mongodb';
+import Venue from '@/models/Venue';
+import Booking from '@/models/Booking';
+import { auth, hasRole } from '@/lib/auth';
+import { getISTDayRange, istTodayISO } from '@/lib/ist';
+import { blocksForDate } from '@/lib/blockedSlots';
+import { loadTurfs } from '@/lib/turfs';
+import { buildDayGrid } from '@/lib/calendarData';
+
+async function requireAdmin() {
+  const session = await auth();
+  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
+  return session;
+}
+
+export async function GET(request) {
+  try {
+    const session = await requireAdmin();
+    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date') || istTodayISO();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      return NextResponse.json({ message: 'A valid date is required.' }, { status: 400 });
+    }
+
+    await dbConnect();
+
+    // Admins see every venue, including those still pending or suspended.
+    const venues = await Venue.find({}).select('name city area numberOfTurfs').sort({ name: 1 }).lean();
+    const venueList = venues.map(v => ({ id: v._id.toString(), name: v.name, city: v.city, area: v.area }));
+
+    const venueId = searchParams.get('venueId') || venueList[0]?.id;
+    const venue = venueId ? venues.find(v => v._id.toString() === venueId) : null;
+    if (!venue) {
+      return NextResponse.json({ venues: venueList, date, venue: null, turfs: [], grid: [] });
+    }
+
+    const { startUTC, endUTC } = getISTDayRange(date);
+    const [bookings, blocks, turfs] = await Promise.all([
+      Booking.find({
+        venue: venue._id,
+        date: { $gte: startUTC, $lte: endUTC },
+        status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
+      }).select('startTime endTime turf status playersCount classification bookingType offlineCustomerName').lean(),
+      blocksForDate(venue._id, date),
+      loadTurfs(venue._id),
+    ]);
+
+    return NextResponse.json({ venues: venueList, ...buildDayGrid({ venue, date, bookings, blocks, turfs }) });
+  } catch (error) {
+    console.error('[GET /api/admin/calendar]', error);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
+}

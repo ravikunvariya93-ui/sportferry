@@ -68,10 +68,12 @@ const BHAVNAGAR = [
     area: v.area,
     address: `${v.area}, ${v.city}`,
     pricePerHour: v.price,
+    pricing: { weekday: v.price, weekend: Math.round(v.price * 1.15), peak: Math.round(v.price * 1.25) },
     numberOfTurfs: v.turfs,
     images: [IMG],
     amenities: ['Floodlights', 'Parking', 'Drinking Water', 'Restroom'],
     rating: v.rating,
+    onboardingStatus: 'ACTIVE',
     createdAt: new Date(),
     updatedAt: new Date(),
   }));
@@ -79,6 +81,30 @@ const BHAVNAGAR = [
   const del = await venues.deleteMany({ city: { $in: ['Ahmedabad', 'Bhavnagar'] } });
   const ins = await venues.insertMany(docs);
   console.log(`Cleared ${del.deletedCount} old, inserted ${ins.insertedCount} venues (5 Ahmedabad, 5 Bhavnagar).`);
+
+  // Turfs for each seeded venue (one per numberOfTurfs).
+  const turfs = db.collection('turfs');
+  const seededVenues = await venues.find({ _id: { $in: Object.values(ins.insertedIds) } }).toArray();
+  let turfCount = 0;
+  for (const v of seededVenues) {
+    await turfs.deleteMany({ venue: v._id });
+    const n = Math.max(1, parseInt(v.numberOfTurfs, 10) || 1);
+    await turfs.insertMany(Array.from({ length: n }, (_, i) => ({
+      venue: v._id,
+      name: `Turf ${i + 1}`,
+      sport: 'Box Cricket',
+      size: { length: 80, width: 40, unit: 'Feet' },
+      surface: 'Synthetic Turf',
+      playingFormat: '4v4 / 5v5 / 6v6',
+      lighting: true,
+      isActive: true,
+      order: i + 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })));
+    turfCount += n;
+  }
+  console.log(`Seeded ${turfCount} turfs.`);
 
   await mongoose.disconnect();
 })().catch((e) => { console.error('ERROR:', e.message); process.exit(1); });

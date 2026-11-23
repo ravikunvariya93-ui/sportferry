@@ -10,7 +10,7 @@ import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
-import { executeRefund } from '@/lib/refunds';
+import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 import { formatToAMPM } from '@/lib/ist';
 import BookingsClient from './BookingsClient';
 
@@ -24,6 +24,10 @@ export default async function BookingsPage() {
 
   await dbConnect();
 
+  // A slot that has passed without filling never got its match — cancel it
+  // and return the money (Razorpay, not just the DB).
+  await releaseExpiredPendingBookings({ user: session.user.id });
+
   const rawBookings = await Booking.find({ 
     user: session.user.id,
     status: { $ne: 'PAYMENT_PENDING' }
@@ -31,38 +35,6 @@ export default async function BookingsPage() {
     .populate('venue')
     .sort({ createdAt: -1 })
     .lean();
-
-  // Proactive auto-cancel: a PENDING booking whose slot has passed never got
-  // its match — cancel it and return the money (Razorpay, not just the DB).
-  const now = new Date();
-  for (const b of rawBookings) {
-    if (b.status === 'PENDING') {
-      const isPast = hoursUntilSlot(b) <= 0;
-      if (isPast) {
-        const refundResult = await executeRefund(b, b.totalAmount);
-        await Booking.findByIdAndUpdate(b._id, {
-          status: 'CANCELLED',
-          cancelledBy: 'ADMIN',
-          cancellationReason: 'Slot passed without enough players (auto-refunded)',
-          refundPercent: 100,
-          refundAmount: b.totalAmount,
-          refundStatus: refundResult.status,
-          refundId: refundResult.refundId,
-        });
-        if (refundResult.status === 'FAILED') {
-          console.error('[bookings] auto-refund failed', refundResult.error);
-        }
-        // Update the local object for immediate UI feedback
-        b.status = 'CANCELLED';
-        b.cancelledBy = 'ADMIN';
-        b.cancellationReason = 'Slot passed without enough players (auto-refunded)';
-        b.refundPercent = 100;
-        b.refundAmount = b.totalAmount;
-        b.refundStatus = refundResult.status;
-        b.refundId = refundResult.refundId;
-      }
-    }
-  }
 
   const userBookings = rawBookings.map(b => {
     const isPast = hoursUntilSlot(b) <= 0;

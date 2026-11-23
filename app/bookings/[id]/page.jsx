@@ -8,6 +8,7 @@ import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
 import { formatToAMPM } from '@/lib/ist';
+import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,15 @@ export default async function BookingTicketPage({ params }) {
   const isVenueOwner = booking.venue?.owner?.toString() === session.user.id;
   const isAdmin = session.user.role === 'ADMIN';
   if (!isCustomer && !isVenueOwner && !isAdmin) return notFound();
+
+  // A slot that has passed without filling is cancelled, not pending.
+  if (booking.status === 'PENDING' && await releaseExpiredPendingBookings({ _id: booking._id })) {
+    booking.status = 'CANCELLED';
+    booking.cancelledBy = 'ADMIN';
+    booking.cancellationReason = 'Slot passed without enough players (auto-refunded)';
+    booking.refundPercent = 100;
+    booking.refundAmount = booking.totalAmount || 0;
+  }
 
   const h = headers();
   const host = h.get('x-forwarded-host') || h.get('host') || 'localhost:3000';

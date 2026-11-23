@@ -53,6 +53,36 @@ The homepage and `/play-now` counted every free seat, including the ones a team 
 ### N8 — Negative or non-numeric prices 🟢
 `pricePerHour` must be a finite number > 0 on both create and update.
 
+### N9 — Past `PENDING` bookings stayed pending in admin/vendor lists 🟡
+A slot that passed without reaching 6 players could never confirm, yet only the player's `/bookings` page turned it into a cancellation. The admin bookings list, the admin dashboard's PENDING count, vendor lists and profile stats kept showing it as pending forever. The rule now lives in `lib/booking-utils.js` → `releaseExpiredPendingBookings(filter)`: it claims the booking, sets `CANCELLED` / `cancelledBy: ADMIN` / 100% refund metadata and executes the Razorpay refund. Every read path that lists or counts PENDING calls it (admin bookings API, admin dashboard, vendor data, player bookings/profile, public profile, e-ticket). Concurrent reads cannot double-refund because the claim is a conditional `findOneAndUpdate({ _id, status: 'PENDING' })`.
+
+## 🆕 Owner portal (from the `instructions/` mockups)
+### O1 — Ground Owner portal + onboarding shipped 🟢
+Built the ground-owner side the mockups describe (light theme, 12% commission kept): Turf + BlockedSlot models, venue `pricing`/`documents`/`onboardingStatus`, per-day-type pricing in the booking money path, blocked-turf enforcement in `allocateBooking`, a vendor sidebar (Dashboard · Calendar & Slots · Grounds & Courts · Pricing & Rules · Payouts · Customers), and a public `/list-your-ground` → `/register?role=VENDOR` → `/vendor/onboarding` 5-step wizard with admin approve/reject. Not yet built (deferred): recurring bookings, special offers, analytics, staff & access, promotions, real SMS OTP, automated payouts.
+
+## 🆕 Admin portal (from the `instructions/` mockups)
+### A1 — Admin Portal expanded to the mockups 🟢
+Built the 9 data-backed admin sections (Dashboard, Vendors + Vendor Details, Users, Bookings, Games & Matching, Calendar (All Venues), Payouts & Settlements, Refunds) plus "coming soon" stubs for Promotions, Reports, Support, Settings and Staff & Roles. Light theme kept, commission stays **12%** (mockups show 20%). Payouts are **record-only** (`PayoutBatch`; bank transfer out of band); Refunds execute **real Razorpay**. Added `User.blocked` (enforced at sign-in) and `models/PayoutBatch.js`. Shared builders: `lib/calendarData.js` (used by vendor + admin calendars), `lib/payouts.js`, `lib/adminStats.js`, `lib/bookingRef.js`. Verified live end-to-end with a throwaway admin (approve a pending vendor, blockable user list, bulk payout → PayoutBatch, bulk refund → Razorpay FAILED for a fake payment, calendar grid, stub page), then deleted the throwaway data.
+
+## 🆕 Admin portal audit fixes (all fixed)
+- **A2 — Bulk payout over-recorded partial settlements (money) 🔴→fixed.** `PayoutBatch` now has `settledAmount`; POST stores the outstanding `payable` (not the whole period `net`) and subtraction uses `settledAmount ?? net`. Reproduced live: payable ₹760 with a ₹1,000 withdrawal, batch recorded ₹1,760 before the fix — now ₹760.
+- **A3 — Admin "Games & Matching" cancel skipped refunds 🟡→fixed.** Games cancel now runs the shared `lib/cancelBooking.js` (`applyCancellation`) path, same as the admin Bookings screen: 100% refund computed and executed.
+- **A4 — Blocked accounts kept session/API access 🟡→fixed.** `roleOf` selects `blocked` and returns null when set (revokes `hasRole` immediately); admin/vendor layouts gate via `hasRole`; login maps `?error=blocked`.
+- **A5 — Offline booking skipped the sport check 🟡→fixed.** `POST /api/bookings` now rejects a sport not in `venue.sportTypes`, matching `create-order`.
+- **A6 — Trends bucketed by UTC 🟢→fixed.** `lib/adminStats.dailyTrend` (and the vendor trend) bucket by IST day.
+- **A7 — Vendor sidebar double highlight 🟢→fixed.** "Offline Booking" is `neverActive`; only "Calendar & Slots" highlights.
+- **A8 — Admin calendar defaulted to UTC date 🟢→fixed.** Uses `istTodayISO()`.
+- **A9 — Venue delete orphaned turfs/blocks 🟢→fixed.** Admin DELETE also removes the venue's `Turf` and `BlockedSlot` rows.
+- **A10 — Bulk refund had no claim 🟢→fixed.** Refunds claim each booking atomically (`findOneAndUpdate` with `refundStatus !== COMPLETED`) before calling Razorpay.
+- **A11 — Admin calendar hid non-active venues 🟢→fixed.** Lists all venues.
+- **A12 — Games PATCH input validation 🟢→fixed.** Validates venue ObjectId + date/slot format (400 instead of 500).
+
+## 🆕 Remaining mockups built (R1)
+Owner: booking details + check-in (`/vendor/bookings/[id]`), Game Status with player avatars/spots/TEAM ONLY (`/vendor/games`), payout statement (`/vendor/payouts`), analytics (`/vendor/analytics`), repeat-customer directory, staff & access, settings/notifications/support tickets, recurring + special offers, Week/Month calendar views, and dev/email OTP verification in onboarding.
+Admin: Promotions & Offers, Reports & Analytics (+ bookings/revenue/venues CSV, Settlement/Refund reports), Support & Tickets, Settings, Staff & Roles — all real screens replacing the stubs; Add Vendor / Add User dialogs.
+Player: light-theme hero "Don't have a team? Play with real players near you!", Solo/Team/Group cards, Booking Rules strip; Upcoming Games + Top Venues kept.
+Verified: 27 suites / 193 tests, lint clean, build compiled, all new pages/APIs 200 in a headless walkthrough, CSV endpoints return `text/csv`, CRUD round-trips succeeded, OTP send+verify succeeded in dev. All throwaway records deleted (users 0, venues 0).
+
 ## ⚠️ Still open (not code bugs — they need a decision or infra)
 
 1. **The rate limiter is per-process** (`lib/rateLimit.js`). It resets on deploy and does nothing across instances, so on serverless hosting the registration/upload limits are weak. Fixing it properly needs a shared store (Upstash Redis or a TTL-indexed Mongo collection).

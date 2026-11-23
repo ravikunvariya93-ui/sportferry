@@ -5,18 +5,27 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
-  LayoutDashboard, Users, Building2, CalendarCheck,
-  LogOut, Shield, ChevronRight, Menu, X, Wallet
+  LayoutDashboard, Users, Building2, CalendarCheck, CalendarDays, Gamepad2,
+  Wallet, RefreshCcw, Tag, BarChart3, LifeBuoy, Settings, UserCog,
+  LogOut, Shield, ChevronRight, Menu, X
 } from 'lucide-react';
 import { useAdminTheme } from './AdminThemeProvider';
 import styles from './admin.module.css';
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Overview', Icon: LayoutDashboard },
-  { href: '/admin/users', label: 'Users', Icon: Users },
-  { href: '/admin/venues', label: 'Venues', Icon: Building2 },
+  { href: '/admin', label: 'Dashboard', Icon: LayoutDashboard },
+  { href: '/admin/vendors', label: 'Vendors (Ground Owners)', Icon: Building2 },
+  { href: '/admin/users', label: 'Users (Players)', Icon: Users },
   { href: '/admin/bookings', label: 'Bookings', Icon: CalendarCheck },
-  { href: '/admin/withdrawals', label: 'Withdrawals', Icon: Wallet },
+  { href: '/admin/games', label: 'Games & Matching', Icon: Gamepad2 },
+  { href: '/admin/calendar', label: 'Calendar (All Venues)', Icon: CalendarDays },
+  { href: '/admin/payouts', label: 'Payouts & Settlements', Icon: Wallet },
+  { href: '/admin/refunds', label: 'Refunds', Icon: RefreshCcw },
+  { href: '/admin/promotions', label: 'Promotions & Offers', Icon: Tag },
+  { href: '/admin/reports', label: 'Reports & Analytics', Icon: BarChart3 },
+  { href: '/admin/support', label: 'Support & Tickets', Icon: LifeBuoy },
+  { href: '/admin/settings', label: 'Settings', Icon: Settings },
+  { href: '/admin/staff', label: 'Staff & Roles', Icon: UserCog },
 ];
 
 const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut, setMobileOpen }) => (

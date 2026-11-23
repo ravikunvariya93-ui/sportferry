@@ -47,20 +47,45 @@ The refund is **executed against Razorpay** (`lib/refunds.js`), and the booking 
 ### Finding players
 `/players` — city filter + search over a static sample list (⚠ not yet API-backed). `/play-now` — games within 2 hours.
 
-## Vendor flows
-- Register venue (VENDOR-only `POST /api/venues`): name ≤60, city/area/address, `pricePerHour`, `numberOfTurfs` ≥1, images (Vercel Blob upload, ≤5MB, ≤N files, VENDOR/ADMIN only), amenities.
-- Record **OFFLINE** (walk-in) bookings — no `user`, no payment fields.
-- Request monthly withdrawal: unique one-per-vendor-per-month (`Withdrawal` compound unique index). Statuses PENDING → PROCESSING → COMPLETED/REJECTED. Net = amount − commission deducted.
+## Vendor flows (Ground Owner Portal)
+The mockups in `instructions/` drive an expanded owner portal (light theme, 12% commission). Sidebar: Dashboard · Calendar & Slots · Bookings · Offline Booking · Grounds & Courts · Pricing & Rules · Payouts · Customers (Analytics/Staff/Promotions/Settings shown as "coming soon").
 
-## Admin flows
-`/api/admin/*` (ADMIN-only, enforced in middleware **and** in each handler):
-- `stats` — user counts by role, plus venue/booking aggregates
-- `users`, `venues`, `bookings`, `withdrawals` — list/manage; admin can cancel bookings (100% refund path) and process withdrawals.
+- **Onboarding** (public `/list-your-ground` → `/register?role=VENDOR` → `/vendor/onboarding`): a 5-step wizard (Account + venue/turfs + amenities + documents/payout + review) submitted via `POST /api/vendor/onboarding` (`lib/onboarding.js` validates). New venues are created with `onboardingStatus: PENDING`; an admin approves them from `/admin/venues` (PATCH `onboardingStatus`). A vendor with no venue is redirected to the wizard.
+- **Grounds & Courts** (`/vendor/grounds`): add/edit/delete a venue (existing `VenueModal`) and its **Turf** records (`/api/vendor/turfs`). Deleting a turf is blocked once the venue has bookings.
+- **Pricing & Rules** (`/vendor/pricing`): per-venue `pricing { weekday, weekend, peak }` + discount (`PATCH /api/vendor/venue/{id}`). Recurring / Special Offers tabs are placeholders.
+- **Calendar & Slots** (`/vendor/calendar`): a day grid of per-turf slots colour-coded AVAILABLE / SOLO / TEAM / GROUP / OFFLINE / BLOCKED / TOURNAMENT, from bookings + owner blocks (`/api/vendor/calendar`). Actions: add an OFFLINE booking (₹0 commission) or block a slot (`/api/vendor/blocks`).
+- **Offline bookings**: walk-in, no `user`, no payment — blocked out of online capacity, including blocked turfs.
+- **Payouts**: request monthly withdrawal (unique one-per-vendor-per-month). PENDING → PROCESSING → COMPLETED/REJECTED. Net = amount − 12% commission.
+- **Turfs vs capacity**: `Venue.numberOfTurfs` is the cached count of Turf rows, so `lib/capacity.js` still allocates by the integer `turf` index (1..N); no capacity math changed.
+
+## Admin flows (Admin Portal)
+`/api/admin/*` (ADMIN-only, enforced in middleware **and** in each handler). The portal (light theme, 12% commission) has a 13-item sidebar:
+Dashboard · Vendors (Ground Owners) · Users (Players) · Bookings · Games & Matching · Calendar (All Venues) · Payouts & Settlements · Refunds · Promotions & Offers · Reports & Analytics · Support & Tickets · Settings · Staff & Roles.
+
+| Section | What it does |
+|---|---|
+| Dashboard | KPIs (Total Bookings, Total Players, Gross Booking Value, Commission 12%), 30-day online/offline trend, bookings-by-type donut, platform overview + quick actions |
+| Vendors | Venue list with All/Pending/Active/Suspended/Rejected tabs; approve/reject/suspend; Export; **Vendor Details** page (info, turfs, pricing, documents, payouts, activity) |
+| Users | Player accounts with Active/Blocked tabs, games played + total spend, role change, **block/unblock** (a blocked account cannot sign in), delete |
+| Bookings | All/Upcoming/Active/Completed/Cancelled tabs with counts; per-booking ref (`SF…`), turf, sport, team; filters + Export |
+| Games & Matching | Slot fill across venues; tabs Active/Filling/Confirmed; force-confirm or cancel a game |
+| Calendar (All Venues) | Read-only day grid for any venue (reuses the vendor calendar builder + status legend) |
+| Payouts & Settlements | Per-vendor payables (confirmed bookings − 12% commission − already-settled) + bulk settlement that records a `PayoutBatch` (Manual = mark paid with ref; Automated = PROCESSING). Bank transfer is out of band |
+| Refunds | Cancelled bookings by refund status; bulk refund executes **real** Razorpay refunds (`lib/refunds.js`) |
+| Promotions / Reports / Support / Settings / Staff | Placeholder "coming soon" pages |
+
+Admin can still cancel bookings (100% refund path) and process the vendor-requested monthly withdrawals (`/admin/withdrawals`), which stay separate from bulk settlements.
 
 ## Money math
 - Platform commission **12%** of `(pricePerHour × playersCount)`, captured per booking at creation.
 - Razorpay amounts in paisa (`amount * 100`), currency INR.
-- Settlement: player pays full → vendor earns → monthly withdrawal minus commission.
+- Settlement: player pays full → vendor earns → monthly withdrawal or admin bulk payout, minus commission.
+
+## Remaining mockup screens (all built)
+- **Owner:** Booking Details & Check-in (timeline + player roster + check-in), Game Status (avatars, spots left, TEAM ONLY, slot-held note), Payouts Statement, Revenue/Occupancy Analytics, repeat-customer directory, Staff & Access, Settings (General/Notifications/Platform Rules/Support), Recurring & Special Offers, Week/Month calendar, OTP phone verification (dev code / Resend email — no SMS).
+- **Admin:** Promotions & Offers, Reports & Analytics + CSV downloads, Support & Tickets (status/reply), Settings (booking-rule + automation toggles; 12% commission read-only), Staff & Roles, Add Vendor/User, Settlement & Refund CSV reports.
+- **Player:** light-theme hero + Solo/Team/Group cards + Booking Rules strip (team needs equal opposing side, solo confirms at 6, group takes the whole turf); Upcoming Games and Top Venues retained.
+- Staff records (vendor and platform) are directories only — they do not create separate logins. OTP delivery in production needs `RESEND_API_KEY`.
 
 ## Non-implemented (sample/static today)
 Tournaments, player directory, "tonight's games" (component deleted in working tree), Explore extras. Treat as UI prototypes.

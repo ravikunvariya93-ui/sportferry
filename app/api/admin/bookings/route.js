@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth, hasRole } from '@/lib/auth';
-import { calculateRefund } from '@/lib/cancellationPolicy';
-import { executeRefund } from '@/lib/refunds';
-import { autoConfirmIfReady } from '@/lib/booking-utils';
-import { getISTDayRange } from '@/lib/ist';
+import { applyCancellation } from '@/lib/cancelBooking';
+import { autoConfirmIfReady, releaseExpiredPendingBookings } from '@/lib/booking-utils';
+import { getISTDayRange, istTodayISO } from '@/lib/ist';
+import { bookingRef } from '@/lib/bookingRef';
 import { escapeRegex } from '@/lib/validation';
 
 async function requireAdmin() {
@@ -34,6 +34,10 @@ export async function GET(request) {
     const search = searchParams.get('search') || '';
 
     await dbConnect();
+
+    // Past slots that never filled are stale — move them to CANCELLED before
+    // filtering so the status tabs and counts agree.
+    await releaseExpiredPendingBookings();
 
     const query = { status: { $ne: 'PAYMENT_PENDING' } };
     if (status) query.status = status;
@@ -80,7 +84,20 @@ export async function GET(request) {
       ];
     }
 
-    const [bookings, total] = await Promise.all([
+    // The filters above (excluding the tab) are the base for the tab counts.
+    const baseQuery = { ...query };
+
+    // Status-tab shortcut (ignored when an explicit status is set).
+    const tab = searchParams.get('tab') || '';
+    if (!status && tab) {
+      const today = getISTDayRange(istTodayISO());
+      if (tab === 'UPCOMING') { query.status = { $in: ['PENDING', 'CONFIRMED'] }; query.date = { $gte: today.startUTC }; }
+      else if (tab === 'ACTIVE') { query.status = { $in: ['PENDING', 'CONFIRMED'] }; query.date = { $gte: today.startUTC, $lte: today.endUTC }; }
+      else if (tab === 'COMPLETED') { query.status = 'CONFIRMED'; query.date = { $lt: today.startUTC }; }
+      else if (tab === 'CANCELLED') { query.status = 'CANCELLED'; }
+    }
+
+    const [bookings, total, counts] = await Promise.all([
       Booking.find(query)
         .populate('venue', 'name city area')
         .populate('user', 'name email phone')
@@ -89,11 +106,24 @@ export async function GET(request) {
         .limit(limit)
         .lean(),
       Booking.countDocuments(query),
+      (async () => {
+        const today = getISTDayRange(istTodayISO());
+        const base = { ...baseQuery };
+        const [all, upcoming, active, completed, cancelled] = await Promise.all([
+          Booking.countDocuments(base),
+          Booking.countDocuments({ ...base, status: { $in: ['PENDING', 'CONFIRMED'] }, date: { $gte: today.startUTC } }),
+          Booking.countDocuments({ ...base, status: { $in: ['PENDING', 'CONFIRMED'] }, date: { $gte: today.startUTC, $lte: today.endUTC } }),
+          Booking.countDocuments({ ...base, status: 'CONFIRMED', date: { $lt: today.startUTC } }),
+          Booking.countDocuments({ ...base, status: 'CANCELLED' }),
+        ]);
+        return { ALL: all, UPCOMING: upcoming, ACTIVE: active, COMPLETED: completed, CANCELLED: cancelled };
+      })(),
     ]);
 
     return NextResponse.json({
       bookings: bookings.map((b) => ({
         id: b._id.toString(),
+        ref: bookingRef(b._id),
         venueName: b.venue?.name || 'N/A',
         venueCity: b.venue?.city || '',
         venueArea: b.venue?.area || '',
@@ -109,6 +139,8 @@ export async function GET(request) {
         status: b.status,
         classification: b.classification || 'SOLO',
         playersCount: b.playersCount || 1,
+        turf: b.turf || 1,
+        sport: b.sport || '',
         bookingType: b.bookingType,
         amount: b.totalAmount,
         paymentId: b.paymentId || '',
@@ -121,6 +153,7 @@ export async function GET(request) {
         refundAmount: b.refundAmount ?? 0,
         refundStatus: b.refundStatus ?? 'NONE',
       })),
+      counts,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -150,25 +183,14 @@ export async function PATCH(request) {
       return NextResponse.json({ message: 'A cancelled booking cannot be re-activated.' }, { status: 400 });
     }
 
-    booking.status = status;
-
-    // Track cancellation metadata for admin-initiated cancellations
-    if (status === 'CANCELLED' && !booking.cancelledBy) {
-      const refund = calculateRefund(booking, 'ADMIN');
-      booking.cancelledBy = 'ADMIN';
-      booking.cancelledAt = new Date();
-      booking.cancellationReason = cancellationReason?.trim() || 'Cancelled by admin';
-      booking.refundPercent = refund.refundPercent;
-      booking.refundAmount = refund.refundAmount;
-
-      // Return the money for real — the booking is cancelled either way, but
-      // the refund status records whether Razorpay actually paid it back.
-      const refundResult = await executeRefund(booking, refund.refundAmount);
-      booking.refundStatus = refundResult.status;
-      booking.refundId = refundResult.refundId;
-      if (refundResult.status === 'FAILED') {
-        console.error('[PATCH /api/admin/bookings] refund failed', refundResult.error);
-      }
+    if (status === 'CANCELLED') {
+      // Cancels, records the 100% admin refund and executes it against Razorpay.
+      await applyCancellation(booking, {
+        cancelledBy: 'ADMIN',
+        reason: cancellationReason?.trim() || 'Cancelled by admin',
+      });
+    } else {
+      booking.status = status;
     }
 
     await booking.save();

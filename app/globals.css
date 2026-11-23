@@ -90,6 +90,39 @@ a {
   box-shadow: 0 12px 32px rgba(0,0,0,0.12) !important;
 }
 
+/* ── Ground Owner portal rail (occupies the slot the global sidebar reserves) ── */
+.vendor-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-width);
+  overflow-y: auto;
+  background: var(--secondary);
+  border-right: 1px solid var(--glass-border);
+  padding: 22px 14px;
+  z-index: 1000;
+}
+
+.vendor-mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .vendor-rail {
+    display: none;
+  }
+
+  .vendor-mobile-nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 14px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--glass-border);
+  }
+}
+
 .main-content {
   margin-left: var(--sidebar-width);
   flex: 1;

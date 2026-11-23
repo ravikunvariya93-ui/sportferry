@@ -198,11 +198,13 @@ export default function VenueDetailClient({ venue }) {
   const allocFor = (form, iso, slotLabel) => {
     const stat = busyByDate[iso]?.[slotLabel];
     const existing = existingFromSlotStats(stat);
+    const blockedTurfs = new Set((stat?.turfs || []).filter(t => t.blocked).map(t => t.turf));
     const alloc = allocateBooking({
       existingBookings: existing,
       playersCount: form.playersCount,
       classification: form.classification,
       turfCount,
+      blockedTurfs,
       preferredSide: form.preferredTeam === 'team2' ? 2 : 1,
     });
     return { ...alloc, existing, stat };

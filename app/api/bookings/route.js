@@ -8,6 +8,7 @@ import { getISTDayRange, istTodayISO, parseBookableSlot } from '@/lib/ist';
 import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
 import { COMMISSION_PERCENT } from '@/lib/constants';
+import { blockedTurfsInSlot } from '@/lib/blockedSlots';
 
 export async function POST(request) {
   try {
@@ -93,6 +94,11 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
 
+    // Same sport check the online (create-order) route enforces.
+    if (!Array.isArray(venue.sportTypes) || !venue.sportTypes.includes(sport)) {
+      return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
+    }
+
     const turfCount = turfCountOf(venue.numberOfTurfs);
 
     // 5. Authorization for Offline
@@ -128,11 +134,14 @@ export async function POST(request) {
             status: { $ne: 'CANCELLED' },
           }).session(session).lean();
 
+          // Turfs the owner has blocked must be skipped by the allocator.
+          const blockedTurfs = await blockedTurfsInSlot(venueId, date, times.startTime, times.endTime, session);
           const allocation = allocateBooking({
             existingBookings,
             playersCount,
             classification,
             turfCount,
+            blockedTurfs,
             preferredSide: preferredSide === 2 ? 2 : preferredSide === 1 ? 1 : undefined,
           });
           if (allocation.error) {

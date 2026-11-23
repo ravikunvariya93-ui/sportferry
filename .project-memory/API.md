@@ -9,7 +9,7 @@ All handlers: JS, `NextResponse.json`. Auth via `auth()` from `lib/auth.js` (JWT
 | `/api/cities` | GET | `Venue.distinct('city')`, sorted; `[]` on error |
 | `/api/venues/popularity` | GET | popularity-ranked venues; runs lazy payment cleanup |
 | `/api/venues/{objectId}` | GET PATCH DELETE | detail. PATCH/DELETE are on the public *middleware* regex but the handler self-guards: `auth()` + owner-or-ADMIN check (verified 2026-10-08). GET is intentionally public |
-| `/api/venues/{objectId}/availability` | GET | slots for a day; per-turf `team1Size`/`team2Size` = the team that owns that side (null if none). Names and user ids are only returned to signed-in callers |
+| `/api/venues/{objectId}/availability` | GET | slots for a day; per-turf `team1Size`/`team2Size` = the team that owns that side (null if none). Names and user ids are only returned to signed-in callers. Owner-blocked turfs are flagged `blocked: true` on the turf entry |
 
 ## Authenticated (any logged-in user)
 | Route | Methods | Body/notes |
@@ -26,20 +26,40 @@ All handlers: JS, `NextResponse.json`. Auth via `auth()` from `lib/auth.js` (JWT
 |---|---|---|
 | `/api/venues` | POST | register venue (owner = session.user.id); requires role VENDOR |
 | `/api/vendor/withdrawals` | GET, POST | list own; request monthly (unique per vendor/month) |
+| `/api/vendor/turfs` | GET, POST | list / add a turf-court for an owned venue (`?venueId=`); POST bumps `Venue.numberOfTurfs` |
+| `/api/vendor/turfs/{id}` | PATCH, DELETE | edit fields; DELETE refused (409) once the venue has any booking, otherwise renumbers remaining turfs 1..N |
+| `/api/vendor/venue/{id}` | PATCH | edit owned venue: name/city/area/address, `sportTypes`, `amenities`, `images`, `discountPercent`, `pricing`, `documents`. `pricePerHour` is kept = `pricing.weekday` |
+| `/api/vendor/blocks` | GET, POST, DELETE | owner slot blocks: GET `?venueId&date`; POST `{venueId, turf, date, slot, reason, note}` (idempotent per turf+slot); DELETE `?id=` |
+| `/api/vendor/calendar` | GET | `?venueId&date` → per-turf, per-slot day grid with statuses AVAILABLE/SOLO/TEAM/GROUP/OFFLINE/BLOCKED/TOURNAMENT (bookings + blocks + capacity) |
+| `/api/vendor/onboarding` | POST | owner onboarding submit `{venueId?, venue, turfs[], bank}` → creates/updates venue (onboardingStatus PENDING), replaces turfs, saves bank details. Validation in `lib/onboarding.js` |
 
 ## ADMIN only (`/api/admin/*` — 403 in middleware + per-handler checks)
 | Route | Methods | Notes |
 |---|---|---|
 | `/api/admin/stats` | GET | counts (users by role, vendors, venues, bookings) |
-| `/api/admin/users` | GET, PATCH, DELETE | list / change role / remove |
-| `/api/admin/venues` | GET, DELETE | |
-| `/api/admin/bookings` | GET, PATCH | list (IST day filters); PATCH = cancel/refund (100% when VENDOR/ADMIN-initiated) |
-| `/api/admin/withdrawals` | GET, PATCH | process PENDING→… |
+| `/api/admin/users` | GET, PATCH, DELETE | GET `?status=active|blocked&role&search` + per-user `gamesPlayed`/`totalSpend`; PATCH `{role}` or `{blocked}`; DELETE |
+| `/api/admin/venues` | GET, PATCH, DELETE | Vendors list: `?status&counts=1` returns per-status `counts` + `turfs[]`/`ownerPhone`/`joinedOn`; PATCH `{venueId, onboardingStatus}` = approve/reject/suspend; DELETE |
+| `/api/admin/vendors/{id}` | GET | Vendor (venue) detail: owner, turfs, performance (30d), withdrawals, recent activity, documents |
+| `/api/admin/bookings` | GET, PATCH | GET tabs (`?tab=UPCOMING|ACTIVE|COMPLETED|CANCELLED` + counts) and `bookingRef`/`turf`/`sport`; PATCH = cancel/refund (100% when VENDOR/ADMIN-initiated) |
+| `/api/admin/games` | GET, PATCH | Slot groups with fill + tabs Active/Filling/Confirmed; PATCH `{venueId,date,startTime,endTime,turf,action:CONFIRM\|CANCEL}` |
+| `/api/admin/calendar` | GET | `?venueId&date` → day grid (`buildDayGrid`) for any venue |
+| `/api/admin/payouts` | GET, POST, PATCH | GET KPIs + per-vendor payables (12% commission, minus settled batches/withdrawals) + batches; POST `{vendorIds, method, reference?}` creates PayoutBatches (MANUAL→COMPLETED with ref, AUTOMATED→PROCESSING); PATCH `{batchId, status}` |
+| `/api/admin/refunds` | GET, POST | GET cancelled bookings by refund status + KPIs; POST `{bookingIds}` executes real Razorpay refunds via `executeRefund` (skips offline/zero/already-done) |
+| `/api/admin/withdrawals` | GET, PATCH | vendor-requested monthly withdrawals: process PENDING→… |
 
 ## Public (no session)
 | Route | Methods | Notes |
 |---|---|---|
 | `/api/payments/webhook` | POST | Razorpay `payment.captured` — signature-verified with `RAZORPAY_WEBHOOK_SECRET` (503 until configured). Confirms the order's bookings, or **refunds** the payment when the 15-minute hold was already cleaned up. No other event is acted on |
+
+## Pricing & blocked slots (added with the owner portal)
+- Both booking routes price each slot with `lib/pricing.js` → `hourlyRateFor(venue, date, startTime)` (peak > weekend > weekday, then the venue discount) — never a flat `pricePerHour`.
+- Both routes load the slot's blocked turfs (`lib/blockedSlots.js`) and pass them to `allocateBooking({ blockedTurfs })`, so a blocked turf is never assigned (409 when every turf is blocked).
+
+## Additional routes (remaining mockups)
+**Vendor-only:** `GET /api/vendor/bookings/{id}` (owner-guarded detail + roster + timeline) · `GET /api/vendor/games` (player-fill) · `GET /api/vendor/payouts` (statement) · `GET/POST /api/vendor/{staff,offers,tickets}` · `PATCH/DELETE /api/vendor/{staff,offers}/{id}` · `GET/PATCH /api/vendor/settings` · `POST /api/vendor/otp/send` + `/api/vendor/otp/verify`.
+**Admin-only:** `GET/POST /api/admin/offers` + `PATCH/DELETE /api/admin/offers/{id}` · `GET/PATCH /api/admin/tickets` · `GET/PATCH /api/admin/settings` · `GET/POST /api/admin/staff` + `PATCH/DELETE /api/admin/staff/{id}` · `POST /api/admin/vendors` (creates VENDOR + first venue) · `POST /api/admin/users` · `GET /api/admin/reports?type=bookings|revenue|venues` → CSV · `GET /api/admin/payouts?format=csv` and `/api/admin/refunds?format=csv` → CSV.
+Shared pure helpers: `lib/gameStatus.js` (groupGames for vendor + admin), `lib/offers.js` (normalizeOffer), `lib/otp.js` (hash/verify with timingSafeEqual), `lib/cancelBooking.js` (applyCancellation used by admin bookings + games).
 
 ## Conventions
 - Status codes: 400 validation · 401 unauthenticated · 403 wrong role · 404 missing · 409 conflict (capacity/dup) · 500 with generic message (details only to console).

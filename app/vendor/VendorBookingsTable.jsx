@@ -89,11 +89,10 @@ export default function VendorBookingsTable({ bookings, title = 'All Bookings' }
                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600', flexShrink: 0 }}>
                           {b.userInitials}
                         </div>
-                        {b.userId ? (
-                          <Link href={`/profile/${b.userId}`} style={{ fontWeight: '500', color: 'inherit', textDecoration: 'none' }}>{b.userName}</Link>
-                        ) : (
-                          <span style={{ fontWeight: '500' }}>{b.userName}</span>
-                        )}
+                        <Link href={`/vendor/bookings/${b.id}`} style={{ fontWeight: '600', color: 'var(--primary)', textDecoration: 'none' }}>
+                          {b.userName}
+                        </Link>
+                        <Link href={`/vendor/bookings/${b.id}`} style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--muted)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Details →</Link>
                       </div>
                     </td>
                     <td style={{ padding: '12px', color: 'var(--muted)' }}>

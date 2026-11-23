@@ -1,6 +1,7 @@
 import React from 'react';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
+import { PUBLIC_VENUE_FILTER } from '@/lib/constants';
 import ExploreClient from '@/components/Explore/ExploreClient';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export const metadata = {
 export default async function ExplorePage() {
   await dbConnect();
 
-  const rawVenues = await Venue.find({}).lean();
+  const rawVenues = await Venue.find(PUBLIC_VENUE_FILTER).lean();
   const allVenues = rawVenues.map(v => ({
     ...v,
     _id: v._id.toString(),

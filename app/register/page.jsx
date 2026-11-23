@@ -34,6 +34,11 @@ export default function RegisterPage() {
   const submitControllerRef = React.useRef(null);
 
   React.useEffect(() => {
+    // Honour ?role=VENDOR from the "List Your Ground" landing page.
+    try {
+      const requested = new URLSearchParams(window.location.search).get('role');
+      if (requested === 'VENDOR') setRole('VENDOR');
+    } catch { /* no URL scope */ }
     return () => {
       if (submitControllerRef.current) submitControllerRef.current.abort();
     };

@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getISTDayRange, istTodayISO, istHour } from '@/lib/ist';
 import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
+import { PUBLIC_VENUE_FILTER } from '@/lib/constants';
 import PlayNowClient from './PlayNowClient';
 
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,7 @@ export default async function PlayNowPage() {
     bookingType: 'ONLINE',
   }).populate('venue').lean();
 
-  const allVenues = await Venue.find({}).lean();
+  const allVenues = await Venue.find(PUBLIC_VENUE_FILTER).lean();
 
   // Group by venue+slot and count players
   const gamesMap = new Map();

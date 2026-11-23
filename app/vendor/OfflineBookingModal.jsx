@@ -22,15 +22,15 @@ const fieldStyle = {
   color: 'var(--foreground)', outline: 'none', fontFamily: 'inherit', fontSize: '14px',
 };
 
-export default function OfflineBookingModal({ venues, onClose }) {
+export default function OfflineBookingModal({ venues, onClose, initialVenueId, initialDate, initialSlot }) {
   const router = useRouter();
   const today = istTodayISO();
-  const firstVenue = venues[0];
+  const firstVenue = venues.find(v => v.id === initialVenueId) || venues[0];
 
   const [form, setForm] = useState({
     venueId: firstVenue?.id || '',
-    date: today,
-    slot: '',
+    date: initialDate || today,
+    slot: initialSlot || '',
     sport: firstVenue?.sportTypes?.[0] || '',
     classification: 'SOLO',
     playersCount: 1,
@@ -89,6 +89,7 @@ export default function OfflineBookingModal({ venues, onClose }) {
     playersCount: form.playersCount,
     classification: form.classification,
     turfCount,
+    blockedTurfs: new Set((slotStats[slotLabel]?.turfs || []).filter(t => t.blocked).map(t => t.turf)),
   });
 
   const slotState = (slotLabel) => {
@@ -178,7 +179,10 @@ export default function OfflineBookingModal({ venues, onClose }) {
         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: 'var(--card-bg)', zIndex: 10 }}>
           <div>
             <h2 style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px' }}>Offline Booking</h2>
-            <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '2px' }}>Block a slot for a walk-in player</p>
+            <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Block a slot for a walk-in player
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--primary)', background: 'rgba(22,163,74,0.1)', padding: '2px 8px', borderRadius: '100px' }}>₹0 Commission</span>
+            </p>
           </div>
           <button onClick={onClose} style={{ background: 'var(--secondary)', border: '1px solid var(--glass-border)', height: '40px', width: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--foreground)' }}>
             <X size={20} />

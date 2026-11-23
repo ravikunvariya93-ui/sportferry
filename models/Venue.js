@@ -14,7 +14,7 @@ const VenueSchema = new mongoose.Schema({
   sportTypes: {
     type: [String],
     required: true,
-    enum: ['Box Cricket'],
+    enum: ['Box Cricket', 'Football', 'Tennis', 'Badminton', 'Basketball'],
   },
   city: {
     type: String,
@@ -28,10 +28,18 @@ const VenueSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Kept as the venue's base (weekday) rate — Explore, Home and VenueCard read it.
   pricePerHour: {
     type: Number,
     required: true,
     min: [0, 'Price per hour cannot be negative.'],
+  },
+  // Per-day-type hourly rate. `peak` applies during PEAK_HOURS (evening) and wins
+  // over the day type. `weekday` mirrors pricePerHour.
+  pricing: {
+    weekday: { type: Number, default: null, min: 0 },
+    weekend: { type: Number, default: null, min: 0 },
+    peak: { type: Number, default: null, min: 0 },
   },
   discountPercent: {
     type: Number,
@@ -59,6 +67,17 @@ const VenueSchema = new mongoose.Schema({
   location: {
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
+  },
+  // Verification documents (Blob URLs) captured in the owner onboarding wizard.
+  documents: {
+    businessIdProof: { type: String, default: '' },
+    businessProof: { type: String, default: '' },
+    venueProof: { type: String, default: '' },
+  },
+  onboardingStatus: {
+    type: String,
+    enum: ['DRAFT', 'PENDING', 'DOCUMENTS', 'REVIEW', 'ACTIVE', 'SUSPENDED', 'REJECTED'],
+    default: 'ACTIVE',
   },
 }, {
   timestamps: true,

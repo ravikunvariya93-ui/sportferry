@@ -3,6 +3,7 @@ import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { getISTDayRange, formatToAMPM, isSlotPast } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
+import { blocksForDate } from '@/lib/blockedSlots';
 import { auth } from '@/lib/auth';
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
@@ -105,6 +106,23 @@ export async function GET(request, { params }) {
         ts[b.teamSide === 2 ? 'team2Size' : 'team1Size'] = b.playersCount;
       }
     });
+
+    // Slot labels are keyed by the same "hh:mm AM/PM – hh:mm AM/PM" format.
+    const slotKey = (start, end) => `${formatToAMPM(start)} \u2013 ${formatToAMPM(end)}`;
+
+    // Overlay owner blocks (maintenance / events) so no channel offers them.
+    const blocks = await blocksForDate(params.id, date);
+    for (const block of blocks) {
+      const key = slotKey(block.startTime, block.endTime);
+      if (!slotStats[key]) {
+        slotStats[key] = { total: 0, team1: 0, team2: 0, hasSolo: false, soloSide: null, team1Slots: [], team2Slots: [], turfs: [] };
+      }
+      const s = slotStats[key];
+      let ts = s.turfs.find(t => t.turf === block.turf);
+      if (!ts) { ts = emptyTurf(block.turf); s.turfs.push(ts); }
+      ts.blocked = true;
+      ts.blockReason = block.reason;
+    }
 
     // Expose each slot's turfs as a sorted array.
     for (const key of Object.keys(slotStats)) {

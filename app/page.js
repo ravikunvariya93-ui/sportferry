@@ -4,18 +4,20 @@ import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import HomeHero from '@/components/Home/HomeHero';
+import BookingRules from '@/components/Home/BookingRules';
 import QuickActions from '@/components/Home/QuickActions';
 import TonightsGames from '@/components/Home/TonightsGames';
 import FeaturedVenues from '@/components/Home/FeaturedVenues';
 import { getISTDayRange, istTodayISO, SLOT_LABELS, isSlotLabelPast, parseSlot } from '@/lib/ist';
 import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
+import { PUBLIC_VENUE_FILTER } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   await dbConnect();
 
-  const rawAll = await Venue.find({}).lean();
+  const rawAll = await Venue.find(PUBLIC_VENUE_FILTER).lean();
   const allVenues = rawAll
     .map(v => ({
       ...v,
@@ -93,6 +95,7 @@ export default async function Home() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '36px', paddingBottom: '40px' }}>
       <HomeHero />
+      <BookingRules />
       <QuickActions />
       <TonightsGames venues={allVenues} venueGames={venueGames} date={todayDateString} />
       <FeaturedVenues venues={allVenues} />

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
+import Turf from '@/models/Turf';
+import BlockedSlot from '@/models/BlockedSlot';
+import User from '@/models/User';
 import { auth, hasRole } from '@/lib/auth';
 import { escapeRegex } from '@/lib/validation';
 
@@ -21,31 +24,55 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const city = searchParams.get('city') || '';
     const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || '';
+    const withCounts = searchParams.get('counts') === '1';
 
     await dbConnect();
 
-    const query = {};
-    if (city) query.city = { $regex: escapeRegex(city), $options: 'i' };
-    if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
+    // Base filters shared by the list and the status counts.
+    const baseQuery = {};
+    if (city) baseQuery.city = { $regex: escapeRegex(city), $options: 'i' };
+    if (search) {
+      const rx = { $regex: escapeRegex(search), $options: 'i' };
+      const owners = await User.find({ $or: [{ name: rx }, { email: rx }, { phone: rx }] }).select('_id').lean();
+      baseQuery.$or = [{ name: rx }, { owner: { $in: owners.map(u => u._id) } }];
+    }
 
-    const [venues, total] = await Promise.all([
+    const query = { ...baseQuery };
+    if (status) query.onboardingStatus = status;
+
+    const [venues, total, countsRaw] = await Promise.all([
       Venue.find(query)
-        .populate('owner', 'name email')
+        .populate('owner', 'name email phone')
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
       Venue.countDocuments(query),
+      withCounts
+        ? Venue.aggregate([
+            { $match: baseQuery },
+            { $group: { _id: { $ifNull: ['$onboardingStatus', 'ACTIVE'] }, count: { $sum: 1 } } },
+          ])
+        : [],
     ]);
 
-    // Get booking counts per venue
+    const counts = { ALL: 0 };
+    countsRaw.forEach((c) => { counts[c._id] = c.count; counts.ALL += c.count; });
+
+    // Turfs + booking counts for the listed venues.
     const venueIds = venues.map((v) => v._id);
-    const bookingCounts = await Booking.aggregate([
-      { $match: { venue: { $in: venueIds }, bookingType: { $ne: 'OFFLINE' } } },
-      { $group: { _id: '$venue', count: { $sum: 1 } } },
+    const [bookingCounts, turfRows] = await Promise.all([
+      Booking.aggregate([
+        { $match: { venue: { $in: venueIds }, bookingType: { $ne: 'OFFLINE' } } },
+        { $group: { _id: '$venue', count: { $sum: 1 } } },
+      ]),
+      Turf.find({ venue: { $in: venueIds } }).select('venue name order sport').sort({ order: 1 }).lean(),
     ]);
     const countMap = {};
     bookingCounts.forEach((b) => { countMap[b._id.toString()] = b.count; });
+    const turfMap = {};
+    turfRows.forEach((t) => { (turfMap[t.venue.toString()] ||= []).push(t); });
 
     return NextResponse.json({
       venues: venues.map((v) => ({
@@ -58,6 +85,7 @@ export async function GET(request) {
         pricePerHour: v.pricePerHour,
         discountPercent: v.discountPercent || 0,
         numberOfTurfs: v.numberOfTurfs || 1,
+        turfs: (turfMap[v._id.toString()] || []).map(t => ({ id: t._id.toString(), name: t.name, order: t.order, sport: t.sport })),
         images: v.images,
         amenities: v.amenities,
         rating: v.rating,
@@ -65,15 +93,41 @@ export async function GET(request) {
         ownerName: v.owner?.name || 'Unknown',
         ownerId: v.owner?._id?.toString() || null,
         ownerEmail: v.owner?.email || '',
+        ownerPhone: v.owner?.phone || '',
+        onboardingStatus: v.onboardingStatus || 'ACTIVE',
         bookingCount: countMap[v._id.toString()] || 0,
+        joinedOn: v.createdAt,
         createdAt: v.createdAt,
       })),
+      counts,
       total,
       page,
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     console.error('[GET /api/admin/venues]', error);
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const session = await requireAdmin();
+    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+
+    const { venueId, onboardingStatus } = await request.json();
+    const ALLOWED = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED'];
+    if (!venueId || !ALLOWED.includes(onboardingStatus)) {
+      return NextResponse.json({ message: 'venueId and a valid onboardingStatus are required.' }, { status: 400 });
+    }
+
+    await dbConnect();
+    const venue = await Venue.findByIdAndUpdate(venueId, { $set: { onboardingStatus } }, { new: true });
+    if (!venue) return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+
+    return NextResponse.json({ venueId: venue._id.toString(), onboardingStatus: venue.onboardingStatus });
+  } catch (error) {
+    console.error('[PATCH /api/admin/venues]', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
@@ -91,8 +145,13 @@ export async function DELETE(request) {
     const venue = await Venue.findByIdAndDelete(venueId);
     if (!venue) return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
 
-    // Cascade cancel bookings for this venue
-    await Booking.updateMany({ venue: venueId }, { status: 'CANCELLED' });
+    // Cascade cancel bookings and remove the venue's turfs/blocks (they would
+    // otherwise be orphaned).
+    await Promise.all([
+      Booking.updateMany({ venue: venueId }, { status: 'CANCELLED' }),
+      Turf.deleteMany({ venue: venueId }),
+      BlockedSlot.deleteMany({ venue: venueId }),
+    ]);
 
     return NextResponse.json({ message: 'Venue deleted successfully' });
   } catch (error) {

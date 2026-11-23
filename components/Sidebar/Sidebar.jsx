@@ -25,8 +25,8 @@ const Sidebar = () => {
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
 
-  // Admin section has its own isolated layout — hide the main sidebar
-  if (pathname?.startsWith('/admin')) return null;
+  // Admin and vendor portals have their own isolated layouts — hide the main sidebar
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/vendor')) return null;
 
   let navItems = [];
 

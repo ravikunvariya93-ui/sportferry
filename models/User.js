@@ -24,11 +24,27 @@ const UserSchema = new mongoose.Schema({
     enum: ['PLAYER', 'VENDOR', 'ADMIN'],
     default: 'PLAYER',
   },
+  // Set by admin — a blocked account cannot sign in.
+  blocked: {
+    type: Boolean,
+    default: false,
+  },
+  // Phone OTP (hashed; the raw code is never stored).
+  phoneOtpHash: { type: String, default: '' },
+  phoneOtpExpires: { type: Date, default: null },
+  phoneVerified: { type: Boolean, default: false },
   phone: {
     type: String,
   },
   city: {
     type: String,
+  },
+  // Payout destination for ground owners (captured in onboarding).
+  bankDetails: {
+    accountHolderName: { type: String, default: '' },
+    bankName: { type: String, default: '' },
+    accountNumber: { type: String, default: '' },
+    ifsc: { type: String, default: '' },
   },
   // Password reset (stores a hash of the token, never the raw token).
   resetToken: {

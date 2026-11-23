@@ -3,13 +3,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { 
-  CalendarCheck, RefreshCw, CheckCircle2, XCircle, 
-  Info, ArrowDownCircle, User, MessageSquare, ShieldCheck, X, Search, Filter
+import {
+  CalendarCheck, RefreshCw, XCircle, ShieldCheck, Search, Download,
 } from 'lucide-react';
 import styles from '../admin.module.css';
 
-const STATUS_TABS = ['All', 'PENDING', 'CONFIRMED', 'CANCELLED'];
+const TABS = [
+  { key: 'ALL', label: 'All Bookings' },
+  { key: 'UPCOMING', label: 'Upcoming' },
+  { key: 'ACTIVE', label: 'Active / In-Progress' },
+  { key: 'COMPLETED', label: 'Completed' },
+  { key: 'CANCELLED', label: 'Cancelled' },
+];
 
 const STATUS_BADGE = {
   CONFIRMED: styles.badgeConfirmed,
@@ -21,16 +26,16 @@ const STATUS_BADGE = {
 export default function BookingsClient() {
   const searchParams = useSearchParams();
   const [bookings, setBookings] = useState([]);
+  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
-  const initialStatus = searchParams.get('status');
-  const [activeTab, setActiveTab] = useState(STATUS_TABS.includes(initialStatus) ? initialStatus : 'All');
+  const statusParam = searchParams.get('status') || '';
+  const [tab, setTab] = useState('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  
-  // New filters
+
   const [venueFilter, setVenueFilter] = useState(searchParams.get('venueId') || '');
   const [cityFilter, setCityFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -39,15 +44,11 @@ export default function BookingsClient() {
   const [venues, setVenues] = useState([]);
   const [cities, setCities] = useState([]);
 
-  // Admin cancellation state removed
-
-  // Fetch venue/city lists for filter dropdowns
   useEffect(() => {
     fetch('/api/admin/venues?limit=200').then(r => r.json()).then(d => {
       const v = d.venues || [];
       setVenues(v);
-      const uniqueCities = [...new Set(v.map(x => x.city).filter(Boolean))];
-      setCities(uniqueCities.sort());
+      setCities([...new Set(v.map(x => x.city).filter(Boolean))].sort());
     }).catch(() => {});
   }, []);
 
@@ -55,7 +56,8 @@ export default function BookingsClient() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page, limit: 25 });
-      if (activeTab !== 'All') params.set('status', activeTab);
+      if (tab !== 'ALL') params.set('tab', tab);
+      if (statusParam) params.set('status', statusParam);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
       if (venueFilter) params.set('venueId', venueFilter);
@@ -66,6 +68,7 @@ export default function BookingsClient() {
       const res = await fetch(`/api/admin/bookings?${params}`, { signal });
       const data = await res.json();
       setBookings(data.bookings || []);
+      setCounts(data.counts || {});
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
     } catch (e) {
@@ -74,7 +77,7 @@ export default function BookingsClient() {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab, dateFrom, dateTo, venueFilter, cityFilter, typeFilter, classFilter, searchQuery]);
+  }, [page, tab, statusParam, dateFrom, dateTo, venueFilter, cityFilter, typeFilter, classFilter, searchQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,48 +85,38 @@ export default function BookingsClient() {
     return () => controller.abort();
   }, [fetchBookings]);
 
+  const exportCsv = () => {
+    const header = 'Booking ID,Customer,Venue,Date,Slot,Turf,Sport,Team,Amount,Status\n';
+    const body = bookings.map(b => [b.ref, b.userName, b.venueName, b.dateStr, b.slot, `T${b.turf}`, b.sport, `${b.playersCount} ${b.classification}`, b.amount, b.status].map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([header + body], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'bookings.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
-
       <div className={styles.pageHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <CalendarCheck size={28} color="#22c55e" />
           <div>
             <h1 className={styles.pageTitle}>Bookings</h1>
-            <p className={styles.pageSubtitle}>{total} total bookings on the platform</p>
+            <p className={styles.pageSubtitle}>{total} bookings for the current filter</p>
           </div>
         </div>
       </div>
 
-      {/* Status Tabs */}
       <div className={styles.tabBar}>
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab}
-            className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-            onClick={() => { setActiveTab(tab); setPage(1); }}
-          >
-            {tab}
+        {TABS.map((t) => (
+          <button key={t.key} className={`${styles.tab} ${tab === t.key ? styles.tabActive : ''}`} onClick={() => { setTab(t.key); setPage(1); }}>
+            {t.label} ({counts[t.key] ?? 0})
           </button>
         ))}
       </div>
 
-      {/* Filters */}
       <div className={styles.filterBar} style={{ marginBottom: '12px', flexWrap: 'wrap' }}>
-        <input
-          type="date"
-          className={styles.filterSelect}
-          value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          title="From date"
-        />
-        <input
-          type="date"
-          className={styles.filterSelect}
-          value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          title="To date"
-        />
+        <input type="date" className={styles.filterSelect} value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} title="From date" />
+        <input type="date" className={styles.filterSelect} value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} title="To date" />
         <select className={styles.filterSelect} value={venueFilter} onChange={(e) => { setVenueFilter(e.target.value); setPage(1); }}>
           <option value="">All Venues</option>
           {venues.map(v => <option key={v.id || v._id} value={v.id || v._id}>{v.name}</option>)}
@@ -147,49 +140,27 @@ export default function BookingsClient() {
       <div className={styles.filterBar} style={{ marginBottom: '20px' }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
           <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-          <input
-            type="text"
-            placeholder="Search customer name, email, phone..."
-            className={styles.filterSelect}
-            style={{ paddingLeft: '34px', width: '100%' }}
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-          />
+          <input type="text" placeholder="Search customer name, email, phone..." className={styles.filterSelect} style={{ paddingLeft: '34px', width: '100%' }} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} />
         </div>
         {(dateFrom || dateTo || venueFilter || cityFilter || typeFilter || classFilter || searchQuery) && (
-          <button
-            className={styles.pageBtn}
-            onClick={() => { setDateFrom(''); setDateTo(''); setVenueFilter(''); setCityFilter(''); setTypeFilter(''); setClassFilter(''); setSearchQuery(''); setPage(1); }}
-          >
-            Clear All
-          </button>
+          <button className={styles.pageBtn} onClick={() => { setDateFrom(''); setDateTo(''); setVenueFilter(''); setCityFilter(''); setTypeFilter(''); setClassFilter(''); setSearchQuery(''); setPage(1); }}>Clear All</button>
         )}
-        <button className={styles.pageBtn} onClick={() => fetchBookings()} title="Refresh" style={{ padding: '10px 12px' }}>
-          <RefreshCw size={15} />
-        </button>
+        <button className={styles.pageBtn} onClick={() => fetchBookings()} title="Refresh" style={{ padding: '10px 12px' }}><RefreshCw size={15} /></button>
+        <button className={styles.pageBtn} onClick={exportCsv} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 14px' }}><Download size={15} /> Export</button>
       </div>
 
       <div className={styles.sectionCard}>
         {loading ? (
           <div className={styles.loadingWrap}>Loading bookings…</div>
         ) : bookings.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📋</div>
-            No bookings found for this filter
-          </div>
+          <div className={styles.emptyState}><div className={styles.emptyIcon}>📋</div>No bookings found for this filter</div>
         ) : (
           <>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Customer</th>
-                    <th>Venue</th>
-                    <th>Date / Slot</th>
-                    <th>Mode</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Refund / Cancellation</th>
+                    <th>Booking ID</th><th>Customer</th><th>Venue</th><th>Date &amp; Time</th><th>Turf</th><th>Sport</th><th>Team</th><th>Amount</th><th>Status</th><th>Refund</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -197,25 +168,15 @@ export default function BookingsClient() {
                     const isCancelled = b.status === 'CANCELLED';
                     return (
                       <tr key={b.id}>
+                        <td style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontFamily: 'monospace' }}>{b.ref}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div className={styles.userAvatar}>
-                              {b.userName?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
+                            <div className={styles.userAvatar}>{b.userName?.charAt(0)?.toUpperCase() || '?'}</div>
                             <div>
                               {b.userId ? (
-                                <Link
-                                  href={`/admin/users/${b.userId}`}
-                                  style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px', textDecoration: 'none' }}
-                                >
-                                  {b.userName}
-                                </Link>
-                              ) : (
-                                <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px' }}>{b.userName}</div>
-                              )}
-                              {b.userEmail && (
-                                <div style={{ fontSize: '11px', color: 'var(--admin-text-muted)' }}>{b.userEmail}</div>
-                              )}
+                                <Link href={`/admin/users/${b.userId}`} style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px', textDecoration: 'none' }}>{b.userName}</Link>
+                              ) : <div style={{ fontWeight: 600, color: 'var(--admin-text-main)', fontSize: '13px' }}>{b.userName}</div>}
+                              {b.userEmail && <div style={{ fontSize: '11px', color: 'var(--admin-text-muted)' }}>{b.userEmail}</div>}
                             </div>
                           </div>
                         </td>
@@ -227,40 +188,27 @@ export default function BookingsClient() {
                           <div style={{ fontSize: '12px', whiteSpace: 'nowrap', color: 'var(--admin-text-main)' }}>{b.dateStr}</div>
                           <div style={{ fontSize: '11px', color: 'var(--admin-text-muted)', whiteSpace: 'nowrap' }}>{b.slot}</div>
                         </td>
-                        <td>
-                          <span className={`${styles.badge} ${b.bookingType === 'ONLINE' ? styles.badgeOnline : styles.badgeOffline}`}>
-                            {b.bookingType}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 700, color: 'var(--admin-text-main)', fontSize: '13px' }}>
-                          ₹{b.amount}
-                        </td>
-                        <td>
-                          <span className={`${styles.badge} ${STATUS_BADGE[b.status] || styles.badgeUser}`}>
-                            {b.status}
-                          </span>
-                        </td>
+                        <td style={{ fontSize: '12px' }}>T{b.turf}</td>
+                        <td style={{ fontSize: '12px' }}>{b.sport || '—'}</td>
+                        <td style={{ fontSize: '12px' }}>{b.playersCount} {b.classification}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--admin-text-main)', fontSize: '13px' }}>₹{b.amount}</td>
+                        <td><span className={`${styles.badge} ${STATUS_BADGE[b.status] || styles.badgeUser}`}>{b.status}</span></td>
                         <td>
                           {isCancelled && b.cancelledBy ? (
                             <div style={{ fontSize: '11px', minWidth: '140px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f87171', fontWeight: '600', marginBottom: '2px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f87171', fontWeight: 600, marginBottom: '2px' }}>
                                 <XCircle size={10} /> By {b.cancelledBy}
                               </div>
                               {b.refundAmount > 0 && (
                                 <div style={{ color: b.refundStatus === 'COMPLETED' ? '#22c55e' : b.refundStatus === 'FAILED' ? '#f87171' : '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <ShieldCheck size={10} />
-                                  {b.refundStatus === 'COMPLETED' && `₹${b.refundAmount} refunded (${b.refundPercent}%)`}
+                                  {b.refundStatus === 'COMPLETED' && `₹${b.refundAmount} refunded`}
                                   {b.refundStatus === 'FAILED' && `₹${b.refundAmount} refund FAILED`}
-                                  {(b.refundStatus === 'PENDING' || b.refundStatus === 'NONE') && `₹${b.refundAmount} refund pending (${b.refundPercent}%)`}
-                                </div>
-                              )}
-                              {b.cancellationReason && (
-                                <div style={{ color: '#64748b', fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
-                                  &quot;{b.cancellationReason.length > 30 ? b.cancellationReason.substring(0, 30) + '...' : b.cancellationReason}&quot;
+                                  {(b.refundStatus === 'PENDING' || b.refundStatus === 'NONE') && `₹${b.refundAmount} refund pending`}
                                 </div>
                               )}
                             </div>
-                          ) : '-'}
+                          ) : '—'}
                         </td>
                       </tr>
                     );
@@ -269,7 +217,6 @@ export default function BookingsClient() {
               </table>
             </div>
 
-            {/* Pagination */}
             <div className={styles.pagination}>
               <button className={styles.pageBtn} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
               <span className={styles.pageInfo}>Page {page} of {totalPages}</span>

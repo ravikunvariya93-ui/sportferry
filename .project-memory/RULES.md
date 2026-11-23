@@ -17,9 +17,13 @@
 3. **Role checks in two places** — middleware AND the handler (handlers are the source of truth; middleware alone was historically bypassed for direct API calls).
 4. **Never do date/time math inline** — use `getISTDayRange`, `parseSlot`, `formatToAMPM` from `lib/booking-utils.js`, and `calculateRefund` from `lib/cancellationPolicy.js`.
 5. **Capacity rules live in one place** (`lib/capacity.js` — `allocateBooking`, `PLAYERS_PER_SIDE`) and are called by both `app/api/bookings/route.js` and `app/api/payments/create-order/route.js`, plus the booking UIs. If you change 6/side, 12/slot, the team-match rule or the auto-confirm rule, change `lib/capacity.js` + `lib/booking-utils.js`'s `autoConfirmIfReady` — never a route's copy.
-6. **Multi-write operations go through a mongoose session/transaction** (precedent: booking creation, payment verify). Don't insert partial state outside a transaction when the flow has money or capacity involved.
-7. **Model exports** keep the `(mongoose.models.X || mongoose.model(...))` hot-reload guard.
-8. **Don't hardcode secrets** or read `.env.local` values into scripts (secrets incident `d3fd994`). `scratch/` is gitignored — put debug scripts there.
+6. **Expired PENDING bookings are cancellations.** A `PENDING` booking whose slot start has passed can never fill, so it must become `CANCELLED` (admin cancellation, 100% refund, Razorpay refund executed) — use `releaseExpiredPendingBookings` from `lib/booking-utils.js`. Call it on any read path that lists or counts PENDING bookings; never derive a separate display-only status.
+7. **Price and blocked slots have one source each.** Price every slot with `hourlyRateFor(venue, date, startTime)` (`lib/pricing.js`) — never a flat `pricePerHour`. Skip owner-blocked turfs by passing `blockedTurfs` (from `lib/blockedSlots.js`) into `allocateBooking`; never re-implement either in a route.
+8. **Turf index = Turf.order.** A booking's `turf` is the venue's turf index (1..N), and `Venue.numberOfTurfs` is the cached Turf count. Keep `numberOfTurfs` in sync via `syncVenueTurfCount` and never renumber turfs once the venue has bookings.
+9. **Payouts record, refunds execute.** A `PayoutBatch` only records that a vendor was paid (bank transfer is out of band) — vendor payable = confirmed earnings − 12% commission − settled `PayoutBatch`/`Withdrawal` amounts (`lib/payouts.js`). Refunds always go through `lib/refunds.js` → `executeRefund` (real Razorpay).
+10. **Multi-write operations go through a mongoose session/transaction** (precedent: booking creation, payment verify). Don't insert partial state outside a transaction when the flow has money or capacity involved.
+11. **Model exports** keep the `(mongoose.models.X || mongoose.model(...))` hot-reload guard.
+12. **Don't hardcode secrets** or read `.env.local` values into scripts (secrets incident `d3fd994`). `scratch/` is gitignored — put debug scripts there.
 
 ## Styling rules
 - Component styles in `Component.module.css`; reuse `:root` variables; green primary `#16a34a`.

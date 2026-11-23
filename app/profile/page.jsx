@@ -11,6 +11,7 @@ import UserDoc from '@/models/User';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
+import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 import { formatToAMPM } from '@/lib/ist';
 import { getPlayerLevel, getAchievements } from '@/lib/playerLevel';
 import ProfileClient from './ProfileClient';
@@ -30,6 +31,9 @@ export default async function ProfilePage() {
   if (!user) {
     redirect('/login');
   }
+
+  // Expired PENDING bookings are cancellations, not games played.
+  await releaseExpiredPendingBookings({ user: user._id });
 
   const [rawBookings, venueCount] = await Promise.all([
     Booking.find({ user: session.user.id, status: { $ne: 'PAYMENT_PENDING' } })

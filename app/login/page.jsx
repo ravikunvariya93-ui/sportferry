@@ -13,6 +13,7 @@ const OAUTH_ERRORS = {
   OAuthSignin: 'We could not sign you in with Google. Please try again or use your email and password.',
   AccessDenied: 'Google sign-in was declined. Please try again or use your email and password.',
   Configuration: 'Google sign-in is not configured on this server right now. Please use your email and password.',
+  blocked: 'This account has been blocked. Please contact support if you think this is a mistake.',
 };
 
 const GoogleIcon = () => (

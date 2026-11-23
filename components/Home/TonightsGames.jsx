@@ -46,7 +46,7 @@ export default function TonightsGames({ venues, venueGames = {}, date }) {
     <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
-          {daypart}&apos;s Games Near You
+          Upcoming Games Near You
         </h2>
         <Link
           href="/explore"

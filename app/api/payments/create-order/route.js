@@ -11,7 +11,8 @@ import { cleanupExpiredPayments } from '@/lib/booking-utils';
 import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
 import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { COMMISSION_PERCENT } from '@/lib/constants';
-import { discountedPrice } from '@/lib/pricing';
+import { hourlyRateFor } from '@/lib/pricing';
+import { blockedTurfsInSlot } from '@/lib/blockedSlots';
 import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request) {
@@ -76,9 +77,6 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
     }
 
-    // Server-authoritative per-player price, with the venue's discount applied.
-    const unitPrice = discountedPrice(venue.pricePerHour, venue.discountPercent);
-
     // The session doesn't carry the phone number, so read it for the Razorpay prefill.
     const customer = await User.findById(authSession.user.id).select('phone').lean();
 
@@ -120,7 +118,12 @@ export async function POST(request) {
     }
 
     const groupId = parsedCells.length > 1 ? crypto.randomUUID() : undefined;
-    const totalAmount = parsedCells.reduce((s, pc) => s + unitPrice * pc.playersCount, 0);
+    // Server-authoritative per-player price for each cell (weekday/weekend/peak),
+    // with the venue's discount applied.
+    const totalAmount = parsedCells.reduce(
+      (s, pc) => s + hourlyRateFor(venue, pc.dateStr, pc.startTime) * pc.playersCount,
+      0
+    );
 
     // 1. Create Razorpay Order (fail fast if payments aren't configured).
     //    Created once, outside the booking transaction, so a retry after a
@@ -168,11 +171,14 @@ export async function POST(request) {
             status: { $ne: 'CANCELLED' },
           }).session(session).lean();
 
+          // Turfs the owner has blocked (maintenance / event) are skipped.
+          const blockedTurfs = await blockedTurfsInSlot(venueId, times.dateStr, times.startTime, times.endTime, session);
           const allocation = allocateBooking({
             existingBookings,
             playersCount: times.playersCount,
             classification: times.classification,
             turfCount,
+            blockedTurfs,
             preferredSide: times.preferredSide,
           });
           if (allocation.error) {
@@ -187,6 +193,7 @@ export async function POST(request) {
             throw new BookingError(reason || messages[allocation.error] || 'Slot unavailable.', 409);
           }
 
+          const unitPrice = hourlyRateFor(venue, times.dateStr, times.startTime);
           const commissionAmount = Math.round((unitPrice * times.playersCount) * COMMISSION_PERCENT / 100);
 
           const booking = await Booking.create([{
