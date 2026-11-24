@@ -22,14 +22,14 @@ export default async function ProfilePage() {
   const session = await auth();
 
   if (!session) {
-    redirect('/login');
+    redirect('/login?callbackUrl=%2Fprofile');
   }
 
   await dbConnect();
   const user = await UserDoc.findById(session.user.id).lean();
 
   if (!user) {
-    redirect('/login');
+    redirect('/login?callbackUrl=%2Fprofile');
   }
 
   // Expired PENDING bookings are cancellations, not games played.

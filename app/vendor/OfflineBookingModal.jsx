@@ -194,7 +194,7 @@ export default function OfflineBookingModal({ venues, onClose, initialVenueId, i
             <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'rgba(22,163,74,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
               <CheckCircle2 size={32} color="#16a34a" />
             </div>
-            <h3 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>Slot Blocked!</h3>
+            <h3 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>Walk-in Booked!</h3>
             <p style={{ color: 'var(--muted)' }}>
               {success.name} · {success.slot}
               {success.turf ? ` · Turf ${success.turf}` : ''}

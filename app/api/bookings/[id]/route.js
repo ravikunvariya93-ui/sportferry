@@ -41,6 +41,9 @@ export async function PATCH(request, { params }) {
       if (booking.status === 'CANCELLED') {
         return NextResponse.json({ message: 'Cannot approve a cancelled booking.' }, { status: 400 });
       }
+      if (booking.status === 'PAYMENT_PENDING') {
+        return NextResponse.json({ message: 'Payment is still being processed — this hold can only be confirmed by payment.' }, { status: 400 });
+      }
 
       booking.status = 'CONFIRMED';
     } 
@@ -52,6 +55,15 @@ export async function PATCH(request, { params }) {
 
       if (booking.status === 'CANCELLED') {
         return NextResponse.json({ message: 'Booking is already cancelled.' }, { status: 400 });
+      }
+
+      // A checkout may still be in flight. Cancelling here would leave a
+      // captured payment with no live hold to refund (the webhook cannot know
+      // who to pay back). Unpaid holds disappear after 15 minutes on their own.
+      if (booking.status === 'PAYMENT_PENDING') {
+        return NextResponse.json({
+          message: 'Payment is still being processed. If you do not pay, the slot is released automatically.',
+        }, { status: 400 });
       }
 
       // Determine who is cancelling
@@ -77,6 +89,17 @@ export async function PATCH(request, { params }) {
             message: 'Cannot cancel — the slot has already started or passed.' 
           }, { status: 400 });
         }
+      }
+
+      // Claim the booking atomically before asking Razorpay for a refund, so
+      // two concurrent cancellations can never pay out twice.
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: { $ne: 'CANCELLED' } },
+        { $set: { status: 'CANCELLED' } },
+        { new: true }
+      );
+      if (!claimed) {
+        return NextResponse.json({ message: 'Booking is already cancelled.' }, { status: 409 });
       }
 
       // Calculate refund

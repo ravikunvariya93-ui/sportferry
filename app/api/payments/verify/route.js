@@ -35,7 +35,11 @@ export async function POST(request) {
       .update(body.toString())
       .digest('hex');
 
-    const isAuthentic = expectedSignature === razorpay_signature;
+    // Compare in constant time — a plain === leaks the expected HMAC byte by byte.
+    const received = Buffer.from(String(razorpay_signature), 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    const isAuthentic = received.length === expectedBuffer.length
+      && crypto.timingSafeEqual(received, expectedBuffer);
 
     if (!isAuthentic) {
       return NextResponse.json({ message: 'Invalid payment signature.' }, { status: 400 });

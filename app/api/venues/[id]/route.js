@@ -4,10 +4,12 @@ import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
 import { normalizeCoords } from '@/lib/geo';
 import { slotStartInstant } from '@/lib/ist';
+import { isValidObjectId } from '@/lib/vendorAuth';
 
 export async function GET(request, { params }) {
   try {
     const { id } = params;
+    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
     await dbConnect();
     const venue = await Venue.findById(id).populate('owner', 'name');
     
@@ -30,6 +32,7 @@ export async function PATCH(request, { params }) {
     }
 
     const { id } = params;
+    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
     await dbConnect();
     const venue = await Venue.findById(id);
 
@@ -98,6 +101,7 @@ export async function DELETE(request, { params }) {
     }
 
     const { id } = params;
+    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
     await dbConnect();
     const venue = await Venue.findById(id);
 

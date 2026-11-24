@@ -82,10 +82,10 @@ Admin can still cancel bookings (100% refund path) and process the vendor-reques
 - Settlement: player pays full → vendor earns → monthly withdrawal or admin bulk payout, minus commission.
 
 ## Remaining mockup screens (all built)
-- **Owner:** Booking Details & Check-in (timeline + player roster + check-in), Game Status (avatars, spots left, TEAM ONLY, slot-held note), Payouts Statement, Revenue/Occupancy Analytics, repeat-customer directory, Staff & Access, Settings (General/Notifications/Platform Rules/Support), Recurring & Special Offers, Week/Month calendar, OTP phone verification (dev code / Resend email — no SMS).
+- **Owner:** Booking Details & Check-in (timeline + player roster + check-in), Game Status (avatars, spots left, TEAM ONLY, slot-held note), Payouts Statement, Revenue/Occupancy Analytics, repeat-customer directory, Staff & Access, Settings (General/Notifications/Platform Rules/Support), Recurring & Special Offers, Week/Month calendar.
 - **Admin:** Promotions & Offers, Reports & Analytics + CSV downloads, Support & Tickets (status/reply), Settings (booking-rule + automation toggles; 12% commission read-only), Staff & Roles, Add Vendor/User, Settlement & Refund CSV reports.
 - **Player:** light-theme hero + Solo/Team/Group cards + Booking Rules strip (team needs equal opposing side, solo confirms at 6, group takes the whole turf); Upcoming Games and Top Venues retained.
-- Staff records (vendor and platform) are directories only — they do not create separate logins. OTP delivery in production needs `RESEND_API_KEY`.
+- Staff records (vendor and platform) are directories only — they do not create separate logins. Phone/email verification is deferred; `RESEND_API_KEY` is only used for password-reset emails.
 
 ## Non-implemented (sample/static today)
 Tournaments, player directory, "tonight's games" (component deleted in working tree), Explore extras. Treat as UI prototypes.

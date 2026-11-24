@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
+import PayoutBatch from '@/models/PayoutBatch';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
-
-const COMMISSION_PERCENT = 12;
+import { istTodayISO } from '@/lib/ist';
+import { COMMISSION_PERCENT } from '@/lib/constants';
+import { settledAmountForVendor } from '@/lib/payouts';
 
 async function requireVendor() {
   const session = await auth();
@@ -52,8 +54,7 @@ export async function POST(request) {
     await dbConnect();
 
     const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const [currentYear, currentMonth] = istTodayISO().split('-').map(Number);
 
     // Check if already requested this month
     const existing = await Withdrawal.findOne({
@@ -82,14 +83,15 @@ export async function POST(request) {
     const commissionDeducted = Math.round(totalRevenue * COMMISSION_PERCENT / 100);
     const netAmount = totalRevenue - commissionDeducted;
 
-    // Get already withdrawn amount
-    const previousWithdrawals = await Withdrawal.find({
-      vendor: session.user.id,
-      status: { $in: ['COMPLETED', 'PROCESSING', 'PENDING'] },
-    }).lean();
-    const alreadyWithdrawn = previousWithdrawals.reduce((sum, w) => sum + (w.netAmount || 0), 0);
+    // Completed/processing payout batches and live withdrawals both reduce
+    // the balance — otherwise an admin settlement can be withdrawn twice.
+    const [withdrawals, batches] = await Promise.all([
+      Withdrawal.find({ vendor: session.user.id }).lean(),
+      PayoutBatch.find({ vendor: session.user.id }).lean(),
+    ]);
+    const settled = settledAmountForVendor({ withdrawals, batches });
 
-    const availableBalance = netAmount - alreadyWithdrawn;
+    const availableBalance = netAmount - settled;
 
     if (availableBalance <= 0) {
       return NextResponse.json({

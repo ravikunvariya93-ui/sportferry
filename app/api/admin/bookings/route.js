@@ -182,8 +182,24 @@ export async function PATCH(request) {
     if (booking.status === 'CANCELLED' && status !== 'CANCELLED') {
       return NextResponse.json({ message: 'A cancelled booking cannot be re-activated.' }, { status: 400 });
     }
+    if (status === 'CONFIRMED' && booking.status === 'PAYMENT_PENDING') {
+      return NextResponse.json({ message: 'A payment-pending hold can only be confirmed by payment.' }, { status: 400 });
+    }
 
     if (status === 'CANCELLED') {
+      if (booking.status === 'PAYMENT_PENDING') {
+        return NextResponse.json({
+          message: 'A payment-pending booking cannot be cancelled — wait for payment or hold expiry.',
+        }, { status: 400 });
+      }
+      // Claim first: two concurrent cancels must never execute the same refund.
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: { $ne: 'CANCELLED' } },
+        { $set: { status: 'CANCELLED' } },
+        { new: true }
+      );
+      if (!claimed) return NextResponse.json({ message: 'Booking is already cancelled' }, { status: 409 });
+
       // Cancels, records the 100% admin refund and executes it against Razorpay.
       await applyCancellation(booking, {
         cancelledBy: 'ADMIN',

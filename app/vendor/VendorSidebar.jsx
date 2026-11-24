@@ -22,7 +22,7 @@ const SECTIONS = [
     label: 'Operations',
     items: [
       { href: '/vendor/bookings', label: 'Bookings', Icon: CalendarCheck },
-      { href: '/vendor/calendar', label: 'Offline Booking', Icon: CalendarDays, neverActive: true },
+      { href: '/vendor/calendar?offline=1', label: 'Offline Booking', Icon: CalendarDays, neverActive: true },
       { href: '/vendor/games', label: 'Game Status', Icon: Gamepad2 },
       { href: '/vendor/payouts', label: 'Payouts & Settlements', Icon: Wallet },
     ],
@@ -54,6 +54,7 @@ const MOBILE_ITEMS = [
   { href: '/vendor/pricing', label: 'Pricing' },
   { href: '/vendor/payouts', label: 'Payouts' },
   { href: '/vendor/analytics', label: 'Analytics' },
+  { href: '/vendor/customers', label: 'Customers' },
   { href: '/vendor/staff', label: 'Staff' },
   { href: '/vendor/settings', label: 'Settings' },
 ];

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
+import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { requireVendor, isValidObjectId } from '@/lib/vendorAuth';
 import { bookingRef } from '@/lib/bookingRef';
@@ -13,7 +14,8 @@ export async function GET(request, { params }) {
     if (!isValidObjectId(params.id)) return NextResponse.json({ message: 'Invalid id.' }, { status: 400 });
 
     await dbConnect();
-    await releaseExpiredPendingBookings({ user: session.user.id });
+    const ownedVenues = await Venue.find({ owner: session.user.id }).select('_id').lean();
+    await releaseExpiredPendingBookings({ venue: { $in: ownedVenues.map(v => v._id) } });
 
     const booking = await Booking.findById(params.id)
       .populate('venue', 'name area city owner')

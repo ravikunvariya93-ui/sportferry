@@ -53,13 +53,13 @@ All handlers: JS, `NextResponse.json`. Auth via `auth()` from `lib/auth.js` (JWT
 | `/api/payments/webhook` | POST | Razorpay `payment.captured` — signature-verified with `RAZORPAY_WEBHOOK_SECRET` (503 until configured). Confirms the order's bookings, or **refunds** the payment when the 15-minute hold was already cleaned up. No other event is acted on |
 
 ## Pricing & blocked slots (added with the owner portal)
-- Both booking routes price each slot with `lib/pricing.js` → `hourlyRateFor(venue, date, startTime)` (peak > weekend > weekday, then the venue discount) — never a flat `pricePerHour`.
+- Both booking routes price each slot with `lib/pricing.js` → `hourlyRateFor(venue, date, startTime)` (peak > weekend > weekday, venue discount, then the best matching active `VendorOffer`) — never a flat `pricePerHour`. Checkout and venue detail load active/vendor offers onto `venue.offers` before pricing.
 - Both routes load the slot's blocked turfs (`lib/blockedSlots.js`) and pass them to `allocateBooking({ blockedTurfs })`, so a blocked turf is never assigned (409 when every turf is blocked).
 
 ## Additional routes (remaining mockups)
-**Vendor-only:** `GET /api/vendor/bookings/{id}` (owner-guarded detail + roster + timeline) · `GET /api/vendor/games` (player-fill) · `GET /api/vendor/payouts` (statement) · `GET/POST /api/vendor/{staff,offers,tickets}` · `PATCH/DELETE /api/vendor/{staff,offers}/{id}` · `GET/PATCH /api/vendor/settings` · `POST /api/vendor/otp/send` + `/api/vendor/otp/verify`.
+**Vendor-only:** `GET /api/vendor/bookings/{id}` (owner-guarded detail + roster + timeline) · `GET /api/vendor/games` (player-fill) · `GET /api/vendor/payouts` (statement) · `GET/POST /api/vendor/{staff,offers,tickets}` · `PATCH/DELETE /api/vendor/{staff,offers}/{id}` · `GET/PATCH /api/vendor/settings`.
 **Admin-only:** `GET/POST /api/admin/offers` + `PATCH/DELETE /api/admin/offers/{id}` · `GET/PATCH /api/admin/tickets` · `GET/PATCH /api/admin/settings` · `GET/POST /api/admin/staff` + `PATCH/DELETE /api/admin/staff/{id}` · `POST /api/admin/vendors` (creates VENDOR + first venue) · `POST /api/admin/users` · `GET /api/admin/reports?type=bookings|revenue|venues` → CSV · `GET /api/admin/payouts?format=csv` and `/api/admin/refunds?format=csv` → CSV.
-Shared pure helpers: `lib/gameStatus.js` (groupGames for vendor + admin), `lib/offers.js` (normalizeOffer), `lib/otp.js` (hash/verify with timingSafeEqual), `lib/cancelBooking.js` (applyCancellation used by admin bookings + games).
+Shared pure helpers: `lib/gameStatus.js` (groupGames for vendor + admin), `lib/offers.js` (normalizeOffer + rateWithOffers), `lib/cancelBooking.js` (applyCancellation used by admin bookings + games).
 
 ## Conventions
 - Status codes: 400 validation · 401 unauthenticated · 403 wrong role · 404 missing · 409 conflict (capacity/dup) · 500 with generic message (details only to console).

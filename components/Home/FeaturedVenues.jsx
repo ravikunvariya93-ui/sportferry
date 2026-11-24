@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MapPin, Star, LayoutGrid, ArrowRight } from 'lucide-react';
-import { discountPercentOf, discountedPrice } from '@/lib/pricing';
+import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
+import { istTodayISO } from '@/lib/ist';
 
 const CITY_KEY = 'sportferry_city';
 
@@ -16,8 +17,11 @@ function cityMatches(venueCity, selected) {
 function FeaturedCard({ venue }) {
   const rating = venue.rating || 0;
   const ratingColor = rating >= 4 ? '#16a34a' : rating > 0 ? '#d97706' : '#94a3b8';
-  const discount = discountPercentOf(venue);
-  const finalPrice = discountedPrice(venue.pricePerHour, discount);
+  const today = istTodayISO();
+  const slotStarts = Array.from({ length: 18 }, (_, i) => `${String(6 + i).padStart(2, '0')}:00`);
+  const finalPrice = Math.min(...slotStarts.map(start => hourlyRateFor(venue, today, start)));
+  const basePrice = Math.min(...slotStarts.map(start => baseHourlyRateFor(venue, today, start)));
+  const discount = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
 
   return (
     <Link
@@ -75,7 +79,7 @@ function FeaturedCard({ venue }) {
           <span style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)' }}>₹{finalPrice}</span>
             <span style={{ fontSize: 11, color: 'var(--muted)' }}>/hr</span>
-            {discount > 0 && <span style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{venue.pricePerHour}</span>}
+            {discount > 0 && <span style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{basePrice}</span>}
           </span>
         </div>
 

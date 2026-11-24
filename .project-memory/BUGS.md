@@ -58,7 +58,7 @@ A slot that passed without reaching 6 players could never confirm, yet only the 
 
 ## 🆕 Owner portal (from the `instructions/` mockups)
 ### O1 — Ground Owner portal + onboarding shipped 🟢
-Built the ground-owner side the mockups describe (light theme, 12% commission kept): Turf + BlockedSlot models, venue `pricing`/`documents`/`onboardingStatus`, per-day-type pricing in the booking money path, blocked-turf enforcement in `allocateBooking`, a vendor sidebar (Dashboard · Calendar & Slots · Grounds & Courts · Pricing & Rules · Payouts · Customers), and a public `/list-your-ground` → `/register?role=VENDOR` → `/vendor/onboarding` 5-step wizard with admin approve/reject. Not yet built (deferred): recurring bookings, special offers, analytics, staff & access, promotions, real SMS OTP, automated payouts.
+Built the ground-owner side the mockups describe (light theme, 12% commission kept): Turf + BlockedSlot models, venue `pricing`/`documents`/`onboardingStatus`, per-day-type pricing in the booking money path, blocked-turf enforcement in `allocateBooking`, a vendor sidebar (Dashboard · Calendar & Slots · Grounds & Courts · Pricing & Rules · Payouts · Customers), and a public `/list-your-ground` → `/register?role=VENDOR` → `/vendor/onboarding` 5-step wizard with admin approve/reject. Not yet built (deferred): recurring bookings, special offers, analytics, staff & access, promotions, phone/email verification, automated payouts.
 
 ## 🆕 Admin portal (from the `instructions/` mockups)
 ### A1 — Admin Portal expanded to the mockups 🟢
@@ -78,15 +78,45 @@ Built the 9 data-backed admin sections (Dashboard, Vendors + Vendor Details, Use
 - **A12 — Games PATCH input validation 🟢→fixed.** Validates venue ObjectId + date/slot format (400 instead of 500).
 
 ## 🆕 Remaining mockups built (R1)
-Owner: booking details + check-in (`/vendor/bookings/[id]`), Game Status with player avatars/spots/TEAM ONLY (`/vendor/games`), payout statement (`/vendor/payouts`), analytics (`/vendor/analytics`), repeat-customer directory, staff & access, settings/notifications/support tickets, recurring + special offers, Week/Month calendar views, and dev/email OTP verification in onboarding.
+Owner: booking details + check-in (`/vendor/bookings/[id]`), Game Status with player avatars/spots/TEAM ONLY (`/vendor/games`), payout statement (`/vendor/payouts`), analytics (`/vendor/analytics`), repeat-customer directory, staff & access, settings/notifications/support tickets, recurring + special offers, Week/Month calendar views.
 Admin: Promotions & Offers, Reports & Analytics (+ bookings/revenue/venues CSV, Settlement/Refund reports), Support & Tickets, Settings, Staff & Roles — all real screens replacing the stubs; Add Vendor / Add User dialogs.
 Player: light-theme hero "Don't have a team? Play with real players near you!", Solo/Team/Group cards, Booking Rules strip; Upcoming Games + Top Venues kept.
-Verified: 27 suites / 193 tests, lint clean, build compiled, all new pages/APIs 200 in a headless walkthrough, CSV endpoints return `text/csv`, CRUD round-trips succeeded, OTP send+verify succeeded in dev. All throwaway records deleted (users 0, venues 0).
+Verified: 27 suites / 193 tests, lint clean, build compiled, all new pages/APIs 200 in a headless walkthrough, CSV endpoints return `text/csv`, CRUD round-trips succeeded. All throwaway records deleted (users 0, venues 0).
+
+## 🆕 Booking audit fixes (C1–C7; reported in chat as B1–B7)
+- **C1 (money) — Offline walk-ins did not auto-confirm the turf.** `POST /api/bookings` now calls `autoConfirmIfReady` for each created slot inside the transaction, like every other fill path. Verified live: 5 paid holds + 1 walk-in on one turf → all 6 `CONFIRMED`.
+- **C2 (money) — A captured payment could be kept for a cancelled hold.** The webhook now refunds when an order has no live `PAYMENT_PENDING` booking (both the no-bookings and all-cancelled cases), and cancelling a `PAYMENT_PENDING` booking is rejected in the player and admin cancel routes. Verified live: locally signed webhook payloads with no hold / with a cancelled hold both took the refund branch; cancel of a payment-pending booking → 400.
+- **C3 (money) — Webhook could resurrect a cancelled booking.** It now re-reads `PAYMENT_PENDING` docs inside the transaction and claims each with a conditional `findOneAndUpdate` before flipping to `PENDING`.
+- **C4 — Verify signature comparison** (`verify/route.js:38`) now uses `crypto.timingSafeEqual`; signed-in bad signature → 400 (verified).
+- **C5 — Client price preview drift.** `VenueDetailClient` now uses the same `hourlyRateFor(venue, date, startTime)` as `create-order` for per-slot previews/totals; header shows "From ₹…".
+- **C6 — Razorpay order creation moved after capacity/block validation** inside the booking transaction, so a 409 no longer leaves an unused order.
+- **C7 — Availability no longer advertises past `PAYMENT_PENDING` holds** (all non-confirmed past bookings are filtered). Verified live: stale 22:00 hold absent from the day's slot stats.
+Tests 27/193, lint clean, build compiled; all fixture records deleted (ZZ users 0, ZZ venues 0).
+
+## 🆕 Vendor end-to-end audit (V1–V12; all fixed)
+- **V1 (money) — Withdrawal ignored settled payout batches.** `app/api/vendor/withdrawals/route.js` subtracted only withdrawals, so an admin settlement still left the full balance withdrawable. `lib/payouts.js` now has one `settledAmountForVendor` helper (completed/processing batches + pending/processing/completed withdrawals) used by vendor payouts, withdrawals, earnings and admin payables. Verified live: ₹10,000 online booking, ₹8,800 settled batch → `payable 0`, withdrawal returned 400.
+- **V2 (money) — IST month for withdrawals** now comes from `istTodayISO()` instead of server-local `getMonth()`.
+- **V3 (money) — Unpaid `PAYMENT_PENDING` holds could be approved** as CONFIRMED by vendor/admin. Both PATCH routes now reject it; verified live 400.
+- **V4 (money) — Cancellations had no atomic claim.** Vendor/player, admin bookings and admin games now claim the booking with a conditional `findOneAndUpdate` before executing a refund, so concurrent requests cannot double-refund.
+- **V5 — Ticket check-in** now uses a conditional claim (`CONFIRMED` + no `checkedInAt`) and an anchored ID regex; verified live: first check-in CHECKED_IN, second ALREADY_USED, embedded 24-hex code INVALID.
+- **V7 — Re-onboarding a live venue** was rejected in the API and replaced with a "Your ground is live" screen in the UI; it no longer wipes turfs or delists the venue.
+- **V8 — Offers now change the price.** `rateWithOffers` (`lib/offers.js`) applies the best matching active recurring/special offer inside `hourlyRateFor`; checkout and the venue page load `venue.offers`. Verified live: 20% offer changed ₹1200 → ₹960 on the venue page.
+- **V9 — Blocks can no longer be backdated or overwrite booked slots** (400/409).
+- **V10 — Malformed dates/ids returned 500** on availability, popularity, games, blocks, venue detail, offline booking and checkout; they now return 400 via `isValidDateISO`/`isValidObjectId`. Verified live for seven inputs.
+- **V11 — Validation drift:** staff PATCH role enum and offline booking classification now 400; past-start slots are rejected by both booking paths.
+- **V12 — UI consistency:** offline-booking success copy says "Walk-in Booked!" (was "Slot Blocked!"), Game Status opens the tab that has games, and vendor booking detail scopes expired-hold cleanup to owned venues.
+- Tests 27/199, lint clean; all throwaway users/venues/turfs/bookings/batches/offers deleted.
+
+## 🆕 Final polish (V13–V16; all fixed)
+- **V13 — Rate limiter is now shared.** `lib/rateLimit.js` → `sharedRateLimit` uses one atomic MongoDB `ratelimits` update, and all six API callers await it. Verified live: six forgot-password attempts returned 200, the next two returned 429 with a persisted counter. The in-memory `rateLimit` remains only for unit tests.
+- **V14 — Listing prices were base rates.** Home and Explore now load active vendor/platform offers (`lib/venueOffers.js`) and show the cheapest effective rate from `hourlyRateFor`, with strike-through and %-off derived from the base rate. Verified live with a 20% offer: Tonight's Games, Featured Venues and Explore cards all showed ₹960 against ₹1200.
+- **V15 — Lint/tooling:** the `VenueDetailClient` exhaustive-deps warning is gone; `RAZORPAY_WEBHOOK_SECRET` is present locally (webhook returns 400, not 503). The Razorpay dashboard still needs the URL and secret (below).
+- **V16 — Phone OTP removed at request.** Deleted `/api/vendor/otp/{send,verify}`, `lib/otp.js` + test, the wizard's Send OTP/Verify controls and the `phoneOtp*` / `phoneVerified` User fields; `lib/email.js` now only sends password-reset mail. Phone number is still saved as a plain contact field. Email verification never existed as a flow.
+- Tests 27/199, lint clean (only pre-existing `<img>` warnings).
 
 ## ⚠️ Still open (not code bugs — they need a decision or infra)
 
-1. **The rate limiter is per-process** (`lib/rateLimit.js`). It resets on deploy and does nothing across instances, so on serverless hosting the registration/upload limits are weak. Fixing it properly needs a shared store (Upstash Redis or a TTL-indexed Mongo collection).
-2. **Email addresses are never verified.** Registration accepts any well-formed address, so an account can be registered with someone else's email. That is what made the Google-account takeover possible, and it also makes "forgot password" a way to probe accounts. Fixing it needs a mail provider.
-3. **The webhook secret must be configured** — set `RAZORPAY_WEBHOOK_SECRET` and point the Razorpay dashboard at `/api/payments/webhook`, otherwise the endpoint answers 503 and confirmations still depend on the browser returning after checkout.
-4. **`tailwind-merge` is installed but Tailwind is not configured** (harmless dead dependency; removing it churns the lockfile).
-5. **`/players` and `/tournaments` render sample data** with no API behind them — prototypes, labelled as such in the docs.
+1. **Email verification is deliberately deferred (no code to remove).** Registration accepts any well-formed address; Google sign-in links to an existing account with the same email. The only verification flow that existed — vendor phone OTP — was removed along with its API routes, helper and model fields. `lib/email.js` now only sends password-reset emails.
+2. **The Razorpay dashboard must point at `https://sportferry.com/api/payments/webhook`** with the same secret already in `.env.local`; until then `payment.captured` confirmations still depend on the browser returning after checkout.
+3. **`tailwind-merge` is installed but Tailwind is not configured** (harmless dead dependency; removing it churns the lockfile).
+4. **`/players` and `/tournaments` render sample data** with no API behind them — prototypes, labelled as such in the docs.

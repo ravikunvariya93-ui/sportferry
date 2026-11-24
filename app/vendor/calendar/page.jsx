@@ -6,7 +6,7 @@ import CalendarClient from './CalendarClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function VendorCalendarPage() {
+export default async function VendorCalendarPage({ searchParams }) {
   const session = await auth();
   if (!session || session.user?.role !== 'VENDOR') redirect('/login');
 
@@ -15,5 +15,5 @@ export default async function VendorCalendarPage() {
 
   const mapped = venues.map(v => ({ id: v.id, name: v.name, sportTypes: v.sportTypes, turfs: v.turfs || [] }));
 
-  return <CalendarClient venues={mapped} initialDate={istTodayISO()} />;
+  return <CalendarClient venues={mapped} initialDate={istTodayISO()} openOffline={searchParams?.offline === '1'} />;
 }

@@ -7,7 +7,7 @@ import User from '@/models/User';
 import { auth } from '@/lib/auth';
 import { requireVendor } from '@/lib/vendorAuth';
 import { COMMISSION_PERCENT } from '@/lib/constants';
-import { commissionOf } from '@/lib/payouts';
+import { commissionOf, settledAmountForVendor } from '@/lib/payouts';
 
 export async function GET(request) {
   try {
@@ -26,8 +26,7 @@ export async function GET(request) {
     const gross = mine.reduce((s, b) => s + (b.totalAmount || 0), 0);
     const commission = commissionOf(gross, COMMISSION_PERCENT);
     const net = gross - commission;
-    const settled = withdrawals.filter(w => w.status === 'COMPLETED').reduce((s, w) => s + (w.netAmount || 0), 0)
-      + batches.filter(b => ['COMPLETED', 'PROCESSING'].includes(b.status)).reduce((s, b) => s + (b.settledAmount || b.net || 0), 0);
+    const settled = settledAmountForVendor({ withdrawals, batches });
 
     return NextResponse.json({
       kpis: { gross, commission, net, settled, payable: Math.max(0, net - settled), commissionPercent: COMMISSION_PERCENT },

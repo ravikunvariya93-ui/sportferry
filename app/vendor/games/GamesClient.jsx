@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Gamepad2, RefreshCw, Users, ShieldCheck } from 'lucide-react';
 import { IST_OFFSET_MS } from '@/lib/ist';
@@ -15,6 +15,8 @@ export default function GamesClient() {
   const todayISO = new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
   const [date, setDate] = useState(todayISO);
   const [tab, setTab] = useState('FILLING');
+  const tabTouched = useRef(false);
+  const selectTab = (next) => { tabTouched.current = true; setTab(next); };
   const [data, setData] = useState({ games: [], counts: {} });
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +30,11 @@ export default function GamesClient() {
   }, [date]);
 
   useEffect(() => { const c = new AbortController(); load(c.signal); return () => c.abort(); }, [load]);
+
+  useEffect(() => {
+    if (tabTouched.current || loading || tab !== 'FILLING') return;
+    if (!data.games.some(g => g.status === 'FILLING') && (data.counts?.CONFIRMED || 0) > 0) setTab('CONFIRMED');
+  }, [data, loading, tab]);
 
   const rows = data.games.filter((g) => {
     if (tab === 'CONFIRMED') return g.status === 'CONFIRMED';
@@ -50,7 +57,7 @@ export default function GamesClient() {
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: '9px 18px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', background: tab === t.key ? 'var(--primary)' : 'var(--secondary)', color: tab === t.key ? 'white' : 'var(--foreground)', border: `1px solid ${tab === t.key ? 'var(--primary)' : 'var(--glass-border)'}` }}>
+          <button key={t.key} onClick={() => selectTab(t.key)} style={{ padding: '9px 18px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', background: tab === t.key ? 'var(--primary)' : 'var(--secondary)', color: tab === t.key ? 'white' : 'var(--foreground)', border: `1px solid ${tab === t.key ? 'var(--primary)' : 'var(--glass-border)'}` }}>
             {t.label} ({data.counts?.[t.key] ?? 0})
           </button>
         ))}

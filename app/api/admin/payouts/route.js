@@ -6,7 +6,7 @@ import Withdrawal from '@/models/Withdrawal';
 import PayoutBatch from '@/models/PayoutBatch';
 import { auth, hasRole } from '@/lib/auth';
 import { COMMISSION_PERCENT } from '@/lib/constants';
-import { computeVendorPayables } from '@/lib/payouts';
+import { computeVendorPayables, settledAmountForVendor } from '@/lib/payouts';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 
 async function requireAdmin() {
@@ -23,21 +23,22 @@ async function pendingPayables() {
     .lean();
 
   const [batches, withdrawals, users] = await Promise.all([
-    PayoutBatch.find({ status: { $in: ['COMPLETED', 'PROCESSING'] } }).select('vendor net settledAmount').lean(),
-    Withdrawal.find({ status: 'COMPLETED' }).select('vendor netAmount').lean(),
+    PayoutBatch.find({}).select('vendor net settledAmount status').lean(),
+    Withdrawal.find({}).select('vendor netAmount status').lean(),
     User.find({ role: 'VENDOR' }).select('name email bankDetails').lean(),
   ]);
 
   const settledByVendor = {};
-  for (const b of batches) {
-    const k = b.vendor.toString();
-    // What was actually paid; fall back to `net` for batches created before
-    // `settledAmount` existed.
-    settledByVendor[k] = (settledByVendor[k] || 0) + (b.settledAmount || b.net || 0);
-  }
-  for (const w of withdrawals) {
-    const k = w.vendor.toString();
-    settledByVendor[k] = (settledByVendor[k] || 0) + (w.netAmount || 0);
+  const vendorIds = new Set([
+    ...batches.map(b => b.vendor?.toString()),
+    ...withdrawals.map(w => w.vendor?.toString()),
+  ]);
+  for (const vendorId of vendorIds) {
+    if (!vendorId) continue;
+    settledByVendor[vendorId] = settledAmountForVendor({
+      batches: batches.filter(b => b.vendor?.toString() === vendorId),
+      withdrawals: withdrawals.filter(w => w.vendor?.toString() === vendorId),
+    });
   }
 
   const userMap = {};

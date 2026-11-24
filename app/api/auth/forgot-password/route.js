@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { escapeRegex } from '@/lib/validation';
-import { rateLimit, clientIp } from '@/lib/rateLimit';
+import { sharedRateLimit as rateLimit, clientIp } from '@/lib/rateLimit';
 import { sendPasswordResetEmail } from '@/lib/email';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -11,7 +11,7 @@ const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 export async function POST(request) {
   try {
-    const rl = rateLimit(`forgot:${clientIp(request)}`, { limit: 5, windowMs: 15 * 60 * 1000 });
+    const rl = await rateLimit(`forgot:${clientIp(request)}`, { limit: 5, windowMs: 15 * 60 * 1000 });
     if (!rl.ok) {
       return NextResponse.json({ message: 'Too many attempts. Please try again later.' }, { status: 429 });
     }

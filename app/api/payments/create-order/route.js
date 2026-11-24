@@ -2,18 +2,19 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
+import VendorOffer from '@/models/VendorOffer';
 import User from '@/models/User';
 import { auth } from '@/lib/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import { getISTDayRange, istTodayISO, parseBookableSlot } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, parseBookableSlot, isSlotPast, isValidDateISO } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
 import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
 import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { hourlyRateFor } from '@/lib/pricing';
 import { blockedTurfsInSlot } from '@/lib/blockedSlots';
-import { rateLimit } from '@/lib/rateLimit';
+import { sharedRateLimit as rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'You must be logged in to book.' }, { status: 401 });
     }
 
-    const rl = rateLimit(`create-order:${authSession.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
+    const rl = await rateLimit(`create-order:${authSession.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
     if (!rl.ok) {
       return NextResponse.json(
         { message: 'Too many booking attempts. Please try again later.' },
@@ -70,6 +71,11 @@ export async function POST(request) {
     if (!venue) {
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
+    const offers = await VendorOffer.find({
+      $or: [{ vendor: venue.owner }, { vendor: null }],
+      active: true,
+    }).lean();
+    const pricedVenue = { ...venue, offers };
 
     const turfCount = turfCountOf(venue.numberOfTurfs);
 
@@ -85,13 +91,13 @@ export async function POST(request) {
     for (const c of cells) {
       // A bookable slot is one 1-hour slot inside the venue's grid.
       const times = parseBookableSlot(c.slot);
-      if (!times || !/^\d{4}-\d{2}-\d{2}$/.test(c.date)) {
+      if (!times || !isValidDateISO(c.date)) {
         return NextResponse.json({ message: `Invalid date/slot: ${c.date} ${c.slot}` }, { status: 400 });
       }
       // Past dates are rejected against the IST calendar day, not the
       // server's local midnight (which broke same-day bookings on some hosts).
-      if (c.date < todayISO) {
-        return NextResponse.json({ message: 'Cannot book for a past date.' }, { status: 400 });
+      if (c.date < todayISO || isSlotPast(c.date, times.startTime)) {
+        return NextResponse.json({ message: 'Cannot book a slot that has already started.' }, { status: 400 });
       }
       const [year, month, day] = c.date.split('-').map(Number);
       parsedCells.push({
@@ -121,7 +127,7 @@ export async function POST(request) {
     // Server-authoritative per-player price for each cell (weekday/weekend/peak),
     // with the venue's discount applied.
     const totalAmount = parsedCells.reduce(
-      (s, pc) => s + hourlyRateFor(venue, pc.dateStr, pc.startTime) * pc.playersCount,
+      (s, pc) => s + hourlyRateFor(pricedVenue, pc.dateStr, pc.startTime) * pc.playersCount,
       0
     );
 
@@ -141,7 +147,9 @@ export async function POST(request) {
       receipt: `rcpt_${Date.now()}`,
     };
 
-    const order = await razorpay.orders.create(options);
+    // The order is created only after all slot/capacity checks pass (inside the
+    // transaction below), so a 409 does not leave an unpaid Razorpay order.
+    let order = null;
 
     // 2. Create PAYMENT_PENDING bookings (one per date+slot cell).
     //    The slot lock makes two bookings for the same slot collide instead of
@@ -161,6 +169,10 @@ export async function POST(request) {
         }
 
         const created = [];
+        const allocations = [];
+
+        // Validate every cell first — no payment order is created if any slot
+        // is full, blocked or reserved for another team.
         for (const times of parsedCells) {
           // Capacity Check (Atomic within Transaction) — per date+slot
           const existingBookings = await Booking.find({
@@ -193,9 +205,15 @@ export async function POST(request) {
             throw new BookingError(reason || messages[allocation.error] || 'Slot unavailable.', 409);
           }
 
-          const unitPrice = hourlyRateFor(venue, times.dateStr, times.startTime);
+          const unitPrice = hourlyRateFor(pricedVenue, times.dateStr, times.startTime);
           const commissionAmount = Math.round((unitPrice * times.playersCount) * COMMISSION_PERCENT / 100);
+          allocations.push({ times, allocation, unitPrice, commissionAmount });
+        }
 
+        // All slots passed — now ask Razorpay for an order.
+        order = await razorpay.orders.create(options);
+
+        for (const { times, allocation, unitPrice, commissionAmount } of allocations) {
           const booking = await Booking.create([{
             venue: venueId,
             user: authSession.user.id,

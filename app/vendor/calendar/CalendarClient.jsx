@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CalendarDays, Ban, Lock, Info } from 'lucide-react';
 import { istTodayISO } from '@/lib/ist';
 import { STATUS_STYLES, CALENDAR_LEGEND } from '@/lib/calendarStatus';
@@ -15,7 +16,8 @@ function shiftDate(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 
-export default function CalendarClient({ venues, initialDate }) {
+export default function CalendarClient({ venues, initialDate, openOffline = false }) {
+  const router = useRouter();
   const today = istTodayISO();
   const [venueId, setVenueId] = useState(venues[0]?.id || '');
   const [date, setDate] = useState(initialDate || today);
@@ -48,6 +50,7 @@ export default function CalendarClient({ venues, initialDate }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelected(null); }, [venueId, date]);
+  useEffect(() => { if (openOffline) setShowOffline(true); }, [openOffline]);
 
   // Week / Month views fetch the day grids for the visible dates and summarise them.
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function CalendarClient({ venues, initialDate }) {
           initialVenueId={venueId}
           initialDate={date}
           initialSlot={selected?.slot}
-          onClose={() => { setShowOffline(false); load(); }}
+          onClose={() => { setShowOffline(false); if (openOffline) router.replace('/vendor/calendar'); load(); }}
         />
       )}
       {showBlock && venue && (

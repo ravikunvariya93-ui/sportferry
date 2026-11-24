@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Turf from '@/models/Turf';
+import Booking from '@/models/Booking';
 import User from '@/models/User';
 import { auth } from '@/lib/auth';
 import { syncVenueTurfCount } from '@/lib/turfs';
@@ -31,6 +32,12 @@ export async function POST(request) {
     if (body.venueId) {
       existing = await ownedVenue(session, body.venueId, { lean: false });
       if (!existing) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+      // Re-submitting a live venue would replace its turfs (breaking booked turf
+      // indexes) and send it back to PENDING, delisting it from Explore.
+      const booked = await Booking.countDocuments({ venue: existing._id });
+      if (booked || existing.onboardingStatus === 'ACTIVE') {
+        return NextResponse.json({ message: 'This venue is already live. Use Grounds & Courts and Pricing & Rules to edit it.' }, { status: 409 });
+      }
     }
 
     let venueDoc;
@@ -50,7 +57,7 @@ export async function POST(request) {
       await User.updateOne({ _id: session.user.id }, { $set: { bankDetails: bank } });
     }
 
-    return NextResponse.json({ venueId: venueDoc._id.toString(), onboardingStatus: 'PENDING' }, { status: 201 });
+    return NextResponse.json({ venueId: venueDoc._id.toString(), onboardingStatus: venueDoc.onboardingStatus }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/vendor/onboarding]', error);
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 });

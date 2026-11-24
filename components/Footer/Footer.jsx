@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Instagram, Twitter, Facebook, Mail, MapPin, Phone } from 'lucide-react';
+import { Mail, MapPin, Phone } from 'lucide-react';
 import styles from './Footer.module.css';
 
 export default function Footer() {
@@ -14,21 +14,16 @@ export default function Footer() {
           <p className={styles.desc}>
             Simplifying sports venue bookings. Discover, book, and play at the best turfs and courts in your city.
           </p>
-          <div className={styles.socials}>
-            <a href="#" className={styles.socialLink}><Instagram size={20} /></a>
-            <a href="#" className={styles.socialLink}><Twitter size={20} /></a>
-            <a href="#" className={styles.socialLink}><Facebook size={20} /></a>
-          </div>
         </div>
 
         {/* Support */}
         <div>
           <h3 className={styles.colTitle}>Support</h3>
           <ul className={styles.list}>
-            <li><Link href="#" className={styles.link}>Privacy Policy</Link></li>
-            <li><Link href="#" className={styles.link}>Terms of Service</Link></li>
-            <li><Link href="#" className={styles.link}>Cancellation Policy</Link></li>
-            <li><Link href="#" className={styles.link}>Help Center</Link></li>
+            <li><Link href="/privacy-policy" className={styles.link}>Privacy Policy</Link></li>
+            <li><Link href="/terms-of-service" className={styles.link}>Terms of Service</Link></li>
+            <li><Link href="/cancellation-policy" className={styles.link}>Cancellation Policy</Link></li>
+            <li><Link href="/help-center" className={styles.link}>Help Center</Link></li>
             <li><Link href="/instructions" className={styles.link}>Instructions</Link></li>
           </ul>
         </div>

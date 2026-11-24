@@ -4,12 +4,12 @@ import Booking from '@/models/Booking';
 import { auth, hasRole } from '@/lib/auth';
 import { istTodayISO, slotStartInstant } from '@/lib/ist';
 
-const ID_RE = /[a-f0-9]{24}/i;
+const ID_RE = /^[a-f0-9]{24}$/i;
 
 function parseBookingId(code) {
   if (!code) return null;
-  const match = String(code).trim().match(ID_RE);
-  return match ? match[0] : null;
+  const value = String(code).trim();
+  return ID_RE.test(value) ? value : null;
 }
 
 export async function POST(request) {
@@ -99,12 +99,19 @@ export async function POST(request) {
       if (booking.checkedInAt) {
         return NextResponse.json({ ok: false, verdict: 'ALREADY_USED', message: 'This ticket was already checked in.', booking: payload });
       }
-      await Booking.updateOne({ _id: booking._id }, { $set: { checkedInAt: new Date() } });
+      const checkedIn = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: 'CONFIRMED', checkedInAt: { $exists: false } },
+        { $set: { checkedInAt: now } },
+        { new: true }
+      ).lean();
+      if (!checkedIn) {
+        return NextResponse.json({ ok: false, verdict: 'ALREADY_USED', message: 'This ticket was already checked in or is no longer valid.', booking: payload });
+      }
       return NextResponse.json({
         ok: true,
         verdict: 'CHECKED_IN',
         message: 'Checked in. Have a great game!',
-        booking: { ...payload, checkedInAt: new Date().toISOString() },
+        booking: { ...payload, checkedInAt: now.toISOString() },
       });
     }
 

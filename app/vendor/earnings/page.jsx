@@ -2,6 +2,8 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
+import PayoutBatch from '@/models/PayoutBatch';
+import { settledAmountForVendor } from '@/lib/payouts';
 import { loadVendorData } from '@/lib/vendorData';
 import RequestWithdrawalButton from './RequestWithdrawalButton';
 
@@ -32,12 +34,13 @@ export default async function VendorEarningsPage() {
   const { earnings } = await loadVendorData(session.user.id);
 
   await dbConnect();
-  const withdrawals = await Withdrawal.find({ vendor: session.user.id }).sort({ createdAt: -1 }).lean();
+  const [withdrawals, batches] = await Promise.all([
+    Withdrawal.find({ vendor: session.user.id }).sort({ createdAt: -1 }).lean(),
+    PayoutBatch.find({ vendor: session.user.id }).lean(),
+  ]);
 
-  const alreadyWithdrawn = withdrawals
-    .filter(w => ['COMPLETED', 'PROCESSING', 'PENDING'].includes(w.status))
-    .reduce((s, w) => s + (w.netAmount || 0), 0);
-  const available = Math.max(0, earnings.net - alreadyWithdrawn);
+  const settled = settledAmountForVendor({ withdrawals, batches });
+  const available = Math.max(0, earnings.net - settled);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

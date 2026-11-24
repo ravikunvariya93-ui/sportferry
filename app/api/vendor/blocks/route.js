@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import BlockedSlot from '@/models/BlockedSlot';
+import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
-import { parseBookableSlot } from '@/lib/ist';
+import { parseBookableSlot, isValidDateISO, istTodayISO, istDateToUTC } from '@/lib/ist';
 import { blocksForDate } from '@/lib/blockedSlots';
 import { turfCountOf } from '@/lib/capacity';
 import { requireVendor, ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
@@ -20,7 +21,7 @@ export async function GET(request) {
     await dbConnect();
     const venue = await ownedVenue(session, searchParams.get('venueId'));
     if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
-    if (!date) return NextResponse.json({ message: 'date is required.' }, { status: 400 });
+    if (!isValidDateISO(date)) return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
 
     const blocks = await blocksForDate(venue._id, date);
     return NextResponse.json({
@@ -44,8 +45,8 @@ export async function POST(request) {
     const turf = Math.max(1, Math.floor(Number(body.turf)) || 1);
 
     const times = parseBookableSlot(slot);
-    if (!times || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
-      return NextResponse.json({ message: 'A valid date and 1-hour slot are required.' }, { status: 400 });
+    if (!times || !isValidDateISO(date) || date < istTodayISO()) {
+      return NextResponse.json({ message: 'A valid present or future date and 1-hour slot are required.' }, { status: 400 });
     }
 
     await dbConnect();
@@ -53,6 +54,18 @@ export async function POST(request) {
     if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     if (turf > turfCountOf(venue.numberOfTurfs)) {
       return NextResponse.json({ message: 'That turf does not exist at this venue.' }, { status: 400 });
+    }
+
+    const booked = await Booking.countDocuments({
+      venue: venue._id,
+      turf,
+      date: istDateToUTC(date),
+      startTime: times.startTime,
+      endTime: times.endTime,
+      status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
+    });
+    if (booked) {
+      return NextResponse.json({ message: 'Cancel the existing booking on this turf and slot before blocking it.' }, { status: 409 });
     }
 
     const block = await BlockedSlot.create({

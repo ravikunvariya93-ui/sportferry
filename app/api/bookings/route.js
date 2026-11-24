@@ -4,11 +4,12 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import crypto from 'crypto';
-import { getISTDayRange, istTodayISO, parseBookableSlot } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, parseBookableSlot, isSlotPast, isValidDateISO } from '@/lib/ist';
 import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/lib/bookingTransactions';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { blockedTurfsInSlot } from '@/lib/blockedSlots';
+import { autoConfirmIfReady } from '@/lib/booking-utils';
 
 export async function POST(request) {
   try {
@@ -36,6 +37,12 @@ export async function POST(request) {
     // 1. Basic Validation
     if (!venueId || !date || slotList.length === 0 || !sport || !classification) {
       return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
+    }
+    if (!['SOLO', 'TEAM', 'GROUP'].includes(classification)) {
+      return NextResponse.json({ message: 'Invalid classification.' }, { status: 400 });
+    }
+    if (!isValidDateISO(date)) {
+      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
     }
 
     // This endpoint is reserved for OFFLINE (walk-in) blocks only. Online bookings
@@ -72,6 +79,9 @@ export async function POST(request) {
       const times = parseBookableSlot(s);
       if (!times) {
         return NextResponse.json({ message: `Invalid slot: ${s}. Only 1-hour slots between 06:00 and 23:00 can be booked.` }, { status: 400 });
+      }
+      if (isSlotPast(date, times.startTime)) {
+        return NextResponse.json({ message: 'That slot has already started. Choose a future slot.' }, { status: 400 });
       }
       parsedSlots.push(times);
     }
@@ -173,6 +183,10 @@ export async function POST(request) {
             offlineCustomerName: offlineCustomerName || 'Manual Block',
             offlineCustomerPhone: offlineCustomerPhone || undefined,
           }], { session });
+
+          // A walk-in counts toward the turf's match — confirm any paid online
+          // bookings that this offline booking just filled up.
+          await autoConfirmIfReady(venueId, bookingDate, times.startTime, times.endTime, allocation.turf, session);
 
           created.push(booking[0]);
         }

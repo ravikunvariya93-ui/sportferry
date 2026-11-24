@@ -3,7 +3,8 @@
 import React from 'react';
 import { MapPin, Star, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { discountPercentOf, discountedPrice } from '@/lib/pricing';
+import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
+import { istTodayISO } from '@/lib/ist';
 
 const SPORT_COLORS = {
   'Box Cricket':        '#16a34a',
@@ -20,8 +21,11 @@ export default function VenueCard({ venue, showBookedCount = true }) {
   const rating = venue.rating || 0;
   const ratingColor = rating >= 4 ? '#16a34a' : rating > 0 ? '#d97706' : '#94a3b8';
   const sportTypes = venue.sportTypes || [];
-  const discount = discountPercentOf(venue);
-  const finalPrice = discountedPrice(venue.pricePerHour, discount);
+  const today = istTodayISO();
+  const slotStarts = Array.from({ length: 18 }, (_, i) => `${String(6 + i).padStart(2, '0')}:00`);
+  const finalPrice = Math.min(...slotStarts.map(start => hourlyRateFor(venue, today, start)));
+  const basePrice = Math.min(...slotStarts.map(start => baseHourlyRateFor(venue, today, start)));
+  const discountPct = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
 
   return (
     <Link href={`/venue/${venue.id}`} style={{ textDecoration: 'none', display: 'block' }}>
@@ -116,13 +120,13 @@ export default function VenueCard({ venue, showBookedCount = true }) {
           </div>
 
           {/* Discount badge — bottom right */}
-          {discount > 0 && (
+          {discountPct > 0 && (
             <div style={{
               position: 'absolute', bottom: '12px', right: '12px',
               background: '#ef4444', color: 'white', padding: '4px 10px', borderRadius: '100px',
               fontSize: '12px', fontWeight: '800', letterSpacing: '0.2px',
             }}>
-              {discount}% OFF
+              {discountPct}% OFF
             </div>
           )}
         </div>
@@ -147,8 +151,8 @@ export default function VenueCard({ venue, showBookedCount = true }) {
             <div>
               <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)' }}>₹{finalPrice}</span>
               <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>/hr</span>
-              {discount > 0 && (
-                <span style={{ fontSize: '13px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{venue.pricePerHour}</span>
+              {finalPrice < basePrice && (
+                <span style={{ fontSize: '13px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{basePrice}</span>
               )}
             </div>
             <div style={{

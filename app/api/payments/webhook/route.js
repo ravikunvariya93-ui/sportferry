@@ -12,9 +12,18 @@ import { refundPayment, fetchPayment } from '@/lib/razorpay';
  * The browser flow (`/api/payments/verify`) confirms a booking when the
  * player comes back after checkout. This endpoint covers the case where they
  * never do: Razorpay tells us the payment was captured and we confirm the
- * booking ourselves. It also covers the case where the 15-minute hold was
- * cleaned up before the player paid — then the money is refunded.
+ * booking ourselves. If there is no live hold to attach it to, the money is
+ * refunded rather than kept.
  */
+
+async function refundCapturedPayment(paymentId, amount) {
+  const current = await fetchPayment(paymentId);
+  const alreadyRefunded = current.ok && current.payment?.refund_status && current.payment.refund_status !== 'none';
+  if (alreadyRefunded) return { ok: true, action: 'already-refunded' };
+  const result = await refundPayment(paymentId, amount);
+  return { ok: result.ok, action: result.ok ? 'refunded' : 'refund-failed', error: result.error };
+}
+
 export async function POST(request) {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!secret) {
@@ -47,42 +56,55 @@ export async function POST(request) {
 
   await dbConnect();
 
-  const bookings = await Booking.find({ razorpayOrderId: orderId });
-
-  if (bookings.length === 0) {
-    // The hold expired and the booking was cleaned up — but the player paid.
-    // Give the money back instead of keeping it.
+  // Cheap existence check outside the transaction to decide the no-hold case;
+  // the actual status decision is re-read inside the transaction below.
+  const hasAnyBooking = await Booking.exists({ razorpayOrderId: orderId });
+  if (!hasAnyBooking) {
     const current = await fetchPayment(paymentId);
-    const alreadyRefunded = current.ok && current.payment?.refund_status && current.payment.refund_status !== 'none';
-    if (alreadyRefunded) {
-      return NextResponse.json({ ok: true, action: 'already-refunded' });
-    }
     const amount = (payment.amount || current.payment?.amount || 0) / 100;
-    const result = await refundPayment(paymentId, amount);
+    const result = await refundCapturedPayment(paymentId, amount);
     return NextResponse.json(
-      { ok: true, action: result.ok ? 'refunded' : 'refund-failed', error: result.error },
+      { ok: result.ok, action: result.action, error: result.error },
       { status: result.ok ? 200 : 502 }
     );
-  }
-
-  const pending = bookings.filter(b => b.status === 'PAYMENT_PENDING');
-  if (pending.length === 0) {
-    // Already confirmed by the browser flow or by an earlier webhook.
-    return NextResponse.json({ ok: true, action: 'already-handled' });
   }
 
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    for (const booking of pending) {
-      booking.status = 'PENDING';
-      booking.paymentId = paymentId;
-      await booking.save({ session });
-      await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, booking.turf, session);
+    // Re-read with the transaction so a cancellation between the webhook
+    // arriving and this point cannot be overwritten by a stale document.
+    const pending = await Booking.find({ razorpayOrderId: orderId, status: 'PAYMENT_PENDING' }).session(session);
+
+    if (pending.length === 0) {
+      // All holds were cancelled, confirmed or expired — never keep the money.
+      await session.commitTransaction();
+      session.endSession();
+      const current = await fetchPayment(paymentId);
+      const amount = (payment.amount || current.payment?.amount || 0) / 100;
+      const result = await refundCapturedPayment(paymentId, amount);
+      return NextResponse.json(
+        { ok: result.ok, action: result.action, error: result.error },
+        { status: result.ok ? 200 : 502 }
+      );
     }
+
+    let confirmed = 0;
+    for (const booking of pending) {
+      // Conditional claim: if another request changed the status, skip it.
+      const updated = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: 'PAYMENT_PENDING' },
+        { $set: { status: 'PENDING', paymentId } },
+        { session, new: true }
+      );
+      if (!updated) continue;
+      await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, booking.turf, session);
+      confirmed += 1;
+    }
+
     await session.commitTransaction();
     session.endSession();
-    return NextResponse.json({ ok: true, action: 'confirmed', count: pending.length });
+    return NextResponse.json({ ok: true, action: 'confirmed', count: confirmed });
   } catch (err) {
     await session.abortTransaction();
     session.endSession();

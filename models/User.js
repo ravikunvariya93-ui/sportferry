@@ -29,10 +29,6 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  // Phone OTP (hashed; the raw code is never stored).
-  phoneOtpHash: { type: String, default: '' },
-  phoneOtpExpires: { type: Date, default: null },
-  phoneVerified: { type: Boolean, default: false },
   phone: {
     type: String,
   },

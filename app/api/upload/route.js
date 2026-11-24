@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { auth, hasRole } from '@/lib/auth';
-import { rateLimit } from '@/lib/rateLimit';
+import { sharedRateLimit as rateLimit } from '@/lib/rateLimit';
 
 const MAX_FILES = 6;
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB per file
@@ -13,7 +13,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Only vendors can upload images.' }, { status: 401 });
     }
 
-    const rl = rateLimit(`upload:${session.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
+    const rl = await rateLimit(`upload:${session.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
     if (!rl.ok) {
       return NextResponse.json({ message: 'Too many uploads. Please try again later.' }, { status: 429 });
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { getISTDayRange, formatToAMPM, isSlotPast } from '@/lib/ist';
+import { getISTDayRange, formatToAMPM, isSlotPast, isValidDateISO } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
 import { blocksForDate } from '@/lib/blockedSlots';
 import { auth } from '@/lib/auth';
@@ -19,8 +19,8 @@ export async function GET(request, { params }) {
     const date = searchParams.get('date');
     const venueId = params.id;
 
-    if (!date) {
-      return NextResponse.json({ message: 'Date parameter is required.' }, { status: 400 });
+    if (!isValidDateISO(date)) {
+      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
     }
     if (!OBJECT_ID_RE.test(String(venueId || ''))) {
       return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
@@ -48,13 +48,13 @@ export async function GET(request, { params }) {
     .select('startTime endTime status playersCount teamSide classification turf user offlineCustomerName date')
     .lean();
 
-    // Post-filter: drop PENDING bookings whose slot has already started (IST-aware,
-    // independent of the server's timezone).
+    // Post-filter: drop every hold whose slot has already started (IST-aware).
+    // Confirmed bookings stay visible as history; stale PAYMENT_PENDING holds
+    // must not keep a past slot looking occupied.
     const now = new Date();
     bookings = bookings.filter(b => {
       if (b.status === 'CONFIRMED') return true;
-      if (b.status === 'PENDING') return !isSlotPast(date, b.startTime, now);
-      return true; // Keep PAYMENT_PENDING (it will be cleaned up by cleanupExpiredPayments)
+      return !isSlotPast(date, b.startTime, now);
     });
 
     // Group by slot, then by turf within the slot.

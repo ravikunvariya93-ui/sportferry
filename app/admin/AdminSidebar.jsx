@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/admin/games', label: 'Games & Matching', Icon: Gamepad2 },
   { href: '/admin/calendar', label: 'Calendar (All Venues)', Icon: CalendarDays },
   { href: '/admin/payouts', label: 'Payouts & Settlements', Icon: Wallet },
+  { href: '/admin/withdrawals', label: 'Withdrawals', Icon: Wallet },
   { href: '/admin/refunds', label: 'Refunds', Icon: RefreshCcw },
   { href: '/admin/promotions', label: 'Promotions & Offers', Icon: Tag },
   { href: '/admin/reports', label: 'Reports & Analytics', Icon: BarChart3 },

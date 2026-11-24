@@ -6,10 +6,10 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import styles from './VenueDetail.module.css';
-import { SLOT_LABELS, isSlotLabelPast, formatToAMPM } from '@/lib/ist';
+import { SLOT_LABELS, isSlotLabelPast, formatToAMPM, parseSlot } from '@/lib/ist';
 import { PLAYERS_PER_SIDE, slotCapacityFor, allocateBooking, existingFromSlotStats, blockReason } from '@/lib/capacity';
 import { hasCoords, mapsEmbedUrl, mapsDirectionsUrl } from '@/lib/geo';
-import { discountPercentOf, discountedPrice } from '@/lib/pricing';
+import { discountPercentOf, discountedPrice, hourlyRateFor } from '@/lib/pricing';
 
 // A roster item covers as many seats as it has players — a team of 3 fills
 // three seats of its side, not one.
@@ -31,9 +31,15 @@ export default function VenueDetailClient({ venue }) {
   const sideCapacity = PLAYERS_PER_SIDE;
   const slotCapacity = slotCapacityFor(venue.numberOfTurfs);
   const turfCount = Math.max(1, Number(venue.numberOfTurfs) || 1);
-  // Effective price after the venue's discount (0 discount → full price).
+  // Base price after the venue's discount — used as the "from" price.
   const discount = discountPercentOf(venue);
   const price = discountedPrice(venue.pricePerHour, discount);
+  // The server charges the rate for the actual date+slot (peak > weekend >
+  // weekday). Keep the preview on the same function so it cannot drift.
+  const priceFor = (dateISO, slotLabel) => {
+    const times = parseSlot(slotLabel);
+    return hourlyRateFor(venue, dateISO || new Date().toISOString().slice(0, 10), times?.startTime || '06:00');
+  };
 
   // Internal value stays YYYY-MM-DD (API-compatible); display is always DD-MM-YYYY
   const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -103,10 +109,11 @@ export default function VenueDetailClient({ venue }) {
   };
 
   /* ── Fetch slot availability for every date used by any booking ── */
-  const allUsedDates = [...new Set(bookingForms.map(f => f.selectedDate))].sort();
+  const usedDatesKey = [...new Set(bookingForms.map(f => f.selectedDate))].sort().join(',');
   useEffect(() => {
-    const ctrls = allUsedDates.map(() => new AbortController());
-    allUsedDates.forEach((iso, i) => {
+    const dates = usedDatesKey ? usedDatesKey.split(',') : [];
+    const ctrls = dates.map(() => new AbortController());
+    dates.forEach((iso, i) => {
       (async () => {
         try {
           const r = await fetch(`/api/venues/${venue._id}/availability?date=${iso}`, { signal: ctrls[i].signal });
@@ -118,7 +125,7 @@ export default function VenueDetailClient({ venue }) {
       })();
     });
     return () => ctrls.forEach(c => c.abort());
-  }, [allUsedDates.join(','), venue._id]);
+  }, [usedDatesKey, venue._id]);
 
   const slots = SLOT_LABELS;
 
@@ -371,7 +378,7 @@ export default function VenueDetailClient({ venue }) {
               ? `${form.playersCount} seat${form.playersCount > 1 ? 's' : ''} • ${assignedKey === 'team2' ? 'Team B' : assignedKey === 'team1' ? 'Team A' : ''}`
               : 'Tap an available seat to pick your side'}
           </span>
-          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{price * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
+          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary)' }}>₹{priceFor(iso, slotLabel) * form.playersCount}<span style={{ fontWeight: '400', color: 'var(--muted)' }}> total</span></span>
         </div>
       </div>
     );
@@ -382,7 +389,7 @@ export default function VenueDetailClient({ venue }) {
   const mapSrc = hasLoc
     ? mapsEmbedUrl(venue.location.lat, venue.location.lng, 16)
     : `https://maps.google.com/maps?width=100%25&height=600&hl=en&q=${mapQ}&t=&z=14&ie=UTF8&iwloc=B&output=embed`;
-  const total = allCells.reduce((s, c) => s + price * (c.playersCount || 1), 0);
+  const total = allCells.reduce((s, c) => s + priceFor(c.date, c.slot) * (c.playersCount || 1), 0);
 
   return (
     <div className={styles.page}>
@@ -518,8 +525,9 @@ export default function VenueDetailClient({ venue }) {
             {/* Price header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
+                <span style={{ fontSize: '13px', color: 'var(--muted)', marginRight: '4px' }}>From</span>
                 <span style={{ fontSize: '28px', fontWeight: '800' }}>₹{price}</span>
-                <span style={{ fontSize: '14px', color: 'var(--muted)' }}> /hour</span>
+                <span style={{ fontSize: '14px', color: 'var(--muted)' }}> /hour per player</span>
                 {discount > 0 && (
                   <>
                     <span style={{ fontSize: '15px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{venue.pricePerHour}</span>
@@ -534,7 +542,7 @@ export default function VenueDetailClient({ venue }) {
               {/* Booking forms — Booking 1 first; "Add More Slots" appends Booking 2, 3… each with own date, type, players, slots, lineups */}
               {bookingForms.map((form, fi) => {
                 const hasSlot = !!form.selectedSlot;
-                const formSubtotal = hasSlot ? price * form.playersCount : 0;
+                const formSubtotal = hasSlot ? priceFor(form.selectedDate, form.selectedSlot) * form.playersCount : 0;
                 return (
                 <div key={form.key} className={styles.dateSectionEnter} style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '16px', borderRadius: '18px', border: '1.5px solid var(--glass-border)', background: 'var(--secondary)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -699,7 +707,7 @@ export default function VenueDetailClient({ venue }) {
                 return (
                   <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
                     <span>Booking {i + 1}: {toDDMMYYYY(f.selectedDate)} • {f.selectedSlot} • {f.playersCount}p</span>
-                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>₹{price * f.playersCount}</span>
+                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>₹{priceFor(f.selectedDate, f.selectedSlot) * f.playersCount}</span>
                   </div>
                 );
               })}

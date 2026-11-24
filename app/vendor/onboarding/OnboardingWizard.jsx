@@ -23,11 +23,6 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
   const [uploading, setUploading] = useState(false);
 
   const [mobile, setMobile] = useState(initialPhone || '');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [devCode, setDevCode] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [otpMessage, setOtpMessage] = useState('');
   const [venue, setVenue] = useState(initial?.venue || {
     name: '', city: '', area: '', address: '', sportTypes: [], amenities: [], images: [],
     discountPercent: 0, pricing: { weekday: '', weekend: '', peak: '' }, documents: {},
@@ -69,34 +64,10 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
   const addTurf = () => setTurfs(list => [...list, emptyTurf()]);
   const removeTurf = (i) => setTurfs(list => list.filter((_, idx) => idx !== i));
 
-  const sendOtp = async () => {
-    setOtpMessage(''); setDevCode('');
-    const res = await fetch('/api/vendor/otp/send', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: mobile }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setOtpSent(true);
-      setDevCode(data.devCode || '');
-      setOtpMessage(data.devCode ? `Development code: ${data.devCode}` : 'Code sent by email.');
-    } else setOtpMessage(data.message || 'Could not send a code.');
-  };
-
-  const verifyOtp = async () => {
-    setOtpMessage('');
-    const res = await fetch('/api/vendor/otp/verify', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: otpCode }),
-    });
-    const data = await res.json();
-    if (res.ok) { setOtpVerified(true); setOtpMessage('Mobile number verified.'); }
-    else setOtpMessage(data.message || 'Verification failed.');
-  };
-
   const continueStep = async () => {
     setError('');
     if (step === 0) {
-      // Save the mobile number; OTP verification is recommended but optional so
-      // owners are never blocked when no delivery provider is configured.
+      // Save the mobile number for the venue contact details.
       if (mobile.trim()) {
         await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: mobile.trim() }) }).catch(() => {});
       }
@@ -162,18 +133,7 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
             </div>
             <div>
               <label style={labelStyle}>Mobile Number</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input style={fieldStyle} value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+91 98765 43210" inputMode="tel" />
-                <button type="button" onClick={sendOtp} style={{ padding: '0 18px', borderRadius: '10px', fontWeight: 600, background: 'var(--secondary)', border: '1px solid var(--glass-border)', color: 'var(--foreground)', cursor: 'pointer', whiteSpace: 'nowrap' }}>{otpSent ? 'Resend OTP' : 'Send OTP'}</button>
-              </div>
-              {otpSent && (
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                  <input style={fieldStyle} value={otpCode} onChange={e => setOtpCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" maxLength={6} />
-                  <button type="button" onClick={verifyOtp} disabled={otpVerified} className="btn-primary" style={{ padding: '0 18px', borderRadius: '10px', fontWeight: 600, whiteSpace: 'nowrap', opacity: otpVerified ? 0.6 : 1 }}>{otpVerified ? 'Verified ✓' : 'Verify'}</button>
-                </div>
-              )}
-              {otpMessage && <p style={{ fontSize: '11.5px', color: otpVerified ? 'var(--primary)' : 'var(--muted)', marginTop: '6px' }}>{otpMessage}</p>}
-              {devCode && !otpVerified && <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Dev mode — no SMS provider is configured, so the code is shown here.</p>}
+              <input style={fieldStyle} value={mobile} onChange={e => setMobile(e.target.value)} placeholder="+91 98765 43210" inputMode="tel" />
             </div>
           </div>
         )}

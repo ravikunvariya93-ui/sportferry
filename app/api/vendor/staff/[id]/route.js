@@ -19,6 +19,9 @@ export async function PATCH(request, { params }) {
     if (!member) return NextResponse.json({ message: 'Staff member not found.' }, { status: 404 });
 
     const body = await request.json();
+    if (body.role !== undefined && !['Manager', 'Operator', 'Viewer'].includes(body.role)) {
+      return NextResponse.json({ message: 'Invalid role.' }, { status: 400 });
+    }
     for (const key of ['name', 'email', 'phone', 'role', 'access']) {
       if (body[key] !== undefined) member[key] = String(body[key]).trim().slice(0, 120);
     }

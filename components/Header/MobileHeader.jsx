@@ -12,8 +12,8 @@ const MobileHeader = () => {
   const { data: session } = useSession();
   const pathname = usePathname();
 
-  // Admin section has its own isolated layout
-  if (pathname?.startsWith('/admin')) return null;
+  // Admin and vendor portals have their own isolated layouts
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/vendor')) return null;
 
   return (
     <header className={styles.mobileHeader}>

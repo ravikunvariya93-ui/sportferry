@@ -52,4 +52,12 @@ describe('MobileHeader: single Log In button OR avatar', () => {
 
     expect(container.querySelector('header')).toBeNull();
   });
+
+  test('header stays hidden on /vendor routes', () => {
+    mockPath = '/vendor';
+    useSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    const { container } = render(<MobileHeader />);
+
+    expect(container.querySelector('header')).toBeNull();
+  });
 });

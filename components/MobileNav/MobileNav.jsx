@@ -29,7 +29,7 @@ const MobileNav = () => {
       { name: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
       { name: 'Home', icon: Home, path: '/' },
       { name: 'Explore', icon: Search, path: '/explore' },
-      { name: 'Bookings', icon: Calendar, path: '/bookings' },
+      { name: 'Bookings', icon: Calendar, path: '/admin/bookings' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else if (isVendor) {
@@ -37,7 +37,7 @@ const MobileNav = () => {
       { name: 'Dashboard', icon: LayoutDashboard, path: '/vendor' },
       { name: 'Home', icon: Home, path: '/' },
       { name: 'Explore', icon: Search, path: '/explore' },
-      { name: 'Bookings', icon: Calendar, path: '/bookings' },
+      { name: 'Bookings', icon: Calendar, path: '/vendor/bookings' },
       { name: 'Profile', icon: User, path: '/profile' },
     ];
   } else if (session?.user) {

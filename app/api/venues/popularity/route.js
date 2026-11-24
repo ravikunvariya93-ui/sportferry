@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { getISTDayRange, parseSlot } from '@/lib/ist';
+import { getISTDayRange, parseSlot, isValidDateISO } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
 
 export async function GET(request) {
@@ -10,8 +10,8 @@ export async function GET(request) {
     const date = searchParams.get('date');
     const slot = searchParams.get('slot'); // e.g. "06:00 AM – 07:00 AM" or "All Slots"
 
-    if (!date) {
-      return NextResponse.json({ message: 'Date parameter is required (YYYY-MM-DD).' }, { status: 400 });
+    if (!isValidDateISO(date)) {
+      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
     }
 
     await dbConnect();

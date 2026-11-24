@@ -49,9 +49,6 @@ Records that a vendor was paid — **no bank transfer happens in-app**. `net` fo
 - `platformsettings` (`models/PlatformSettings.js`): single doc — booking-rule toggles, general contact info, automation toggles. Commission stays 12% in `lib/constants.js`.
 - `staff` (`models/Staff.js`): platform staff directory; name, email, phone, role, active. No auth accounts.
 
-### User OTP fields
-`phoneOtpHash` (SHA-256, never the raw code), `phoneOtpExpires` (5-minute TTL), `phoneVerified`. Delivery: dev returns the code in the response; production emails it via Resend if `RESEND_API_KEY` is set (otherwise 503). No SMS provider.
-
 ## Transaction usage (requires **replica set**)
 `startSession()` + `startTransaction()` in:
 - `POST /api/bookings` (capacity check + create)

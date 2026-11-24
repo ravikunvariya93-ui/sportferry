@@ -152,8 +152,14 @@ export async function PATCH(request) {
     } else {
       // Same cancellation path as the admin Bookings screen: record + execute
       // the 100% refund for every booking in the game.
-      const docs = await Booking.find({ ...filter, status: { $ne: 'CANCELLED' } });
+      const docs = await Booking.find({ ...filter, status: { $in: ['PENDING', 'CONFIRMED'] } });
       for (const doc of docs) {
+        const claimed = await Booking.findOneAndUpdate(
+          { _id: doc._id, status: { $in: ['PENDING', 'CONFIRMED'] } },
+          { $set: { status: 'CANCELLED' } },
+          { new: true }
+        );
+        if (!claimed) continue;
         await applyCancellation(doc, { cancelledBy: 'ADMIN', reason: 'Game cancelled by admin' });
         await doc.save();
       }

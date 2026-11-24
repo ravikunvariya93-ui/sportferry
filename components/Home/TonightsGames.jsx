@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { MapPin, Clock, Users, Heart, ArrowRight } from 'lucide-react';
 import { formatToAMPM, istHour, istTodayISO } from '@/lib/ist';
 import { CITY_KEY, cityMatches } from '@/lib/location';
-import { discountPercentOf, discountedPrice } from '@/lib/pricing';
+import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
 
 function getDaypartWord() {
   const hour = istHour();
@@ -74,8 +74,9 @@ export default function TonightsGames({ venues, venueGames = {}, date }) {
           const bestSlot = slots.reduce((a, b) => (a.joined > b.joined ? a : b), slots[0]);
           const { startTime, endTime, joined, spotsLeft, maxPlayers = 12 } = bestSlot;
           const timeLabel = `${formatToAMPM(startTime)} – ${formatToAMPM(endTime)}`;
-          const discount = discountPercentOf(v);
-          const finalPrice = discountedPrice(v.pricePerHour, discount);
+          const finalPrice = hourlyRateFor(v, dateStr, startTime);
+          const basePrice = baseHourlyRateFor(v, dateStr, startTime);
+          const discountPct = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
           const skill = (v.rating || 4.5) >= 4.5 ? 'Intermediate' : 'All Levels';
           const skillColor = skill === 'Intermediate' ? '#d97706' : '#16a34a';
           return (
@@ -113,13 +114,13 @@ export default function TonightsGames({ venues, venueGames = {}, date }) {
                 }}>
                   <Heart size={14} />
                 </span>
-                {discount > 0 && (
+                {discountPct > 0 && (
                   <span style={{
                     position: 'absolute', bottom: 10, right: 10,
                     background: '#ef4444', color: '#fff', padding: '3px 9px',
                     borderRadius: '100px', fontSize: 11, fontWeight: 800,
                   }}>
-                    {discount}% OFF
+                    {discountPct}% OFF
                   </span>
                 )}
               </div>
@@ -143,7 +144,7 @@ export default function TonightsGames({ venues, venueGames = {}, date }) {
                   <span style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                     <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--primary)' }}>₹{finalPrice}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>/player</span>
-                    {discount > 0 && <span style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{v.pricePerHour}</span>}
+                    {finalPrice < basePrice && <span style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'line-through' }}>₹{basePrice}</span>}
                   </span>
                   <span style={{
                     fontSize: 11, fontWeight: 700, color: skillColor,

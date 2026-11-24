@@ -4,7 +4,7 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { requireVendor } from '@/lib/vendorAuth';
-import { getISTDayRange, istTodayISO } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, isValidDateISO } from '@/lib/ist';
 import { groupGames } from '@/lib/gameStatus';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 
@@ -15,6 +15,7 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || istTodayISO();
+    if (!isValidDateISO(date)) return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
 
     await dbConnect();
 

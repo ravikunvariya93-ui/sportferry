@@ -11,6 +11,7 @@ import FeaturedVenues from '@/components/Home/FeaturedVenues';
 import { getISTDayRange, istTodayISO, SLOT_LABELS, isSlotLabelPast, parseSlot } from '@/lib/ist';
 import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
 import { PUBLIC_VENUE_FILTER } from '@/lib/constants';
+import { attachActiveOffers } from '@/lib/venueOffers';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +19,12 @@ export default async function Home() {
   await dbConnect();
 
   const rawAll = await Venue.find(PUBLIC_VENUE_FILTER).lean();
-  const allVenues = rawAll
-    .map(v => ({
-      ...v,
-      _id: v._id.toString(),
-      owner: v.owner.toString(),
-      id: v._id.toString(),
-    }))
-    .sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  const allVenues = (await attachActiveOffers(rawAll.map(v => ({
+    ...v,
+    _id: v._id.toString(),
+    owner: v.owner.toString(),
+    id: v._id.toString(),
+  })))).sort((a, b) => (b.rating || 0) - (a.rating || 0));
 
   const todayDateString = istTodayISO();
   const { startUTC: todayStart, endUTC: todayEnd } = getISTDayRange(todayDateString);
