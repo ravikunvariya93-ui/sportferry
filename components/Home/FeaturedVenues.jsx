@@ -1,27 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { MapPin, Star, LayoutGrid, ArrowRight } from 'lucide-react';
-import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
+import { displayPriceFor } from '@/lib/pricing';
 import { istTodayISO } from '@/lib/ist';
-
-const CITY_KEY = 'sportferry_city';
-
-function cityMatches(venueCity, selected) {
-  const a = (venueCity || '').toLowerCase();
-  const b = (selected || '').toLowerCase();
-  return a === b || a.includes(b) || b.includes(a);
-}
+import { cityMatches, useSelectedCity } from '@/lib/location';
 
 function FeaturedCard({ venue }) {
   const rating = venue.rating || 0;
   const ratingColor = rating >= 4 ? '#16a34a' : rating > 0 ? '#d97706' : '#94a3b8';
-  const today = istTodayISO();
-  const slotStarts = Array.from({ length: 18 }, (_, i) => `${String(6 + i).padStart(2, '0')}:00`);
-  const finalPrice = Math.min(...slotStarts.map(start => hourlyRateFor(venue, today, start)));
-  const basePrice = Math.min(...slotStarts.map(start => baseHourlyRateFor(venue, today, start)));
-  const discount = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
+  const { finalPrice, basePrice, discount } = displayPriceFor(venue, istTodayISO());
 
   return (
     <Link
@@ -97,21 +86,7 @@ function FeaturedCard({ venue }) {
 }
 
 export default function FeaturedVenues({ venues }) {
-  const [city, setCity] = useState(null);
-
-  useEffect(() => {
-    const read = () => localStorage.getItem(CITY_KEY);
-    setCity(read());
-
-    const onSet = (e) => setCity(e.detail?.city || read());
-    const onReset = () => setCity(read());
-    window.addEventListener('sportferry:citySet', onSet);
-    window.addEventListener('sportferry:resetLocation', onReset);
-    return () => {
-      window.removeEventListener('sportferry:citySet', onSet);
-      window.removeEventListener('sportferry:resetLocation', onReset);
-    };
-  }, []);
+  const city = useSelectedCity();
 
   const sorted = [...venues].sort((a, b) => (b.rating || 0) - (a.rating || 0));
   const inCity = city ? sorted.filter(v => cityMatches(v.city, city)) : sorted;

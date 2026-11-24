@@ -6,10 +6,10 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import styles from './VenueDetail.module.css';
-import { SLOT_LABELS, isSlotLabelPast, formatToAMPM, parseSlot } from '@/lib/ist';
+import { SLOT_LABELS, isSlotLabelPast, formatToAMPM, parseSlot, istTodayISO, buildDateChips, formatDateDDMMYYYY } from '@/lib/ist';
 import { PLAYERS_PER_SIDE, slotCapacityFor, allocateBooking, existingFromSlotStats, blockReason } from '@/lib/capacity';
 import { hasCoords, mapsEmbedUrl, mapsDirectionsUrl } from '@/lib/geo';
-import { discountPercentOf, discountedPrice, hourlyRateFor } from '@/lib/pricing';
+import { displayPriceFor, hourlyRateFor } from '@/lib/pricing';
 
 // A roster item covers as many seats as it has players — a team of 3 fills
 // three seats of its side, not one.
@@ -31,47 +31,20 @@ export default function VenueDetailClient({ venue }) {
   const sideCapacity = PLAYERS_PER_SIDE;
   const slotCapacity = slotCapacityFor(venue.numberOfTurfs);
   const turfCount = Math.max(1, Number(venue.numberOfTurfs) || 1);
-  // Base price after the venue's discount — used as the "from" price.
-  const discount = discountPercentOf(venue);
-  const price = discountedPrice(venue.pricePerHour, discount);
+  const { finalPrice: price, basePrice, discountPct: discount } = displayPriceFor(venue, istTodayISO());
   // The server charges the rate for the actual date+slot (peak > weekend >
   // weekday). Keep the preview on the same function so it cannot drift.
   const priceFor = (dateISO, slotLabel) => {
     const times = parseSlot(slotLabel);
-    return hourlyRateFor(venue, dateISO || new Date().toISOString().slice(0, 10), times?.startTime || '06:00');
+    return hourlyRateFor(venue, dateISO || istTodayISO(), times?.startTime || '06:00');
   };
 
-  // Internal value stays YYYY-MM-DD (API-compatible); display is always DD-MM-YYYY
-  const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const toDDMMYYYY = (iso) => {
-    if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${d}-${m}-${y}`;
-  };
-  // Next 30 days for chips — same list everywhere, no locale-dependent native picker
-  const dateOptions = React.useMemo(() => {
-    const out = [];
-    const today = new Date();
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
-      const iso = toISO(d);
-      out.push({
-        iso,
-        label: toDDMMYYYY(iso),
-        dayName: d.toLocaleDateString('en-GB', { weekday: 'short' }),
-        dayNum: String(d.getDate()).padStart(2, '0'),
-        monthShort: d.toLocaleDateString('en-GB', { month: 'short' }),
-      });
-    }
-    return out;
-  }, []);
+  const toDDMMYYYY = formatDateDDMMYYYY;
+  const dateOptions = React.useMemo(() => buildDateChips(30), []);
 
   // Each booking form owns its dates + slots + type + players + team.
   // Booking 1 is always visible; "Add More Slots" appends Booking 2, 3…
-  const todayISO = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  };
+  const todayISO = istTodayISO;
   // Pre-select the date+slot when arriving from a "Games Near You" card
   // (/venue/[id]?date=YYYY-MM-DD&slot=<12h label | HH:mm>).
   const findSlotLabel = (raw) => {
@@ -453,7 +426,7 @@ export default function VenueDetailClient({ venue }) {
                   <span>₹{price} per hour per player</span>
                   {discount > 0 && (
                     <>
-                      <span style={{ textDecoration: 'line-through' }}>₹{venue.pricePerHour}</span>
+                      <span style={{ textDecoration: 'line-through' }}>₹{basePrice}</span>
                       <span style={{ background: '#ef4444', color: '#fff', padding: '1px 8px', borderRadius: '100px', fontSize: '11px', fontWeight: '800' }}>{discount}% OFF</span>
                     </>
                   )}
@@ -530,7 +503,7 @@ export default function VenueDetailClient({ venue }) {
                 <span style={{ fontSize: '14px', color: 'var(--muted)' }}> /hour per player</span>
                 {discount > 0 && (
                   <>
-                    <span style={{ fontSize: '15px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{venue.pricePerHour}</span>
+                    <span style={{ fontSize: '15px', color: 'var(--muted)', textDecoration: 'line-through', marginLeft: '8px' }}>₹{basePrice}</span>
                     <span style={{ marginLeft: '8px', background: '#ef4444', color: '#fff', padding: '2px 9px', borderRadius: '100px', fontSize: '12px', fontWeight: '800' }}>{discount}% OFF</span>
                   </>
                 )}

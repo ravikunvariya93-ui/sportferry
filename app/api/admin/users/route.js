@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import Booking from '@/models/Booking';
 import { auth, hasRole } from '@/lib/auth';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
+import { escapeRegex } from '@/lib/validation';
 
 export async function GET(request) {
   try {
@@ -33,7 +30,7 @@ export async function GET(request) {
 
     const query = { ...baseQuery };
     if (search) {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escaped = escapeRegex(search);
       query.$or = [
         { name: { $regex: escaped, $options: 'i' } },
         { email: { $regex: escaped, $options: 'i' } },
@@ -78,8 +75,7 @@ export async function GET(request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error('[GET /api/admin/users]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/users');
   }
 }
 
@@ -106,8 +102,7 @@ export async function POST(request) {
     return NextResponse.json({ id: user._id.toString(), role: user.role }, { status: 201 });
   } catch (error) {
     if (error?.code === 11000) return NextResponse.json({ message: 'Username or email already exists.' }, { status: 409 });
-    console.error('[POST /api/admin/users]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/admin/users');
   }
 }
 
@@ -145,8 +140,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({ id: user._id.toString(), role: user.role, blocked: Boolean(user.blocked) });
   } catch (error) {
-    console.error('[PATCH /api/admin/users]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/users');
   }
 }
 
@@ -170,7 +164,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('[DELETE /api/admin/users]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/admin/users');
   }
 }

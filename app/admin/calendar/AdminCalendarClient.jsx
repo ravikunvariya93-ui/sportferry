@@ -2,15 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Info } from 'lucide-react';
-import { istTodayISO } from '@/lib/ist';
+import { istTodayISO, addDaysISO, formatBookingDate } from '@/lib/ist';
 import { STATUS_STYLES, CALENDAR_LEGEND } from '@/lib/calendarStatus';
 import styles from '../admin.module.css';
-
-function shiftDate(iso, days) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 export default function AdminCalendarClient() {
   const todayISO = istTodayISO();
@@ -36,7 +30,7 @@ export default function AdminCalendarClient() {
 
   const turfs = data?.turfs || [];
   const grid = data?.grid || [];
-  const dateLabel = new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const dateLabel = formatBookingDate(`${date}T00:00:00Z`, { weekday: true });
 
   return (
     <div>
@@ -51,9 +45,9 @@ export default function AdminCalendarClient() {
       </div>
 
       <div className={styles.filterBar} style={{ marginBottom: '20px', flexWrap: 'wrap' }}>
-        <button className={styles.pageBtn} onClick={() => setDate(d => shiftDate(d, -1))} style={{ padding: '10px 12px' }}><ChevronLeft size={16} /></button>
+        <button className={styles.pageBtn} onClick={() => setDate(d => addDaysISO(d, -1))} style={{ padding: '10px 12px' }}><ChevronLeft size={16} /></button>
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '14px' }}><CalendarDays size={15} color="#22c55e" /> {dateLabel}</span>
-        <button className={styles.pageBtn} onClick={() => setDate(d => shiftDate(d, 1))} style={{ padding: '10px 12px' }}><ChevronRight size={16} /></button>
+        <button className={styles.pageBtn} onClick={() => setDate(d => addDaysISO(d, 1))} style={{ padding: '10px 12px' }}><ChevronRight size={16} /></button>
         <input type="date" className={styles.filterSelect} value={date} onChange={e => setDate(e.target.value)} />
         <select className={styles.filterSelect} value={venueId} onChange={e => setVenueId(e.target.value)} style={{ marginLeft: 'auto' }}>
           {(data?.venues || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}

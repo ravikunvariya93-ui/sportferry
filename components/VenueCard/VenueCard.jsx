@@ -3,7 +3,7 @@
 import React from 'react';
 import { MapPin, Star, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
+import { displayPriceFor } from '@/lib/pricing';
 import { istTodayISO } from '@/lib/ist';
 
 const SPORT_COLORS = {
@@ -21,11 +21,7 @@ export default function VenueCard({ venue, showBookedCount = true }) {
   const rating = venue.rating || 0;
   const ratingColor = rating >= 4 ? '#16a34a' : rating > 0 ? '#d97706' : '#94a3b8';
   const sportTypes = venue.sportTypes || [];
-  const today = istTodayISO();
-  const slotStarts = Array.from({ length: 18 }, (_, i) => `${String(6 + i).padStart(2, '0')}:00`);
-  const finalPrice = Math.min(...slotStarts.map(start => hourlyRateFor(venue, today, start)));
-  const basePrice = Math.min(...slotStarts.map(start => baseHourlyRateFor(venue, today, start)));
-  const discountPct = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
+  const { finalPrice, basePrice, discountPct } = displayPriceFor(venue, istTodayISO());
 
   return (
     <Link href={`/venue/${venue.id}`} style={{ textDecoration: 'none', display: 'block' }}>

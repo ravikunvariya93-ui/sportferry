@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Search, Calendar, User, LayoutDashboard } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { isActivePath } from '@/lib/navConfig';
 import { clsx } from 'clsx';
 import styles from './MobileNav.module.css';
 
@@ -53,7 +54,7 @@ const MobileNav = () => {
     <nav className={styles.mobileNav}>
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = pathname === item.path;
+        const isActive = isActivePath(pathname, item.path, { exact: true });
         return (
           <Link 
             key={item.name} 

@@ -5,6 +5,7 @@ import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { autoConfirmIfReady } from '@/lib/booking-utils';
 import { refundPayment, fetchPayment } from '@/lib/razorpay';
+import { claimBooking } from '@/lib/bookingClaims';
 
 /**
  * Razorpay webhook — the source of truth for "the money arrived".
@@ -92,10 +93,10 @@ export async function POST(request) {
     let confirmed = 0;
     for (const booking of pending) {
       // Conditional claim: if another request changed the status, skip it.
-      const updated = await Booking.findOneAndUpdate(
+      const updated = await claimBooking(
         { _id: booking._id, status: 'PAYMENT_PENDING' },
-        { $set: { status: 'PENDING', paymentId } },
-        { session, new: true }
+        { status: 'PENDING', paymentId },
+        { session }
       );
       if (!updated) continue;
       await autoConfirmIfReady(booking.venue, booking.date, booking.startTime, booking.endTime, booking.turf, session);

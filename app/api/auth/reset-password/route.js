@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
@@ -35,7 +36,6 @@ export async function POST(request) {
 
     return NextResponse.json({ message: 'Password reset. You can now sign in.' });
   } catch (error) {
-    console.error('[POST /api/auth/reset-password]', error);
-    return NextResponse.json({ message: 'Something went wrong.' }, { status: 500 });
+    return apiError(error, 'POST /api/auth/reset-password', { message: 'Something went wrong.' });
   }
 }

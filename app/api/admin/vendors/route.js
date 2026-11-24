@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import { auth, hasRole } from '@/lib/auth';
 
@@ -37,7 +38,6 @@ export async function POST(request) {
     return NextResponse.json({ venueId: venue._id.toString(), ownerId: user._id.toString() }, { status: 201 });
   } catch (error) {
     if (error?.code === 11000) return NextResponse.json({ message: 'Email already exists.' }, { status: 409 });
-    console.error('[POST /api/admin/vendors]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/admin/vendors');
   }
 }

@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import VendorOffer from '@/models/VendorOffer';
 import User from '@/models/User';
 import { auth, hasRole } from '@/lib/auth';
 import { normalizeOffer } from '@/lib/offers';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
+import { serializeDoc } from '@/lib/serialize';
 
 export async function GET() {
   try {
@@ -17,11 +14,10 @@ export async function GET() {
     await dbConnect();
     const offers = await VendorOffer.find({}).populate('vendor', 'name').sort({ createdAt: -1 }).lean();
     return NextResponse.json({
-      offers: offers.map(o => ({ ...o, _id: o._id.toString(), id: o._id.toString(), vendorName: o.vendor?.name || 'Platform' })),
+      offers: offers.map(o => serializeDoc(o, { keepLegacyId: true, extra: { vendorName: o.vendor?.name || 'Platform' } })),
     });
   } catch (error) {
-    console.error('[GET /api/admin/offers]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/offers');
   }
 }
 
@@ -32,9 +28,8 @@ export async function POST(request) {
     if (parsed.error) return NextResponse.json({ message: parsed.error }, { status: 400 });
     await dbConnect();
     const offer = await VendorOffer.create(parsed.value);
-    return NextResponse.json({ offer: { ...offer.toObject(), id: offer._id.toString() } }, { status: 201 });
+    return NextResponse.json({ offer: serializeDoc(offer, { keepLegacyId: true }) }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/admin/offers]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/admin/offers');
   }
 }

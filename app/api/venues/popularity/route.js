@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { getISTDayRange, parseSlot, isValidDateISO } from '@/lib/ist';
@@ -55,7 +56,6 @@ export async function GET(request) {
 
     return NextResponse.json({ date, slot: slot || 'All Slots', counts });
   } catch (error) {
-    console.error('[GET /api/venues/popularity]', error);
-    return NextResponse.json({ message: 'Internal server error.' }, { status: 500 });
+    return apiError(error, 'GET /api/venues/popularity', { message: 'Internal server error.' });
   }
 }

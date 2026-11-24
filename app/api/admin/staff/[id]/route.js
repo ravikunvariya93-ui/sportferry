@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Staff from '@/models/Staff';
 import { auth, hasRole } from '@/lib/auth';
 import { isValidObjectId } from '@/lib/vendorAuth';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 export async function PATCH(request, { params }) {
   try {
@@ -25,8 +21,7 @@ export async function PATCH(request, { params }) {
     await staff.save();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[PATCH /api/admin/staff/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/staff/[id]');
   }
 }
 
@@ -38,7 +33,6 @@ export async function DELETE(request, { params }) {
     await Staff.deleteOne({ _id: params.id });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/admin/staff/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/admin/staff/[id]');
   }
 }

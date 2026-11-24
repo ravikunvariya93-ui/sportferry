@@ -24,6 +24,7 @@ components/              # Colocated *.jsx + *.module.css
   Sidebar/  MobileNav/  Footer/
   Home/ (HomeHero, QuickActions, FeaturedVenues, HomeRecommended, HomeCitySelector)
   Explore/  VenueCard/  VenueModal  CitySelector/  AuthProvider.jsx
+  ui/             # shared StatusPill, StateBlock, StatCard, TabBar, Field, ModalShell, DataTable, PageHeader
 lib/
   auth.js                # NextAuth full config (providers, DB callbacks) + hasRole (DB-backed role check)
   auth.config.js         # Edge-safe auth config used by middleware
@@ -33,14 +34,26 @@ lib/
   capacity.js            # allocateBooking (side/team rules), openSeatsFor, blockReason
   razorpay.js            # The only module that talks to Razorpay: orders, payments, refunds
   refunds.js             # executeRefund — runs the refund and reports its real status
-  ist.js                 # parseSlot, parseBookableSlot, getISTDayRange, formatToAMPM
+  ist.js                 # parseSlot, parseBookableSlot, IST dates, slot labels, calendar ranges
+  pricing.js             # baseHourlyRateFor, hourlyRateFor, displayPriceFor
+  offers.js              # normalizeOffer, rateWithOffers (active offer applied to price)
+  venueOffers.js         # attachActiveOffers, loadPricedVenue (server-only)
+  serialize.js           # serializeDoc, serializeList (API DTO shapes)
+  bookingInput.js        # classification limits, cell normalization, bookingDateFor
+  bookingClaims.js       # atomic claimBooking / claimCancelled updates
+  apiResponse.js         # badRequest, forbidden, conflict, apiError, tooManyRequests
+  apiGuards.js           # requireAdmin, requireVendorSession, requireOwnedDoc
+  apiParams.js           # parseListParams, parseDateFilter, parseCsvFormat
+  navConfig.js           # isActivePath shared by all four nav components
+  location.js            # CITY_KEY, cityMatches, useSelectedCity hook
+  statusStyles.js        # shared status pill colours
   cancellationPolicy.js  # Refund tiers (24h/12h/now), calculateRefund, policy text
   indiaCities.js
 models/                  # Mongoose schemas: User, Venue, Booking, Withdrawal, SlotLock
 middleware.js            # Role-based route/API protection (edge)
 scripts/                 # seed*.mjs/.js/.cjs, make-admin.js, clear_bookings, add_10_venues
 scratch/                 # ⚠ gitignored DB debug scripts (may hold secrets — never commit)
-test files: components/**/*.test.jsx and lib/*.test.js (15 suites, 131 tests)
+test files: components/**/*.test.jsx and lib/*.test.js (30 suites, 210 tests)
 ```
 
 ## Conventions

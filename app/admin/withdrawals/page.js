@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Wallet, RefreshCw, CheckCircle2, XCircle, Clock, X } from 'lucide-react';
 import styles from '../admin.module.css';
+import TabBar from '@/components/ui/TabBar';
+import StateBlock from '@/components/ui/StateBlock';
 
 const STATUS_TABS = ['All', 'PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED'];
 
@@ -73,17 +75,11 @@ export default function WithdrawalsPage() {
         </div>
       </div>
 
-      <div className={styles.tabBar}>
-        {STATUS_TABS.map(tab => (
-          <button
-            key={tab}
-            className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-            onClick={() => { setActiveTab(tab); setPage(1); }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={STATUS_TABS}
+        active={activeTab}
+        onChange={(tab) => { setActiveTab(tab); setPage(1); }}
+      />
 
       <div className={styles.filterBar} style={{ marginBottom: '20px' }}>
         <button className={styles.pageBtn} onClick={() => fetchData()} title="Refresh" style={{ padding: '10px 12px' }}>
@@ -93,12 +89,9 @@ export default function WithdrawalsPage() {
 
       <div className={styles.sectionCard}>
         {loading ? (
-          <div className={styles.loadingWrap}>Loading withdrawals…</div>
+          <StateBlock loading label="Loading withdrawals…" />
         ) : withdrawals.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>💸</div>
-            No withdrawal requests found
-          </div>
+          <StateBlock icon="💸" label="No withdrawal requests found" />
         ) : (
           <>
             <div className={styles.tableWrap}>

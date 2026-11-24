@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import SupportTicket from '@/models/SupportTicket';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { requireVendor } from '@/lib/vendorAuth';
+import { serializeDoc, serializeList } from '@/lib/serialize';
 
 export async function GET() {
   try {
@@ -11,10 +13,9 @@ export async function GET() {
     if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     await dbConnect();
     const tickets = await SupportTicket.find({ createdBy: session.user.id }).sort({ createdAt: -1 }).lean();
-    return NextResponse.json({ tickets: tickets.map(t => ({ ...t, _id: t._id.toString(), id: t._id.toString() })) });
+    return NextResponse.json({ tickets: serializeList(tickets, { keepLegacyId: true }) });
   } catch (error) {
-    console.error('[GET /api/vendor/tickets]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/tickets');
   }
 }
 
@@ -36,9 +37,8 @@ export async function POST(request) {
       body: text.slice(0, 2000),
       priority: ['Low', 'Medium', 'High'].includes(body.priority) ? body.priority : 'Medium',
     });
-    return NextResponse.json({ ticket: { ...ticket.toObject(), id: ticket._id.toString() } }, { status: 201 });
+    return NextResponse.json({ ticket: serializeDoc(ticket, { keepLegacyId: true }) }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/vendor/tickets]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/tickets');
   }
 }

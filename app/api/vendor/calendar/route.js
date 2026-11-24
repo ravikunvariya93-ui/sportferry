@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
@@ -38,7 +39,6 @@ export async function GET(request) {
 
     return NextResponse.json(buildDayGrid({ venue, date, bookings, blocks, turfs }));
   } catch (error) {
-    console.error('[GET /api/vendor/calendar]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/calendar');
   }
 }

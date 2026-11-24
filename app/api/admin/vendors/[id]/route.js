@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
@@ -9,12 +11,6 @@ import { loadTurfs } from '@/lib/turfs';
 import { bookingRef } from '@/lib/bookingRef';
 import { commissionOf } from '@/lib/payouts';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
@@ -101,7 +97,6 @@ export async function GET(request, { params }) {
       commissionPercent: COMMISSION_PERCENT,
     });
   } catch (error) {
-    console.error('[GET /api/admin/vendors/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/vendors/[id]');
   }
 }

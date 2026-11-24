@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { UserCog, Plus, Trash2, X } from 'lucide-react';
+import { UserCog, Plus, Trash2 } from 'lucide-react';
+import ModalShell from '@/components/ui/ModalShell';
+import Field, { fieldClass } from '@/components/ui/Field';
 
 const ROLES = ['Manager', 'Operator', 'Viewer'];
-const fieldStyle = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'var(--secondary)', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '14px' };
 
 export default function StaffClient() {
   const [staff, setStaff] = useState([]);
@@ -82,21 +83,17 @@ export default function StaffClient() {
       </section>
 
       {show && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <form onSubmit={save} className="glass-morphism" style={{ width: '100%', maxWidth: '460px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Add Staff Member</h2>
-              <button type="button" onClick={() => setShow(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
-            </div>
-            <input style={fieldStyle} placeholder="Full name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-            <input style={fieldStyle} placeholder="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-            <input style={fieldStyle} placeholder="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
-            <select style={fieldStyle} value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>{ROLES.map(r => <option key={r}>{r}</option>)}</select>
-            <input style={fieldStyle} placeholder="Access (e.g. Bookings, Check-in)" value={form.access} onChange={e => setForm(p => ({ ...p, access: e.target.value }))} />
+        <ModalShell title="Add Staff Member" onClose={() => setShow(false)}>
+          <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <Field label="Full name"><input className={fieldClass} placeholder="Full name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></Field>
+            <Field label="Email"><input className={fieldClass} placeholder="Email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></Field>
+            <Field label="Phone"><input className={fieldClass} placeholder="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></Field>
+            <Field label="Role"><select className={fieldClass} value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>{ROLES.map(r => <option key={r}>{r}</option>)}</select></Field>
+            <Field label="Access"><input className={fieldClass} placeholder="Access (e.g. Bookings, Check-in)" value={form.access} onChange={e => setForm(p => ({ ...p, access: e.target.value }))} /></Field>
             {error && <div style={{ color: '#dc2626', fontSize: '13px' }}>{error}</div>}
             <button type="submit" className="btn-primary" style={{ padding: '14px', borderRadius: '12px', fontWeight: 700 }}>Add Staff</button>
           </form>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

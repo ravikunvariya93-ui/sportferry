@@ -10,6 +10,7 @@ import {
   LogOut, Shield, ChevronRight, Menu, X
 } from 'lucide-react';
 import { useAdminTheme } from './AdminThemeProvider';
+import { isActivePath } from '@/lib/navConfig';
 import styles from './admin.module.css';
 
 const NAV_ITEMS = [
@@ -46,7 +47,7 @@ const SidebarContent = ({ theme, toggleTheme, pathname, adminName, handleSignOut
     <nav className={styles.nav}>
       <div className={styles.navLabel}>Navigation</div>
       {NAV_ITEMS.map(({ href, label, Icon }) => {
-        const isActive = href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
+        const isActive = isActivePath(pathname, href);
         return (
           <Link
             key={href}

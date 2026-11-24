@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Turf from '@/models/Turf';
@@ -59,7 +60,6 @@ export async function POST(request) {
 
     return NextResponse.json({ venueId: venueDoc._id.toString(), onboardingStatus: venueDoc.onboardingStatus }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/vendor/onboarding]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/onboarding');
   }
 }

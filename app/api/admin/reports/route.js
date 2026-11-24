@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -46,7 +47,6 @@ export async function GET(request) {
     return csvResponse(['Venue', 'City', 'Area', 'Turfs', 'Sports', 'Owner', 'Email', 'Status'],
       venues.map(v => [v.name, v.city, v.area, v.numberOfTurfs, (v.sportTypes || []).join(' '), v.owner?.name, v.owner?.email, v.onboardingStatus]));
   } catch (error) {
-    console.error('[GET /api/admin/reports]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/reports');
   }
 }

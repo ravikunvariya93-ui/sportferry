@@ -1,21 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
-import { getISTDayRange, istTodayISO, formatToAMPM } from '@/lib/ist';
-import { PLAYERS_PER_SIDE } from '@/lib/capacity';
+import { getISTDayRange, istTodayISO } from '@/lib/ist';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 import { applyCancellation } from '@/lib/cancelBooking';
-import { bookingRef } from '@/lib/bookingRef';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
-
-const TURF_CAPACITY = PLAYERS_PER_SIDE * 2;
+import { groupGames } from '@/lib/gameStatus';
+import { claimBooking } from '@/lib/bookingClaims';
 
 export async function GET(request) {
   try {
@@ -54,48 +48,16 @@ export async function GET(request) {
       .select('venue date startTime endTime turf status playersCount classification user')
       .lean();
 
-    // Group by venue + date + slot + turf.
-    const groups = new Map();
-    for (const b of bookings) {
-      const dayISO = new Date(b.date).toISOString().slice(0, 10);
-      const key = `${b.venue?._id}|${dayISO}|${b.startTime}|${b.endTime}|${b.turf || 1}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          venueId: b.venue?._id?.toString() || null,
-          venueName: b.venue?.name || 'N/A',
-          venueCity: b.venue?.city || '',
-          date: dayISO,
-          startTime: b.startTime,
-          endTime: b.endTime,
-          slot: `${formatToAMPM(b.startTime)} – ${formatToAMPM(b.endTime)}`,
-          turf: b.turf || 1,
-          players: 0,
-          capacity: TURF_CAPACITY,
-          classifications: new Set(),
-          statuses: new Set(),
-          players_: [],
-        });
-      }
-      const g = groups.get(key);
-      g.players += b.playersCount || 0;
-      g.classifications.add(b.classification);
-      g.statuses.add(b.status);
-      g.players_.push({ ref: bookingRef(b._id), name: b.user?.name || 'Player', playersCount: b.playersCount, classification: b.classification, status: b.status });
-    }
-
-    const isToday = (dayISO) => dayISO === todayISO;
-    const rows = [...groups.values()].map((g) => {
-      const confirmed = g.statuses.has('CONFIRMED');
-      const status = confirmed ? 'CONFIRMED' : 'FILLING';
-      return {
-        ...g,
-        classifications: [...g.classifications],
-        status,
-        active: isToday(g.date),
-        spotsLeft: Math.max(0, TURF_CAPACITY - g.players),
-      };
-    });
+    const shaped = bookings.map(b => ({
+      ...b,
+      venueId: b.venue?._id?.toString() || null,
+      venueName: b.venue?.name || 'N/A',
+      venueCity: b.venue?.city || '',
+      userName: b.user?.name || 'Player',
+    }));
+    const grouped = groupGames({ bookings: shaped, todayISO });
+    const rows = grouped.games.map(({ roster, ...game }) => ({ ...game, players_: roster }));
+    const counts = grouped.counts;
 
     const filtered = rows.filter((r) => {
       if (tab === 'ACTIVE') return r.active && r.status !== 'CONFIRMED';
@@ -103,12 +65,6 @@ export async function GET(request) {
       if (tab === 'CONFIRMED') return r.status === 'CONFIRMED';
       return true;
     }).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
-
-    const counts = {
-      ACTIVE: rows.filter(r => r.active && r.status !== 'CONFIRMED').length,
-      FILLING: rows.filter(r => r.status === 'FILLING').length,
-      CONFIRMED: rows.filter(r => r.status === 'CONFIRMED').length,
-    };
 
     const venues = await Venue.find({}).select('name city').sort({ name: 1 }).lean();
 
@@ -118,8 +74,7 @@ export async function GET(request) {
       venues: venues.map(v => ({ id: v._id.toString(), name: v.name, city: v.city })),
     });
   } catch (error) {
-    console.error('[GET /api/admin/games]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/games');
   }
 }
 
@@ -154,10 +109,9 @@ export async function PATCH(request) {
       // the 100% refund for every booking in the game.
       const docs = await Booking.find({ ...filter, status: { $in: ['PENDING', 'CONFIRMED'] } });
       for (const doc of docs) {
-        const claimed = await Booking.findOneAndUpdate(
+        const claimed = await claimBooking(
           { _id: doc._id, status: { $in: ['PENDING', 'CONFIRMED'] } },
-          { $set: { status: 'CANCELLED' } },
-          { new: true }
+          { status: 'CANCELLED' }
         );
         if (!claimed) continue;
         await applyCancellation(doc, { cancelledBy: 'ADMIN', reason: 'Game cancelled by admin' });
@@ -167,7 +121,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ ok: true, action });
   } catch (error) {
-    console.error('[PATCH /api/admin/games]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/games');
   }
 }

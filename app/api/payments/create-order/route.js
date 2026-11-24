@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
+import { apiError, tooManyRequests } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import Venue from '@/models/Venue';
-import VendorOffer from '@/models/VendorOffer';
 import User from '@/models/User';
 import { auth } from '@/lib/auth';
-import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { getISTDayRange, istTodayISO, parseBookableSlot, isSlotPast, isValidDateISO } from '@/lib/ist';
 import { cleanupExpiredPayments } from '@/lib/booking-utils';
@@ -13,8 +11,12 @@ import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/li
 import { allocateBooking, turfCountOf, blockReason } from '@/lib/capacity';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { hourlyRateFor } from '@/lib/pricing';
+import { loadPricedVenue } from '@/lib/venueOffers';
 import { blockedTurfsInSlot } from '@/lib/blockedSlots';
 import { sharedRateLimit as rateLimit } from '@/lib/rateLimit';
+import { getRazorpay, isRazorpayConfigured } from '@/lib/razorpay';
+import { commissionOf } from '@/lib/payouts';
+import { bookingDateFor, classificationLimitError, normalizeClassification, normalizePlayersCount } from '@/lib/bookingInput';
 
 export async function POST(request) {
   try {
@@ -25,10 +27,7 @@ export async function POST(request) {
 
     const rl = await rateLimit(`create-order:${authSession.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
     if (!rl.ok) {
-      return NextResponse.json(
-        { message: 'Too many booking attempts. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } }
-      );
+      return tooManyRequests('Too many booking attempts. Please try again later.', { retryAfterMs: rl.retryAfterMs });
     }
 
     const body = await request.json();
@@ -39,8 +38,8 @@ export async function POST(request) {
 
     // Selections may carry per-booking type/players (from "Add More Slots" forms).
     // Legacy callers send one global classification/playersCount for all cells.
-    const fallbackClassification = ['SOLO', 'TEAM', 'GROUP'].includes(classification) ? classification : 'SOLO';
-    const fallbackPlayers = Math.max(1, Math.floor(Number(rawPlayersCount)) || 1);
+    const fallbackClassification = normalizeClassification(classification);
+    const fallbackPlayers = normalizePlayersCount(rawPlayersCount);
     let cells = [];
     if (Array.isArray(selections) && selections.length > 0) {
       cells = selections
@@ -48,8 +47,8 @@ export async function POST(request) {
         .map(s => ({
           date: s.date,
           slot: s.slot,
-          classification: ['SOLO', 'TEAM', 'GROUP'].includes(s.classification) ? s.classification : fallbackClassification,
-          playersCount: Math.max(1, Math.floor(Number(s.playersCount)) || fallbackPlayers),
+          classification: normalizeClassification(s.classification, fallbackClassification),
+          playersCount: normalizePlayersCount(s.playersCount, fallbackPlayers),
           preferredSide: s.preferredSide === 2 ? 2 : s.preferredSide === 1 ? 1 : undefined,
         }));
     } else {
@@ -67,19 +66,14 @@ export async function POST(request) {
 
     await dbConnect();
 
-    const venue = await Venue.findById(venueId).lean();
-    if (!venue) {
+    const pricedVenue = await loadPricedVenue(venueId);
+    if (!pricedVenue) {
       return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
     }
-    const offers = await VendorOffer.find({
-      $or: [{ vendor: venue.owner }, { vendor: null }],
-      active: true,
-    }).lean();
-    const pricedVenue = { ...venue, offers };
 
-    const turfCount = turfCountOf(venue.numberOfTurfs);
+    const turfCount = turfCountOf(pricedVenue.numberOfTurfs);
 
-    if (!Array.isArray(venue.sportTypes) || !venue.sportTypes.includes(sport)) {
+    if (!Array.isArray(pricedVenue.sportTypes) || !pricedVenue.sportTypes.includes(sport)) {
       return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
     }
 
@@ -99,7 +93,6 @@ export async function POST(request) {
       if (c.date < todayISO || isSlotPast(c.date, times.startTime)) {
         return NextResponse.json({ message: 'Cannot book a slot that has already started.' }, { status: 400 });
       }
-      const [year, month, day] = c.date.split('-').map(Number);
       parsedCells.push({
         ...times,
         slotLabel: c.slot,
@@ -107,20 +100,14 @@ export async function POST(request) {
         classification: c.classification,
         playersCount: c.playersCount,
         preferredSide: c.preferredSide,
-        bookingDate: new Date(Date.UTC(year, month - 1, day)),
+        bookingDate: bookingDateFor(c.date),
         ...getISTDayRange(c.date),
       });
     }
 
-    const CLASSIFICATION_LIMITS = { SOLO: [1, 2], TEAM: [3, 6], GROUP: [12, 12] };
     for (const pc of parsedCells) {
-      const [min, max] = CLASSIFICATION_LIMITS[pc.classification] || [1, 99];
-      if (pc.playersCount < min || pc.playersCount > max) {
-        return NextResponse.json(
-          { message: `${pc.classification} bookings must have ${min}-${max} players.` },
-          { status: 400 }
-        );
-      }
+      const error = classificationLimitError(pc.classification, pc.playersCount);
+      if (error) return NextResponse.json({ message: error }, { status: 400 });
     }
 
     const groupId = parsedCells.length > 1 ? crypto.randomUUID() : undefined;
@@ -135,11 +122,10 @@ export async function POST(request) {
     //    Created once, outside the booking transaction, so a retry after a
     //    slot race reuses the same order instead of leaving a second one.
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
-    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!razorpayKeyId || !razorpayKeySecret) {
+    if (!isRazorpayConfigured()) {
       return NextResponse.json({ message: 'Payments are not configured.' }, { status: 503 });
     }
-    const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
+    const razorpay = getRazorpay();
 
     const options = {
       amount: totalAmount * 100, // in paisa
@@ -206,7 +192,7 @@ export async function POST(request) {
           }
 
           const unitPrice = hourlyRateFor(pricedVenue, times.dateStr, times.startTime);
-          const commissionAmount = Math.round((unitPrice * times.playersCount) * COMMISSION_PERCENT / 100);
+          const commissionAmount = commissionOf(unitPrice * times.playersCount, COMMISSION_PERCENT);
           allocations.push({ times, allocation, unitPrice, commissionAmount });
         }
 
@@ -251,14 +237,13 @@ export async function POST(request) {
       amount: order.amount,
       currency: order.currency,
       key_id: razorpayKeyId,
-      venueName: venue.name,
+      venueName: pricedVenue.name,
       customerName: authSession.user.name,
       customerEmail: authSession.user.email,
       customerPhone: customer?.phone || '',
     }, { status: 201 });
 
   } catch (error) {
-    console.error('[POST /api/payments/create-order]', error);
-    return NextResponse.json({ message: 'Failed to initiate payment.' }, { status: 500 });
+    return apiError(error, 'POST /api/payments/create-order', { message: 'Failed to initiate payment.' });
   }
 }

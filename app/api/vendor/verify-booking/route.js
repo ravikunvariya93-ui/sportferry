@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
+import { claimBooking } from '@/lib/bookingClaims';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth, hasRole } from '@/lib/auth';
@@ -99,10 +101,9 @@ export async function POST(request) {
       if (booking.checkedInAt) {
         return NextResponse.json({ ok: false, verdict: 'ALREADY_USED', message: 'This ticket was already checked in.', booking: payload });
       }
-      const checkedIn = await Booking.findOneAndUpdate(
+      const checkedIn = await claimBooking(
         { _id: booking._id, status: 'CONFIRMED', checkedInAt: { $exists: false } },
-        { $set: { checkedInAt: now } },
-        { new: true }
+        { checkedInAt: now }
       ).lean();
       if (!checkedIn) {
         return NextResponse.json({ ok: false, verdict: 'ALREADY_USED', message: 'This ticket was already checked in or is no longer valid.', booking: payload });
@@ -117,7 +118,6 @@ export async function POST(request) {
 
     return NextResponse.json({ ok: valid, verdict, message, booking: payload });
   } catch (error) {
-    console.error('[POST /api/vendor/verify-booking]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/verify-booking');
   }
 }

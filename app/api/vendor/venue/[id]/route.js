@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import { auth } from '@/lib/auth';
 import { SPORT_TYPES } from '@/lib/constants';
@@ -67,7 +68,6 @@ export async function PATCH(request, { params }) {
     await venue.save();
     return NextResponse.json({ venueId: venue._id.toString() });
   } catch (error) {
-    console.error('[PATCH /api/vendor/venue/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/vendor/venue/[id]');
   }
 }

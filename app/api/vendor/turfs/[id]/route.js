@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Turf from '@/models/Turf';
 import Booking from '@/models/Booking';
@@ -50,8 +51,7 @@ export async function PATCH(request, { params }) {
     await turf.save();
     return NextResponse.json({ turf: { ...turf.toObject(), _id: turf._id.toString(), id: turf._id.toString() } });
   } catch (error) {
-    console.error('[PATCH /api/vendor/turfs/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/vendor/turfs/[id]');
   }
 }
 
@@ -89,7 +89,6 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/vendor/turfs/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/vendor/turfs/[id]');
   }
 }

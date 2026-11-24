@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import StaffMember from '@/models/StaffMember';
 import { auth } from '@/lib/auth';
 import { requireVendor } from '@/lib/vendorAuth';
+import { serializeDoc, serializeList } from '@/lib/serialize';
 
 export async function GET() {
   try {
@@ -10,10 +12,9 @@ export async function GET() {
     if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     await dbConnect();
     const staff = await StaffMember.find({ vendor: session.user.id }).sort({ createdAt: -1 }).lean();
-    return NextResponse.json({ staff: staff.map(s => ({ ...s, _id: s._id.toString(), id: s._id.toString(), vendor: String(s.vendor) })) });
+    return NextResponse.json({ staff: serializeList(staff, { keepLegacyId: true, extra: { vendor: session.user.id } }) });
   } catch (error) {
-    console.error('[GET /api/vendor/staff]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/staff');
   }
 }
 
@@ -37,9 +38,8 @@ export async function POST(request) {
       access: String(body.access || '').trim().slice(0, 120),
       active: body.active !== false,
     });
-    return NextResponse.json({ staff: { ...member.toObject(), id: member._id.toString() } }, { status: 201 });
+    return NextResponse.json({ staff: serializeDoc(member, { keepLegacyId: true, extra: { vendor: session.user.id } }) }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/vendor/staff]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/staff');
   }
 }

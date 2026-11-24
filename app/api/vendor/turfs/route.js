@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Turf from '@/models/Turf';
 import { auth } from '@/lib/auth';
 import { SPORT_TYPES } from '@/lib/constants';
 import { loadTurfs, nextTurfOrder, syncVenueTurfCount } from '@/lib/turfs';
 import { requireVendor, ownedVenue } from '@/lib/vendorAuth';
+import { serializeDoc, serializeList } from '@/lib/serialize';
 
 function parseSize(size) {
   const length = Math.max(0, Math.floor(Number(size?.length)) || 0);
@@ -28,11 +30,10 @@ export async function GET(request) {
 
     const turfs = await loadTurfs(venue._id);
     return NextResponse.json({
-      turfs: turfs.map(t => ({ ...t, _id: t._id.toString(), venue: t.venue.toString(), id: t._id.toString() })),
+      turfs: serializeList(turfs, { keepLegacyId: true, extra: { venue: venue._id.toString() } }),
     });
   } catch (error) {
-    console.error('[GET /api/vendor/turfs]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/turfs');
   }
 }
 
@@ -66,9 +67,8 @@ export async function POST(request) {
     });
     await syncVenueTurfCount(venue._id);
 
-    return NextResponse.json({ turf: { ...turf.toObject(), _id: turf._id.toString(), id: turf._id.toString() } }, { status: 201 });
+    return NextResponse.json({ turf: serializeDoc(turf, { keepLegacyId: true, extra: { venue: venue._id.toString() } }) }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/vendor/turfs]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/turfs');
   }
 }

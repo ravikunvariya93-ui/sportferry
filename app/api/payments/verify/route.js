@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
@@ -122,7 +123,6 @@ export async function POST(request) {
     }
 
   } catch (error) {
-    console.error('[POST /api/payments/verify]', error);
-    return NextResponse.json({ message: 'Verification failed.' }, { status: 500 });
+    return apiError(error, 'POST /api/payments/verify', { message: 'Verification failed.' });
   }
 }

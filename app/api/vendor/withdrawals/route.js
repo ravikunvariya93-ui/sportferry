@@ -1,19 +1,14 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
 import PayoutBatch from '@/models/PayoutBatch';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
-import { auth, hasRole } from '@/lib/auth';
+import { requireVendorSession as requireVendor } from '@/lib/apiGuards';
 import { istTodayISO } from '@/lib/ist';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { settledAmountForVendor } from '@/lib/payouts';
-
-async function requireVendor() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'VENDOR'))) return null;
-  return session;
-}
 
 export async function GET(request) {
   try {
@@ -41,8 +36,7 @@ export async function GET(request) {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/vendor/withdrawals]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/withdrawals');
   }
 }
 
@@ -124,7 +118,6 @@ export async function POST(request) {
     if (error.code === 11000) {
       return NextResponse.json({ message: 'Withdrawal already requested for this month.' }, { status: 409 });
     }
-    console.error('[POST /api/vendor/withdrawals]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/withdrawals');
   }
 }

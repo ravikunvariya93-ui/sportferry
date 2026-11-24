@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import BlockedSlot from '@/models/BlockedSlot';
 import Booking from '@/models/Booking';
@@ -7,6 +8,7 @@ import { parseBookableSlot, isValidDateISO, istTodayISO, istDateToUTC } from '@/
 import { blocksForDate } from '@/lib/blockedSlots';
 import { turfCountOf } from '@/lib/capacity';
 import { requireVendor, ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
+import { serializeDoc, serializeList } from '@/lib/serialize';
 
 const REASONS = ['MAINTENANCE', 'PRIVATE', 'TOURNAMENT'];
 
@@ -25,11 +27,10 @@ export async function GET(request) {
 
     const blocks = await blocksForDate(venue._id, date);
     return NextResponse.json({
-      blocks: blocks.map(b => ({ ...b, _id: b._id.toString(), id: b._id.toString() })),
+      blocks: serializeList(blocks, { keepLegacyId: true }),
     });
   } catch (error) {
-    console.error('[GET /api/vendor/blocks]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/blocks');
   }
 }
 
@@ -79,12 +80,11 @@ export async function POST(request) {
       createdBy: session.user.id,
     });
 
-    return NextResponse.json({ block: { ...block.toObject(), _id: block._id.toString(), id: block._id.toString() } }, { status: 201 });
+    return NextResponse.json({ block: serializeDoc(block, { keepLegacyId: true }) }, { status: 201 });
   } catch (error) {
     // Duplicate block for the same turf+slot is fine — treat it as success.
     if (error?.code === 11000) return NextResponse.json({ ok: true }, { status: 200 });
-    console.error('[POST /api/vendor/blocks]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/vendor/blocks');
   }
 }
 
@@ -108,7 +108,6 @@ export async function DELETE(request) {
     await BlockedSlot.deleteOne({ _id: block._id });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/vendor/blocks]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/vendor/blocks');
   }
 }

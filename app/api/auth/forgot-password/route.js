@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError, tooManyRequests } from '@/lib/apiResponse';
 import crypto from 'crypto';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -13,7 +14,7 @@ export async function POST(request) {
   try {
     const rl = await rateLimit(`forgot:${clientIp(request)}`, { limit: 5, windowMs: 15 * 60 * 1000 });
     if (!rl.ok) {
-      return NextResponse.json({ message: 'Too many attempts. Please try again later.' }, { status: 429 });
+      return tooManyRequests('Too many attempts. Please try again later.');
     }
 
     const { email } = await request.json();
@@ -51,7 +52,6 @@ export async function POST(request) {
 
     return NextResponse.json(generic);
   } catch (error) {
-    console.error('[POST /api/auth/forgot-password]', error);
-    return NextResponse.json({ message: 'Something went wrong.' }, { status: 500 });
+    return apiError(error, 'POST /api/auth/forgot-password', { message: 'Something went wrong.' });
   }
 }

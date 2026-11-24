@@ -1,34 +1,25 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
 import { auth, hasRole } from '@/lib/auth';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
+import { parseListParams } from '@/lib/apiParams';
 
 export async function GET(request) {
   try {
     const session = await requireAdmin();
     if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || '';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 100);
+    const { page, limit, skip, query } = parseListParams(request, { limit: 25, filters: ['status'] });
 
     await dbConnect();
-
-    const query = {};
-    if (status) query.status = status;
 
     const [withdrawals, total] = await Promise.all([
       Withdrawal.find(query)
         .populate('vendor', 'name email phone')
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
+        .skip(skip)
         .limit(limit)
         .lean(),
       Withdrawal.countDocuments(query),
@@ -56,8 +47,7 @@ export async function GET(request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error('[GET /api/admin/withdrawals]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/withdrawals');
   }
 }
 
@@ -89,7 +79,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ id: withdrawal._id.toString(), status: withdrawal.status });
   } catch (error) {
-    console.error('[PATCH /api/admin/withdrawals]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/withdrawals');
   }
 }

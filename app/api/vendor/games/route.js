@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -44,7 +45,6 @@ export async function GET(request) {
     const result = groupGames({ bookings: shaped, todayISO: date });
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[GET /api/vendor/games]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/games');
   }
 }

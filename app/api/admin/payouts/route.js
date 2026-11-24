@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import User from '@/models/User';
@@ -8,12 +10,6 @@ import { auth, hasRole } from '@/lib/auth';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { computeVendorPayables, settledAmountForVendor } from '@/lib/payouts';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 /** Per-vendor pending payables from confirmed online bookings minus settled amounts. */
 async function pendingPayables() {
@@ -126,8 +122,7 @@ export async function GET(request) {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/admin/payouts]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/payouts');
   }
 }
 
@@ -184,8 +179,7 @@ export async function POST(request) {
       total: selected.reduce((sum, r) => sum + r.payable, 0),
     }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/admin/payouts]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/admin/payouts');
   }
 }
 
@@ -209,7 +203,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ id: batch._id.toString(), status: batch.status });
   } catch (error) {
-    console.error('[PATCH /api/admin/payouts]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/payouts');
   }
 }

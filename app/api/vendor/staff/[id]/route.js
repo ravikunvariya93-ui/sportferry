@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import StaffMember from '@/models/StaffMember';
 import { auth } from '@/lib/auth';
@@ -29,8 +30,7 @@ export async function PATCH(request, { params }) {
     await member.save();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[PATCH /api/vendor/staff/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/vendor/staff/[id]');
   }
 }
 
@@ -44,7 +44,6 @@ export async function DELETE(request, { params }) {
     await StaffMember.deleteOne({ _id: member._id });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/vendor/staff/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/vendor/staff/[id]');
   }
 }

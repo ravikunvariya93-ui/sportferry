@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { MapPin, Clock, Users, Heart, ArrowRight } from 'lucide-react';
-import { formatToAMPM, istHour, istTodayISO } from '@/lib/ist';
-import { CITY_KEY, cityMatches } from '@/lib/location';
-import { baseHourlyRateFor, hourlyRateFor } from '@/lib/pricing';
+import { formatSlotLabel, istHour, istTodayISO } from '@/lib/ist';
+import { cityMatches, useSelectedCity } from '@/lib/location';
+import { displayPriceFor } from '@/lib/pricing';
 
 function getDaypartWord() {
   const hour = istHour();
@@ -17,20 +17,7 @@ function getDaypartWord() {
 export default function TonightsGames({ venues, venueGames = {}, date }) {
   const daypart = getDaypartWord();
   const dateStr = date || istTodayISO();
-  const [nearbyCity, setNearbyCity] = useState(null);
-
-  useEffect(() => {
-    const read = () => localStorage.getItem(CITY_KEY);
-    setNearbyCity(read());
-    const onSet = (e) => setNearbyCity(e.detail?.city || read());
-    const onReset = () => setNearbyCity(read());
-    window.addEventListener('sportferry:citySet', onSet);
-    window.addEventListener('sportferry:resetLocation', onReset);
-    return () => {
-      window.removeEventListener('sportferry:citySet', onSet);
-      window.removeEventListener('sportferry:resetLocation', onReset);
-    };
-  }, []);
+  const nearbyCity = useSelectedCity();
 
   const maxJoined = (v) => Math.max(...(venueGames[v.id] || [{ joined: 0 }]).map(s => s.joined));
   const games = venues
@@ -73,10 +60,8 @@ export default function TonightsGames({ venues, venueGames = {}, date }) {
           const slots = venueGames[v.id] || [];
           const bestSlot = slots.reduce((a, b) => (a.joined > b.joined ? a : b), slots[0]);
           const { startTime, endTime, joined, spotsLeft, maxPlayers = 12 } = bestSlot;
-          const timeLabel = `${formatToAMPM(startTime)} – ${formatToAMPM(endTime)}`;
-          const finalPrice = hourlyRateFor(v, dateStr, startTime);
-          const basePrice = baseHourlyRateFor(v, dateStr, startTime);
-          const discountPct = basePrice > 0 ? Math.max(0, Math.round((1 - finalPrice / basePrice) * 100)) : 0;
+          const timeLabel = formatSlotLabel(startTime, endTime);
+          const { finalPrice, basePrice, discountPct } = displayPriceFor(v, dateStr, startTime);
           const skill = (v.rating || 4.5) >= 4.5 ? 'Intermediate' : 'All Levels';
           const skillColor = skill === 'Intermediate' ? '#d97706' : '#16a34a';
           return (

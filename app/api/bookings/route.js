@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -10,6 +11,7 @@ import { runBookingTransaction, lockSlot, slotLockKey, BookingError } from '@/li
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { blockedTurfsInSlot } from '@/lib/blockedSlots';
 import { autoConfirmIfReady } from '@/lib/booking-utils';
+import { bookingDateFor, classificationLimitError } from '@/lib/bookingInput';
 
 export async function POST(request) {
   try {
@@ -59,9 +61,7 @@ export async function POST(request) {
       return NextResponse.json({ message: 'Invalid players count.' }, { status: 400 });
     }
 
-    // Use robust UTC-based date for storing
-    const [year, month, day] = date.split('-').map(Number);
-    const bookingDate = new Date(Date.UTC(year, month - 1, day));
+    const bookingDate = bookingDateFor(date);
 
     const { startUTC, endUTC } = getISTDayRange(date);
 
@@ -86,16 +86,8 @@ export async function POST(request) {
       parsedSlots.push(times);
     }
 
-    // 4. Classification Limits
-    if (classification === 'SOLO' && (playersCount < 1 || playersCount > 2)) {
-      return NextResponse.json({ message: 'Solo bookings: 1-2 players.' }, { status: 400 });
-    }
-    if (classification === 'TEAM' && (playersCount < 3 || playersCount > 6)) {
-      return NextResponse.json({ message: 'Team bookings: 3-6 players.' }, { status: 400 });
-    }
-    if (classification === 'GROUP' && playersCount !== 12) {
-      return NextResponse.json({ message: 'Group bookings: exactly 12 players.' }, { status: 400 });
-    }
+    const classificationError = classificationLimitError(classification, playersCount);
+    if (classificationError) return NextResponse.json({ message: classificationError }, { status: 400 });
 
     await dbConnect();
 
@@ -209,7 +201,6 @@ export async function POST(request) {
       turf: createdBookings[0]?.turf,
     }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/bookings]', error);
-    return NextResponse.json({ message: 'Booking failed. Please try again.' }, { status: 500 });
+    return apiError(error, 'POST /api/bookings', { message: 'Booking failed. Please try again.' });
   }
 }

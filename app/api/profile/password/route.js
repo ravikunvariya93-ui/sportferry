@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -33,7 +34,6 @@ export async function POST(request) {
 
     return NextResponse.json({ message: 'Password updated successfully.' });
   } catch (error) {
-    console.error('[POST /api/profile/password]', error);
-    return NextResponse.json({ message: 'Failed to update password.' }, { status: 500 });
+    return apiError(error, 'POST /api/profile/password', { message: 'Failed to update password.' });
   }
 }

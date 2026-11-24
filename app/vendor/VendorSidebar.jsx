@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { isActivePath } from '@/lib/navConfig';
 import {
   LayoutDashboard, CalendarDays, CalendarCheck, Wallet,
   Building2, IndianRupee, Users, BarChart3, UserCog, Gamepad2, Settings,
@@ -59,11 +60,6 @@ const MOBILE_ITEMS = [
   { href: '/vendor/settings', label: 'Settings' },
 ];
 
-function isActivePath(pathname, item) {
-  if (item.neverActive) return false;
-  return item.href === '/vendor' ? pathname === '/vendor' : pathname.startsWith(item.href);
-}
-
 export default function VendorSidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -92,7 +88,7 @@ export default function VendorSidebar() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {section.items.map((item) => {
-                  const { href, label, Icon, disabled } = item;
+                  const { href, label, Icon, disabled, neverActive } = item;
                   if (disabled) {
                     return (
                       <span key={label} title="Coming soon" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px', borderRadius: '10px', fontSize: '13.5px', color: 'var(--muted)', opacity: 0.55, cursor: 'not-allowed' }}>
@@ -100,7 +96,7 @@ export default function VendorSidebar() {
                       </span>
                     );
                   }
-                  const active = isActivePath(pathname, item);
+                  const active = isActivePath(pathname, href, { neverActive });
                   return (
                     <Link key={label} href={href} style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 10px', borderRadius: '10px',

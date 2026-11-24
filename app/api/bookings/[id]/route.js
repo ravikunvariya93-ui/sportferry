@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -6,6 +7,7 @@ import { auth, hasRole } from '@/lib/auth';
 import { calculateRefund, getPlayerCancellationTier, hoursUntilSlot } from '@/lib/cancellationPolicy';
 import { executeRefund } from '@/lib/refunds';
 import { autoConfirmIfReady } from '@/lib/booking-utils';
+import { claimCancelled } from '@/lib/bookingClaims';
 
 export async function PATCH(request, { params }) {
   try {
@@ -93,11 +95,7 @@ export async function PATCH(request, { params }) {
 
       // Claim the booking atomically before asking Razorpay for a refund, so
       // two concurrent cancellations can never pay out twice.
-      const claimed = await Booking.findOneAndUpdate(
-        { _id: booking._id, status: { $ne: 'CANCELLED' } },
-        { $set: { status: 'CANCELLED' } },
-        { new: true }
-      );
+      const claimed = await claimCancelled(booking._id);
       if (!claimed) {
         return NextResponse.json({ message: 'Booking is already cancelled.' }, { status: 409 });
       }
@@ -145,8 +143,7 @@ export async function PATCH(request, { params }) {
       cancelledBy: booking.cancelledBy ?? null,
     });
   } catch (error) {
-    console.error('[PATCH /api/bookings/[id]]', error);
-    return NextResponse.json({ message: 'Something went wrong. Please try again.' }, { status: 500 });
+    return apiError(error, 'PATCH /api/bookings/[id]', { message: 'Something went wrong. Please try again.' });
   }
 }
 
@@ -203,7 +200,6 @@ export async function GET(request, { params }) {
       },
     });
   } catch (error) {
-    console.error('[GET /api/bookings/[id]]', error);
-    return NextResponse.json({ message: 'Something went wrong.' }, { status: 500 });
+    return apiError(error, 'GET /api/bookings/[id]', { message: 'Something went wrong.' });
   }
 }

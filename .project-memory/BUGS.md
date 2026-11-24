@@ -114,6 +114,13 @@ Tests 27/193, lint clean, build compiled; all fixture records deleted (ZZ users 
 - **V16 — Phone OTP removed at request.** Deleted `/api/vendor/otp/{send,verify}`, `lib/otp.js` + test, the wizard's Send OTP/Verify controls and the `phoneOtp*` / `phoneVerified` User fields; `lib/email.js` now only sends password-reset mail. Phone number is still saved as a plain contact field. Email verification never existed as a flow.
 - Tests 27/199, lint clean (only pre-existing `<img>` warnings).
 
+## 🆕 Consistency refactor (R2; all verified)
+- **Shared domain helpers:** `lib/ist.js` owns ISO date shifts/visible ranges/slot labels/booking-date formatting; `lib/pricing.js` → `displayPriceFor` is the only card-price calculation; `lib/venueOffers.js` → `loadPricedVenue` replaces inline offer loading in checkout and venue detail; `lib/bookingInput.js` centralises classification limits; `lib/serialize.js` centralises DTO shapes; `lib/bookingClaims.js` centralises atomic claims.
+- **Shared API helpers:** 78 generic 500 handlers across 47 routes now call `apiError`; 15 admin guards and the vendor withdrawal guard use `apiGuards`; 429 responses use `tooManyRequests` (with `Retry-After` on checkout); list params and booking claims have single implementations. Special protocols (ticket verdicts, webhook 502, duplicate-block 200, forgot-password generic message) were left intact.
+- **Shared UI:** `components/ui/` provides `StatusPill`, `StateBlock`, `StatCard`, `TabBar`, `Field`, `ModalShell`, `DataTable`, `PageHeader`; `lib/statusStyles.js` replaces local status maps; `lib/navConfig.js` is the single active-link implementation; `useSelectedCity` replaces three copied listeners. Applied to vendor earnings/games/staff/customers and admin withdrawals.
+- Verified live with a throwaway vendor: public pages HTTP 200, malformed dates still 400, offer price ₹960 vs ₹1200, offline booking created 201 and grouped by `groupGames`, vendor pages render, no browser errors. Fixture deleted (users/venues/turfs/offers/bookings all 0). Tests 30 suites / 210 tests, lint clean.
+- Deliberately left alone: visual redesigns, inline one-off styles, intentional edge/DB auth split, middleware+handler role checks, prototype screens.
+
 ## ⚠️ Still open (not code bugs — they need a decision or infra)
 
 1. **Email verification is deliberately deferred (no code to remove).** Registration accepts any well-formed address; Google sign-in links to an existing account with the same email. The only verification flow that existed — vendor phone OTP — was removed along with its API routes, helper and model fields. `lib/email.js` now only sends password-reset emails.

@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import TabBar from '@/components/ui/TabBar';
+import StateBlock from '@/components/ui/StateBlock';
+import StatusPill from '@/components/ui/StatusPill';
 import { Gamepad2, RefreshCw, Users, ShieldCheck } from 'lucide-react';
 import { IST_OFFSET_MS } from '@/lib/ist';
 
@@ -55,27 +58,28 @@ export default function GamesClient() {
         </div>
       </header>
 
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => selectTab(t.key)} style={{ padding: '9px 18px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', background: tab === t.key ? 'var(--primary)' : 'var(--secondary)', color: tab === t.key ? 'white' : 'var(--foreground)', border: `1px solid ${tab === t.key ? 'var(--primary)' : 'var(--glass-border)'}` }}>
-            {t.label} ({data.counts?.[t.key] ?? 0})
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={TABS.map(t => ({ ...t, label: `${t.label} (${data.counts?.[t.key] ?? 0})` }))}
+        active={tab}
+        onChange={selectTab}
+      />
 
       {loading ? (
-        <div style={{ color: 'var(--muted)', padding: '24px' }}>Loading games…</div>
+        <StateBlock loading label="Loading games…" />
       ) : rows.length === 0 ? (
-        <div className="glass-morphism" style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>No games for this view.</div>
+        <StateBlock label="No games for this view." />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
           {rows.map(g => (
             <div key={g.key} className="glass-morphism" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
                 <div style={{ fontWeight: 700 }}>{g.slot} · T{g.turf}</div>
-                <span style={{ padding: '2px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: 700, background: g.status === 'CONFIRMED' ? 'rgba(22,163,74,0.12)' : 'rgba(251,191,36,0.16)', color: g.status === 'CONFIRMED' ? 'var(--primary)' : '#b45309' }}>
-                  {g.status}
-                </span>
+                <StatusPill
+                  status={g.status}
+                  overrides={g.status === 'CONFIRMED'
+                    ? { bg: 'rgba(22,163,74,0.12)', color: 'var(--primary)' }
+                    : { bg: 'rgba(251,191,36,0.16)', color: '#b45309' }}
+                />
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>{g.venueName} · {g.date}</div>
 

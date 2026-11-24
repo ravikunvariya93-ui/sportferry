@@ -19,6 +19,7 @@ import {
 import styles from './Sidebar.module.css';
 import { clsx } from 'clsx';
 import { useSession, signOut } from 'next-auth/react';
+import { isActivePath } from '@/lib/navConfig';
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -72,7 +73,7 @@ const Sidebar = () => {
       <nav className={styles.nav}>
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.path;
+          const isActive = isActivePath(pathname, item.path, { exact: true });
           return (
             <Link 
               key={item.name} 

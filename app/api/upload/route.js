@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError, tooManyRequests } from '@/lib/apiResponse';
 import { put } from '@vercel/blob';
 import { auth, hasRole } from '@/lib/auth';
 import { sharedRateLimit as rateLimit } from '@/lib/rateLimit';
@@ -15,7 +16,7 @@ export async function POST(request) {
 
     const rl = await rateLimit(`upload:${session.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
     if (!rl.ok) {
-      return NextResponse.json({ message: 'Too many uploads. Please try again later.' }, { status: 429 });
+      return tooManyRequests('Too many uploads. Please try again later.');
     }
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -54,7 +55,6 @@ export async function POST(request) {
 
     return NextResponse.json({ urls }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/upload]', error);
-    return NextResponse.json({ message: 'Image upload failed. Please try again.' }, { status: 500 });
+    return apiError(error, 'POST /api/upload', { message: 'Image upload failed. Please try again.' });
   }
 }

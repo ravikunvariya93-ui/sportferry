@@ -24,6 +24,7 @@
 10. **Multi-write operations go through a mongoose session/transaction** (precedent: booking creation, payment verify). Don't insert partial state outside a transaction when the flow has money or capacity involved.
 11. **Model exports** keep the `(mongoose.models.X || mongoose.model(...))` hot-reload guard.
 12. **Don't hardcode secrets** or read `.env.local` values into scripts (secrets incident `d3fd994`). `scratch/` is gitignored — put debug scripts there.
+13. **Reuse the shared helpers.** API responses/guards/params/claims come from `lib/apiResponse.js`, `apiGuards.js`, `apiParams.js`, `bookingClaims.js`; DTOs from `lib/serialize.js`; dates/slots from `lib/ist.js`; card prices from `displayPriceFor`; offers load through `lib/venueOffers.js`; nav active state from `lib/navConfig.js`; city listener from `useSelectedCity`; UI primitives from `components/ui/`. Don't reintroduce local copies.
 
 ## Styling rules
 - Component styles in `Component.module.css`; reuse `:root` variables; green primary `#16a34a`.

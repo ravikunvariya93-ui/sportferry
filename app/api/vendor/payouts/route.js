@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import PayoutBatch from '@/models/PayoutBatch';
@@ -43,7 +44,6 @@ export async function GET(request) {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/vendor/payouts]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/vendor/payouts');
   }
 }

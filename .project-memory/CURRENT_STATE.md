@@ -2,11 +2,11 @@
 
 ## Runtime
 - Dev server: `npx next dev -p 3000`, verified running, HTTP 200, warm responses <0.5s.
-- Tests: `npm test` → 3 suites / 15 tests, **all pass**, ~40s, exit 0.
+- Tests: `npm test` → 30 suites / 210 tests, all pass; `npm run lint` has no errors (only pre-existing `<img>` warnings).
 - Build: ⚠ `npm run build` **not re-verified** in this session (last known good enough for prior deploys — unverified, don't assume).
 
 ## Git
-- Branch `main` (tracking `origin/main`). Last commit: `eaaecb5` (2026-10-05) "feat: responsive homepage redesign, image fixes, and Gujarat venue seed".
+- Branch `main` (tracking `origin/main`). Last pushed commit: `7f7e66c` "feat(vendor): harden money, navigation and onboarding flows"; the refactor work after it is uncommitted.
 - **33 uncommitted files** in working tree (~6.7k insertions). Categories:
   - Homepage redesign: `app/page.js`, `components/Home/*` (HomeHero, QuickActions — `TonightsGames.jsx` was deleted in the working tree but **restored 2026-10-08** with a dynamic daypart heading, placed above FeaturedVenues)
   - Header/nav restyle: `MobileHeader`, `Sidebar`, `Footer`, `LocationModal`, `VenueCard` (.jsx + .module.css pairs)
@@ -17,7 +17,7 @@
 
 ## Product/data status
 - `app/tournaments/` and `app/players/` render **sample/in-memory data** (`SAMPLE_TOURNAMENTS` etc.) — not backed by API yet.
-- `lib/mockData.js` exists but is currently imported **nowhere** (grep: 0 hits) — dead code candidate.
+- `lib/mockData.js` no longer exists (older notes called it dead code).
 - `.env.local` fully populated (Mongo, Google OAuth, Razorpay, Vercel Blob) — server needs no setup.
 
 ## Active risks

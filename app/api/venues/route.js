@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
@@ -44,7 +45,6 @@ export async function POST(request) {
 
     return NextResponse.json({ venueId: venue._id.toString() }, { status: 201 });
   } catch (error) {
-    console.error('[POST /api/venues]', error);
-    return NextResponse.json({ message: 'Something went wrong. Please try again.' }, { status: 500 });
+    return apiError(error, 'POST /api/venues', { message: 'Something went wrong. Please try again.' });
   }
 }

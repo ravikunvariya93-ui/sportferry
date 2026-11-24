@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { claimBooking } from '@/lib/bookingClaims';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth, hasRole } from '@/lib/auth';
 import { executeRefund } from '@/lib/refunds';
 import { bookingRef } from '@/lib/bookingRef';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 /** Map a booking's refundStatus onto the refund-queue status. */
 function refundQueueStatus(refundStatus) {
@@ -77,8 +74,7 @@ export async function GET(request) {
 
     return NextResponse.json({ refunds: rows, kpis, counts });
   } catch (error) {
-    console.error('[GET /api/admin/refunds]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/refunds');
   }
 }
 
@@ -102,7 +98,7 @@ export async function POST(request) {
 
       // Claim the booking atomically so two admins (or a retry) can never refund
       // the same payment twice.
-      const claimed = await Booking.findOneAndUpdate(
+      const claimed = await claimBooking(
         {
           _id: id,
           status: 'CANCELLED',
@@ -111,8 +107,7 @@ export async function POST(request) {
           refundAmount: { $gt: 0 },
           refundStatus: { $ne: 'COMPLETED' },
         },
-        { $set: { refundStatus: 'PENDING' } },
-        { new: true }
+        { refundStatus: 'PENDING' }
       );
       if (!claimed) { skipped += 1; continue; }
 
@@ -128,7 +123,6 @@ export async function POST(request) {
 
     return NextResponse.json({ completed, failed, skipped });
   } catch (error) {
-    console.error('[POST /api/admin/refunds]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'POST /api/admin/refunds');
   }
 }

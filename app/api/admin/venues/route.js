@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
@@ -7,12 +9,6 @@ import BlockedSlot from '@/models/BlockedSlot';
 import User from '@/models/User';
 import { auth, hasRole } from '@/lib/auth';
 import { escapeRegex } from '@/lib/validation';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 export async function GET(request) {
   try {
@@ -105,8 +101,7 @@ export async function GET(request) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error('[GET /api/admin/venues]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'GET /api/admin/venues');
   }
 }
 
@@ -127,8 +122,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({ venueId: venue._id.toString(), onboardingStatus: venue.onboardingStatus });
   } catch (error) {
-    console.error('[PATCH /api/admin/venues]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/venues');
   }
 }
 
@@ -155,7 +149,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ message: 'Venue deleted successfully' });
   } catch (error) {
-    console.error('[DELETE /api/admin/venues]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/admin/venues');
   }
 }

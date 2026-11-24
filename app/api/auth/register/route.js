@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { tooManyRequests } from '@/lib/apiResponse';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -11,7 +12,7 @@ export async function POST(request) {
   try {
     const rl = await rateLimit(`register:${clientIp(request)}`, { limit: 10, windowMs: 15 * 60 * 1000 });
     if (!rl.ok) {
-      return NextResponse.json({ message: 'Too many sign-up attempts. Please try again later.' }, { status: 429 });
+      return tooManyRequests('Too many sign-up attempts. Please try again later.');
     }
 
     const body = await request.json();

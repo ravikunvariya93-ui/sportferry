@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/apiGuards';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import VendorOffer from '@/models/VendorOffer';
 import { auth, hasRole } from '@/lib/auth';
 import { isValidObjectId } from '@/lib/vendorAuth';
 import { normalizeOffer } from '@/lib/offers';
-
-async function requireAdmin() {
-  const session = await auth();
-  if (!session || !(await hasRole(session, 'ADMIN'))) return null;
-  return session;
-}
 
 export async function PATCH(request, { params }) {
   try {
@@ -30,8 +26,7 @@ export async function PATCH(request, { params }) {
     await offer.save();
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[PATCH /api/admin/offers/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'PATCH /api/admin/offers/[id]');
   }
 }
 
@@ -43,7 +38,6 @@ export async function DELETE(request, { params }) {
     await VendorOffer.deleteOne({ _id: params.id });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/admin/offers/[id]]', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    return apiError(error, 'DELETE /api/admin/offers/[id]');
   }
 }

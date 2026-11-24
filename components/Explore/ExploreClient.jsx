@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
-import { SLOT_LABELS, isSlotLabelPast, istTodayISO } from '@/lib/ist';
+import { SLOT_LABELS, isSlotLabelPast, istTodayISO, firstUpcomingSlotLabel } from '@/lib/ist';
 import { slotCapacityFor } from '@/lib/capacity';
 
 const SPORTS = ['Box Cricket'];
@@ -23,8 +23,7 @@ const todayISO = () => istTodayISO();
 const slotHasPassed = isSlotLabelPast;
 
 function getFirstUpcomingSlot(dateISO) {
-  const upcoming = SLOTS.filter(s => !slotHasPassed(s, dateISO));
-  return upcoming[0] || 'All Slots';
+  return firstUpcomingSlotLabel(dateISO) || 'All Slots';
 }
 
 export default function ExploreClient({ initialVenues }) {

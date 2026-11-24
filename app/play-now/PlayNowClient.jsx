@@ -1,27 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { MapPin, Clock, Users, Star, Zap, AlertCircle } from 'lucide-react';
-import { CITY_KEY, cityMatches } from '@/lib/location';
+import { cityMatches, useSelectedCity } from '@/lib/location';
 import { discountPercentOf, discountedPrice } from '@/lib/pricing';
 
 export default function PlayNowClient({ games, date }) {
   const [selectedCity, setSelectedCity] = useState('All Cities');
-  const [nearbyCity, setNearbyCity] = useState(null);
-
-  useEffect(() => {
-    const read = () => localStorage.getItem(CITY_KEY);
-    setNearbyCity(read());
-    const onSet = (e) => setNearbyCity(e.detail?.city || read());
-    const onReset = () => setNearbyCity(read());
-    window.addEventListener('sportferry:citySet', onSet);
-    window.addEventListener('sportferry:resetLocation', onReset);
-    return () => {
-      window.removeEventListener('sportferry:citySet', onSet);
-      window.removeEventListener('sportferry:resetLocation', onReset);
-    };
-  }, []);
+  const nearbyCity = useSelectedCity();
 
   const cities = [...new Set(games.map(g => g.venueCity).filter(Boolean))].sort();
   const filteredGames = selectedCity === 'All Cities' 

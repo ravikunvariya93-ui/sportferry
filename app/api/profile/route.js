@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { apiError } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { NextResponse } from 'next/server';
@@ -91,7 +92,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ message: 'Account deleted.' });
   } catch (error) {
-    console.error('[DELETE /api/profile]', error);
-    return NextResponse.json({ message: 'Failed to delete account.' }, { status: 500 });
+    return apiError(error, 'DELETE /api/profile', { message: 'Failed to delete account.' });
   }
 }

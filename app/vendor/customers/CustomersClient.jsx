@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Users, Download, Search } from 'lucide-react';
+import DataTable from '@/components/ui/DataTable';
+import StatusPill from '@/components/ui/StatusPill';
 
 function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
@@ -33,33 +35,30 @@ export default function CustomersClient({ customers }) {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers..." style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'var(--secondary)', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '13px' }} />
         </div>
 
-        {rows.length === 0 ? (
-          <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '24px' }}>No customers found.</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead><tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                {['Customer', 'Bookings', 'Total spend', 'Last booking', 'Type'].map(h => <th key={h} style={{ textAlign: 'left', padding: '10px', color: 'var(--muted)', fontSize: '11px', textTransform: 'uppercase' }}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {rows.map(c => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                    <td style={{ padding: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{c.name?.charAt(0)?.toUpperCase() || '?'}</div>
-                        <Link href={`/profile/${c.id}`} style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}>{c.name}</Link>
-                      </div>
-                    </td>
-                    <td>{c.bookings}</td>
-                    <td style={{ fontWeight: 600 }}>{money(c.totalSpend)}</td>
-                    <td style={{ color: 'var(--muted)' }}>{c.lastBookingAt ? new Date(c.lastBookingAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
-                    <td><span style={{ padding: '2px 9px', borderRadius: '100px', fontSize: '11px', fontWeight: 700, background: c.bookings > 1 ? 'rgba(22,163,74,0.12)' : 'var(--glass-bg)', color: c.bookings > 1 ? 'var(--primary)' : 'var(--muted)' }}>{c.bookings > 1 ? 'Repeat' : 'New'}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          rows={rows}
+          empty="No customers found."
+          columns={[
+            {
+              key: 'name', label: 'Customer',
+              render: c => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{c.name?.charAt(0)?.toUpperCase() || '?'}</div>
+                  <Link href={`/profile/${c.id}`} style={{ color: 'inherit', textDecoration: 'none', fontWeight: 600 }}>{c.name}</Link>
+                </div>
+              ),
+            },
+            { key: 'bookings', label: 'Bookings' },
+            { key: 'totalSpend', label: 'Total spend', render: c => <strong>{money(c.totalSpend)}</strong> },
+            { key: 'lastBookingAt', label: 'Last booking', render: c => <span style={{ color: 'var(--muted)' }}>{c.lastBookingAt ? new Date(c.lastBookingAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span> },
+            {
+              key: 'type', label: 'Type',
+              render: c => c.bookings > 1
+                ? <StatusPill status="REPEAT" label="Repeat" overrides={{ bg: 'rgba(22,163,74,0.12)', color: 'var(--primary)' }} />
+                : <StatusPill status="NEW" label="New" overrides={{ bg: 'var(--glass-bg)', color: 'var(--muted)' }} />,
+            },
+          ]}
+        />
       </section>
     </div>
   );

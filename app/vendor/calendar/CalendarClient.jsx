@@ -3,18 +3,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CalendarDays, Ban, Lock, Info } from 'lucide-react';
-import { istTodayISO } from '@/lib/ist';
+import { istTodayISO, addDaysISO, visibleISODates, formatBookingDate } from '@/lib/ist';
 import { STATUS_STYLES, CALENDAR_LEGEND } from '@/lib/calendarStatus';
 import OfflineBookingModal from '../OfflineBookingModal';
 import BlockSlotModal from './BlockSlotModal';
 
 const LEGEND = CALENDAR_LEGEND;
-
-function shiftDate(iso, days) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 export default function CalendarClient({ venues, initialDate, openOffline = false }) {
   const router = useRouter();
@@ -55,20 +49,7 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
   // Week / Month views fetch the day grids for the visible dates and summarise them.
   useEffect(() => {
     if (view === 'Day' || !venueId) { setMulti([]); return undefined; }
-    const d = new Date(`${date}T00:00:00Z`);
-    let dates = [];
-    if (view === 'Week') {
-      const monday = new Date(d);
-      monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
-      dates = Array.from({ length: 7 }, (_, i) => {
-        const x = new Date(monday); x.setUTCDate(x.getUTCDate() + i);
-        return x.toISOString().slice(0, 10);
-      });
-    } else {
-      const y = d.getUTCFullYear(), m = d.getUTCMonth();
-      const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-      dates = Array.from({ length: last }, (_, i) => new Date(Date.UTC(y, m, i + 1)).toISOString().slice(0, 10));
-    }
+    const dates = visibleISODates(date, view);
     let cancelled = false;
     setMultiLoading(true);
     Promise.all(dates.map(async iso => {
@@ -82,7 +63,7 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
   const turfs = data?.turfs?.length ? data.turfs : (venue?.turfs || []);
   const grid = data?.grid || [];
 
-  const dateLabel = new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const dateLabel = formatBookingDate(`${date}T00:00:00Z`, { weekday: true });
 
   return (
     <>
@@ -125,11 +106,11 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button onClick={() => setDate(d => shiftDate(d, -1))} style={navBtn}><ChevronLeft size={18} /></button>
+            <button onClick={() => setDate(d => addDaysISO(d, -1))} style={navBtn}><ChevronLeft size={18} /></button>
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', padding: '0 6px' }}>
               <CalendarDays size={16} color="var(--primary)" /> {dateLabel}
             </span>
-            <button onClick={() => setDate(d => shiftDate(d, 1))} style={navBtn}><ChevronRight size={18} /></button>
+            <button onClick={() => setDate(d => addDaysISO(d, 1))} style={navBtn}><ChevronRight size={18} /></button>
           </div>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ padding: '9px 12px', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'var(--secondary)', color: 'var(--foreground)', fontFamily: 'inherit', fontSize: '13px' }} />
           <div style={{ display: 'flex', gap: '4px', background: 'var(--secondary)', padding: '4px', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
