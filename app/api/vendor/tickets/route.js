@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import SupportTicket from '@/models/SupportTicket';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
-import { requireVendor } from '@/lib/vendorAuth';
+
+
 import { serializeDoc, serializeList } from '@/lib/serialize';
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const tickets = await SupportTicket.find({ createdBy: session.user.id }).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ tickets: serializeList(tickets, { keepLegacyId: true }) });
@@ -21,12 +22,12 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     const body = await request.json();
     const subject = String(body.subject || '').trim();
     const text = String(body.body || '').trim();
-    if (!subject || !text) return NextResponse.json({ message: 'A subject and message are required.' }, { status: 400 });
+    if (!subject || !text) return badRequest('A subject and message are required.');
 
     await dbConnect();
     const venue = await Venue.findOne({ owner: session.user.id }).select('_id').lean();

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, notFound, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import VendorOffer from '@/models/VendorOffer';
-import { auth } from '@/lib/auth';
-import { requireVendor, isValidObjectId } from '@/lib/vendorAuth';
+
+import { isValidObjectId } from '@/lib/vendorAuth';
 import { normalizeOffer } from '@/lib/offers';
 
 async function owned(session, id) {
@@ -13,12 +14,12 @@ async function owned(session, id) {
 
 export async function PATCH(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     const body = await request.json();
     await dbConnect();
     const offer = await owned(session, params.id);
-    if (!offer) return NextResponse.json({ message: 'Offer not found.' }, { status: 404 });
+    if (!offer) return notFound('Offer not found.');
 
     if (body.active !== undefined && Object.keys(body).length === 1) {
       offer.active = Boolean(body.active);
@@ -27,7 +28,7 @@ export async function PATCH(request, { params }) {
     }
 
     const parsed = normalizeOffer({ ...offer.toObject(), ...body }, { vendorId: session.user.id });
-    if (parsed.error) return NextResponse.json({ message: parsed.error }, { status: 400 });
+    if (parsed.error) return badRequest(parsed.error);
     Object.assign(offer, parsed.value);
     await offer.save();
     return NextResponse.json({ ok: true });
@@ -38,11 +39,11 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const offer = await owned(session, params.id);
-    if (!offer) return NextResponse.json({ message: 'Offer not found.' }, { status: 404 });
+    if (!offer) return notFound('Offer not found.');
     await VendorOffer.deleteOne({ _id: offer._id });
     return NextResponse.json({ ok: true });
   } catch (error) {

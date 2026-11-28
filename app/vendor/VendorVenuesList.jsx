@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { Plus, MapPin, Edit2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import VenueModal from '@/components/VenueModal';
@@ -16,7 +17,7 @@ export default function VendorVenuesList({ venues }) {
       return;
     }
     try {
-      const res = await fetch(`/api/venues/${venueId}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/venues/${venueId}`, { method: 'DELETE' });
       if (res.ok) {
         router.refresh();
       } else {

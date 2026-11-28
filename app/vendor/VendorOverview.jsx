@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { formatINR } from '@/lib/format';
 import {
   TrendingUp, CalendarDays, IndianRupee, Percent, Plus, Building2,
   Wallet, Lock, Info, AlertTriangle, CheckCircle2,
@@ -57,7 +58,7 @@ export default function VendorOverview({ venues, kpis, earnings, sourceSplit, tr
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
         <Kpi label="Total Bookings" value={kpis.totalBookings} Icon={CalendarDays} color="#38bdf8" />
         <Kpi label="Players" value={kpis.players} Icon={TrendingUp} color="#8b5cf6" />
-        <Kpi label={`Net Earnings (after ${earnings.commissionPercent}%)`} value={`₹${earnings.net.toLocaleString('en-IN')}`} Icon={IndianRupee} color="#10b981" />
+        <Kpi label={`Net Earnings (after ${earnings.commissionPercent}%)`} value={`${formatINR(earnings.net)}`} Icon={IndianRupee} color="#10b981" />
         <Kpi label="Occupancy" value={`${kpis.occupancy}%`} Icon={Percent} color="#f59e0b" />
       </div>
 
@@ -136,7 +137,7 @@ export default function VendorOverview({ venues, kpis, earnings, sourceSplit, tr
             {[
               { Icon: Wallet, color: '#10b981', title: `Commission: ${earnings.commissionPercent}%`, text: `Sportferry deducts ${earnings.commissionPercent}% from each confirmed booking.` },
               { Icon: AlertTriangle, color: '#f59e0b', title: 'No Cancellation', text: 'Vendors cannot cancel bookings. Contact admin if needed.' },
-              { Icon: CheckCircle2, color: '#22c55e', title: 'Auto-Confirm', text: 'A turf confirms once it holds 6 players in total.' },
+              { Icon: CheckCircle2, color: '#22c55e', title: 'Auto-Confirm', text: 'A turf confirms once it holds 8 players in total.' },
               { Icon: CalendarDays, color: '#8b5cf6', title: 'Monthly Withdrawal', text: 'Request one withdrawal per month from Payouts.' },
             ].map(({ Icon, color, title, text }) => (
               <div key={title} style={{ padding: '14px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>

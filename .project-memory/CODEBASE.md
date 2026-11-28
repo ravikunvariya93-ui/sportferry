@@ -34,16 +34,18 @@ lib/
   capacity.js            # allocateBooking (side/team rules), openSeatsFor, blockReason
   razorpay.js            # The only module that talks to Razorpay: orders, payments, refunds
   refunds.js             # executeRefund — runs the refund and reports its real status
-  ist.js                 # parseSlot, parseBookableSlot, IST dates, slot labels, calendar ranges
+  ist.js                 # parseSlot, parseBookableSlot, IST dates, slot labels, calendar ranges, formatBookingDate/formatToAMPM
+  format.js              # formatINR, formatNumber, formatDayMonth, formatMonthYear — shared display formatting
   pricing.js             # baseHourlyRateFor, hourlyRateFor, displayPriceFor
   offers.js              # normalizeOffer, rateWithOffers (active offer applied to price)
   venueOffers.js         # attachActiveOffers, loadPricedVenue (server-only)
   serialize.js           # serializeDoc, serializeList (API DTO shapes)
   bookingInput.js        # classification limits, cell normalization, bookingDateFor
   bookingClaims.js       # atomic claimBooking / claimCancelled updates
-  apiResponse.js         # badRequest, forbidden, conflict, apiError, tooManyRequests
+  apiResponse.js         # badRequest/unauthorized/forbidden/notFound/conflict/apiError/tooManyRequests — every API error response uses these
+  clientApi.js           # apiFetch (one cached JSON parse, tolerates a non-JSON body) + apiErrorMessage — every client request uses these
   apiGuards.js           # requireAdmin, requireVendorSession, requireOwnedDoc
-  apiParams.js           # parseListParams, parseDateFilter, parseCsvFormat
+  apiParams.js           # parseListParams, parseDateFilter, parseCsvFormat — shared list pagination/caps
   navConfig.js           # isActivePath shared by all four nav components
   location.js            # CITY_KEY, cityMatches, useSelectedCity hook
   statusStyles.js        # shared status pill colours
@@ -61,6 +63,7 @@ test files: components/**/*.test.jsx and lib/*.test.js (30 suites, 210 tests)
 - Path alias `@/` → project root (jsconfig.json).
 - Pages that need auth/data on the server are async server components; interactive dashboards are `'use client'` + fetch own API.
 - API handlers: `auth()` check → `dbConnect()` → mongoose session/transaction → `NextResponse.json`, errors logged with `[POST /api/...]` prefix.
+- API error responses go through `lib/apiResponse.js` (`badRequest`, `unauthorized`, `forbidden`, `notFound`, `conflict`); client requests go through `lib/clientApi.js` (`apiFetch`, `apiErrorMessage`). Don't hand-roll either shape.
 - Styling: one `.module.css` per component; classes kebab-case; `clsx` for conditionals.
 - Models export `(mongoose.models.X || mongoose.model(...))` to survive hot reload.
 - Tests colocated: `components/<Name>/<Name>.test.jsx`.
@@ -72,3 +75,4 @@ test files: components/**/*.test.jsx and lib/*.test.js (30 suites, 210 tests)
 3. Don't call `new Date(dateStr)` for day boundaries — use `getISTDayRange`.
 4. `Venue.sportTypes` enum only allows `'Box Cricket'`.
 5. Capacity math (6/side, 12/slot, team-match rule) lives in **one** place: `lib/capacity.js` (`allocateBooking`) — used by both booking routes and the booking UIs. The auto-confirm rule lives in `lib/booking-utils.js` (`autoConfirmIfReady`). Change those, never a route's copy.
+6. List endpoints read `page`/`limit` through `lib/apiParams.js` (`parseListParams`) — a malformed `page` must fall back to 1, never reach Mongo as `NaN`.

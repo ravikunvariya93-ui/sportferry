@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatBookingDate } from '@/lib/ist';
 import Link from 'next/link';
 import { Building2, MapPin, Trash2, Eye, RefreshCw, CheckCircle2, Ban, XCircle, Download } from 'lucide-react';
 import styles from '../admin.module.css';
@@ -41,7 +43,7 @@ export default function VendorsClient() {
       const params = new URLSearchParams({ page, limit: 12, counts: '1' });
       if (search) params.set('search', search);
       if (tab !== 'ALL') params.set('status', tab);
-      const res = await fetch(`/api/admin/venues?${params}`, { signal });
+      const res = await apiFetch(`/api/admin/venues?${params}`, { signal });
       const data = await res.json();
       setVenues(data.venues || []);
       setCounts(data.counts || {});
@@ -62,7 +64,7 @@ export default function VendorsClient() {
   }, [fetchVenues, search]);
 
   const setStatus = async (id, onboardingStatus) => {
-    const res = await fetch('/api/admin/venues', {
+    const res = await apiFetch('/api/admin/venues', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ venueId: id, onboardingStatus }),
@@ -74,7 +76,7 @@ export default function VendorsClient() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/venues?venueId=${deleteTarget.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/admin/venues?venueId=${deleteTarget.id}`, { method: 'DELETE' });
       if (res.ok) { setDeleteTarget(null); fetchVenues(); }
     } finally { setDeleting(false); }
   };
@@ -142,7 +144,7 @@ export default function VendorsClient() {
                       <td>{v.numberOfTurfs || 1}</td>
                       <td style={{ fontSize: '12px' }}>{(v.sportTypes || []).join(', ')}</td>
                       <td><span className={`${styles.badge} ${STATUS_BADGE[v.onboardingStatus] || styles.badgeUser}`}>{v.onboardingStatus}</span></td>
-                      <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(v.joinedOn || v.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }}>{formatBookingDate(v.joinedOn || v.createdAt, { day: '2-digit' })}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <Link href={`/admin/vendors/${v.id}`} className={styles.iconBtn} style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', textDecoration: 'none' }} title="View"><Eye size={14} /></Link>
@@ -180,7 +182,7 @@ export default function VendorsClient() {
         <div className={styles.modalOverlay}>
           <form className={styles.modalCard} style={{ maxWidth: '460px', display: 'flex', flexDirection: 'column', gap: '12px' }} onSubmit={async (e) => {
             e.preventDefault();
-            const res = await fetch('/api/admin/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addForm) });
+            const res = await apiFetch('/api/admin/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addForm) });
             if (res.ok) { setShowAdd(false); fetchVenues(); }
           }}>
             <h2 className={styles.modalTitle}>Add Vendor</h2>

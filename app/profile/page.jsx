@@ -12,7 +12,7 @@ import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
-import { formatToAMPM } from '@/lib/ist';
+import { formatToAMPM, formatBookingDate } from '@/lib/ist';
 import { getPlayerLevel, getAchievements } from '@/lib/playerLevel';
 import ProfileClient from './ProfileClient';
 
@@ -75,7 +75,7 @@ export default async function ProfilePage() {
     id: b._id.toString(),
     venue: b.venue?.name || 'Venue',
     area: b.venue ? `${b.venue.area}, ${b.venue.city}` : '',
-    date: new Date(b.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    date: formatBookingDate(b.date),
     time: `${formatToAMPM(b.startTime)} – ${formatToAMPM(b.endTime)}`,
     status: b.status,
     amount: `₹${b.totalAmount}`,

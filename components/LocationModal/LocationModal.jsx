@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { MapPin, LocateFixed, Loader2, ChevronLeft, Search, X } from 'lucide-react';
 import { INDIA_STATES } from '@/lib/indiaCities';
 
@@ -21,6 +22,10 @@ const removeLS = (k) => {
   try { localStorage.removeItem(k); } catch { /* ignore */ }
 };
 
+// Pages where a city prompt is premature or intrusive — the visitor is here to
+// sign in / create an account, and on mobile the modal covers the whole form.
+const SUPPRESS_ON = ['/register', '/login', '/forgot-password', '/reset-password'];
+
 export default function LocationModal() {
   const [visible, setVisible] = useState(false);
   const [step, setStep]       = useState('prompt'); // prompt | detecting | city
@@ -31,6 +36,7 @@ export default function LocationModal() {
   useEffect(() => {
     let timer = null;
     const check = () => {
+      if (SUPPRESS_ON.includes(window.location.pathname)) return;
       // Show only when no saved city AND user hasn't dismissed before
       if (!readLS(CITY_KEY) && !readLS(SKIPPED_KEY)) {
         setStep('prompt');
@@ -92,7 +98,7 @@ export default function LocationModal() {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
-          const res = await fetch(
+          const res = await apiFetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`,
             { headers: { 'Accept-Language': 'en' } }
           );

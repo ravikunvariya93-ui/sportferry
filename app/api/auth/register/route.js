@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { tooManyRequests } from '@/lib/apiResponse';
+import { tooManyRequests, badRequest, conflict } from '@/lib/apiResponse';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -23,10 +23,10 @@ export async function POST(request) {
     const role = body.role;
 
     if (!name || !username || !email || !password) {
-      return NextResponse.json({ message: 'Missing fields' }, { status: 400 });
+      return badRequest('Missing fields');
     }
     if (name.length > NAME_MAX) {
-      return NextResponse.json({ message: `Name must be at most ${NAME_MAX} characters.` }, { status: 400 });
+      return badRequest(`Name must be at most ${NAME_MAX} characters.`);
     }
     if (!isValidUsername(username)) {
       return NextResponse.json(
@@ -35,10 +35,10 @@ export async function POST(request) {
       );
     }
     if (!isValidPassword(password)) {
-      return NextResponse.json({ message: `Password must be at least ${PASSWORD_MIN} characters.` }, { status: 400 });
+      return badRequest(`Password must be at least ${PASSWORD_MIN} characters.`);
     }
     if (!EMAIL_RE.test(email)) {
-      return NextResponse.json({ message: 'Invalid email address.' }, { status: 400 });
+      return badRequest('Invalid email address.');
     }
 
     await dbConnect();
@@ -50,7 +50,7 @@ export async function POST(request) {
 
     if (existingUser) {
       const field = existingUser.username === username ? 'Username' : 'Email';
-      return NextResponse.json({ message: `${field} already exists` }, { status: 409 });
+      return conflict(`${field} already exists`);
     }
 
     // Hash password
@@ -78,7 +78,7 @@ export async function POST(request) {
     // check above — the unique index is what actually stops the second one.
     if (error?.code === 11000) {
       const field = error.keyPattern?.email ? 'Email' : 'Username';
-      return NextResponse.json({ message: `${field} already exists` }, { status: 409 });
+      return conflict(`${field} already exists`);
     }
     console.error('Registration error:', error);
     return NextResponse.json(

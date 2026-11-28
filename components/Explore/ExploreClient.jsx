@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { useSearchParams } from 'next/navigation';
 import { Search, MapPin, LocateFixed, Loader2 } from 'lucide-react';
 import VenueCard from '@/components/VenueCard/VenueCard';
@@ -60,7 +61,7 @@ export default function ExploreClient({ initialVenues }) {
     (async () => {
       try {
         setPopLoading(true);
-        const r = await fetch(
+        const r = await apiFetch(
           `/api/venues/popularity?date=${selectedDate}&slot=${encodeURIComponent(selectedSlot)}`,
           { signal: ctrl.signal }
         );
@@ -107,7 +108,7 @@ export default function ExploreClient({ initialVenues }) {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
-          const res = await fetch(
+          const res = await apiFetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`,
             { 
               headers: { 'Accept-Language': 'en' },

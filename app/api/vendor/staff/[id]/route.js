@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, notFound, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import StaffMember from '@/models/StaffMember';
-import { auth } from '@/lib/auth';
-import { requireVendor, isValidObjectId } from '@/lib/vendorAuth';
+
+import { isValidObjectId } from '@/lib/vendorAuth';
 
 async function owned(session, id) {
   if (!isValidObjectId(id)) return null;
@@ -13,15 +14,15 @@ async function owned(session, id) {
 
 export async function PATCH(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const member = await owned(session, params.id);
-    if (!member) return NextResponse.json({ message: 'Staff member not found.' }, { status: 404 });
+    if (!member) return notFound('Staff member not found.');
 
     const body = await request.json();
     if (body.role !== undefined && !['Manager', 'Operator', 'Viewer'].includes(body.role)) {
-      return NextResponse.json({ message: 'Invalid role.' }, { status: 400 });
+      return badRequest('Invalid role.');
     }
     for (const key of ['name', 'email', 'phone', 'role', 'access']) {
       if (body[key] !== undefined) member[key] = String(body[key]).trim().slice(0, 120);
@@ -36,11 +37,11 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const member = await owned(session, params.id);
-    if (!member) return NextResponse.json({ message: 'Staff member not found.' }, { status: 404 });
+    if (!member) return notFound('Staff member not found.');
     await StaffMember.deleteOne({ _id: member._id });
     return NextResponse.json({ ok: true });
   } catch (error) {

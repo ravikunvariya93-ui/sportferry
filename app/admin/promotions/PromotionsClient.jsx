@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch, apiErrorMessage } from '@/lib/clientApi';
 import { Tag, Plus, Trash2, X } from 'lucide-react';
 import styles from '../admin.module.css';
 import { OFFER_DAYS } from '@/lib/offers';
@@ -14,24 +15,24 @@ export default function PromotionsClient() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/admin/offers');
+    const res = await apiFetch('/api/admin/offers');
     if (res.ok) setOffers((await res.json()).offers || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async (e) => {
     e.preventDefault(); setError('');
-    const res = await fetch('/api/admin/offers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    const res = await apiFetch('/api/admin/offers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     if (res.ok) { setShow(false); load(); }
-    else setError((await res.json()).message || 'Could not save.');
+    else setError(apiErrorMessage(await res.json(), 'Could not save.'));
   };
   const toggle = async (o) => {
-    await fetch(`/api/admin/offers/${o.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !o.active }) });
+    await apiFetch(`/api/admin/offers/${o.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !o.active }) });
     load();
   };
   const remove = async (id) => {
     if (!window.confirm('Delete this offer?')) return;
-    await fetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
     load();
   };
 

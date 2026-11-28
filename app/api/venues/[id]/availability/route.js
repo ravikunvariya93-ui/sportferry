@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { getISTDayRange, formatToAMPM, isSlotPast, isValidDateISO } from '@/lib/ist';
@@ -21,10 +21,10 @@ export async function GET(request, { params }) {
     const venueId = params.id;
 
     if (!isValidDateISO(date)) {
-      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
+      return badRequest('A valid date (YYYY-MM-DD) is required.');
     }
     if (!OBJECT_ID_RE.test(String(venueId || ''))) {
-      return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
+      return badRequest('Invalid venue id.');
     }
 
     // Anonymous visitors get counts only — never who booked, never their id.

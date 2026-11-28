@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { badRequest, serviceUnavailable } from '@/lib/apiResponse';
 import Razorpay from 'razorpay';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
@@ -28,20 +29,20 @@ async function refundCapturedPayment(paymentId, amount) {
 export async function POST(request) {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!secret) {
-    return NextResponse.json({ message: 'Webhook is not configured.' }, { status: 503 });
+    return serviceUnavailable('Webhook is not configured.');
   }
 
   const rawBody = await request.text();
   const signature = request.headers.get('x-razorpay-signature');
   if (!signature || !Razorpay.validateWebhookSignature(rawBody, signature, secret)) {
-    return NextResponse.json({ message: 'Invalid signature.' }, { status: 400 });
+    return badRequest('Invalid signature.');
   }
 
   let event;
   try {
     event = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ message: 'Invalid payload.' }, { status: 400 });
+    return badRequest('Invalid payload.');
   }
 
   if (event.event !== 'payment.captured') {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch, apiErrorMessage } from '@/lib/clientApi';
 import { useRouter } from 'next/navigation';
 import { Plus, MapPin, Edit2, Trash2, X, AlertCircle, Zap, Layers } from 'lucide-react';
 import VenueModal from '@/components/VenueModal';
@@ -35,7 +36,7 @@ function TurfModal({ venueId, turf, onClose, onSaved }) {
         size: { length: form.length, width: form.width, unit: form.unit },
         surface: form.surface, playingFormat: form.playingFormat, lighting: form.lighting,
       };
-      const res = await fetch(editing ? `/api/vendor/turfs/${turf.id}` : '/api/vendor/turfs', {
+      const res = await apiFetch(editing ? `/api/vendor/turfs/${turf.id}` : '/api/vendor/turfs', {
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editing ? body : { ...body, venueId }),
@@ -109,16 +110,16 @@ export default function GroundsClient({ venues }) {
 
   const deleteVenue = async (venueId) => {
     if (!window.confirm('Delete this venue? This cannot be undone.')) return;
-    const res = await fetch(`/api/venues/${venueId}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/venues/${venueId}`, { method: 'DELETE' });
     if (res.ok) refresh();
-    else alert((await res.json()).message || 'Failed to delete.');
+    else alert(apiErrorMessage(await res.json(), 'Failed to delete.'));
   };
 
   const deleteTurf = async (id) => {
     if (!window.confirm('Remove this turf?')) return;
-    const res = await fetch(`/api/vendor/turfs/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/vendor/turfs/${id}`, { method: 'DELETE' });
     if (res.ok) refresh();
-    else alert((await res.json()).message || 'Failed to remove turf.');
+    else alert(apiErrorMessage(await res.json(), 'Failed to remove turf.'));
   };
 
   return (

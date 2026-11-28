@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CalendarDays, Ban, Lock, Info } from 'lucide-react';
 import { istTodayISO, addDaysISO, visibleISODates, formatBookingDate } from '@/lib/ist';
@@ -33,7 +34,7 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
     controllerRef.current = new AbortController();
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor/calendar?venueId=${venueId}&date=${date}`, { signal: controllerRef.current.signal });
+      const res = await apiFetch(`/api/vendor/calendar?venueId=${venueId}&date=${date}`, { signal: controllerRef.current.signal });
       if (res.ok) setData(await res.json());
     } catch (e) {
       if (e.name !== 'AbortError') console.error(e);
@@ -53,7 +54,7 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
     let cancelled = false;
     setMultiLoading(true);
     Promise.all(dates.map(async iso => {
-      const res = await fetch(`/api/vendor/calendar?venueId=${venueId}&date=${iso}`);
+      const res = await apiFetch(`/api/vendor/calendar?venueId=${venueId}&date=${iso}`);
       return { date: iso, data: res.ok ? await res.json() : null };
     })).then((rows) => { if (!cancelled) setMulti(rows); })
       .finally(() => { if (!cancelled) setMultiLoading(false); });
@@ -199,7 +200,7 @@ export default function CalendarClient({ venues, initialDate, openOffline = fals
                   <th style={{ textAlign: 'left', padding: '8px', color: 'var(--muted)', fontSize: '11px', textTransform: 'uppercase' }}>Time Slot</th>
                   {multi.map(m => (
                     <th key={m.date} style={{ padding: '8px', color: 'var(--muted)', fontSize: '11px', whiteSpace: 'nowrap' }}>
-                      {new Date(`${m.date}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+                      {formatBookingDate(`${m.date}T00:00:00Z`, { timeZone: 'UTC', year: false })}
                     </th>
                   ))}
                 </tr>

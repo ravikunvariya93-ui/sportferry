@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
-import { auth, hasRole } from '@/lib/auth';
 import { getISTDayRange, istTodayISO } from '@/lib/ist';
 import { blocksForDate } from '@/lib/blockedSlots';
 import { loadTurfs } from '@/lib/turfs';
@@ -13,12 +12,12 @@ import { buildDayGrid } from '@/lib/calendarData';
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || istTodayISO();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
-      return NextResponse.json({ message: 'A valid date is required.' }, { status: 400 });
+      return badRequest('A valid date is required.');
     }
 
     await dbConnect();

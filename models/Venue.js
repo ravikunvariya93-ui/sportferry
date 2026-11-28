@@ -83,4 +83,8 @@ const VenueSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+VenueSchema.index({ city: 1, onboardingStatus: 1 });
+VenueSchema.index({ owner: 1 });
+VenueSchema.index({ createdAt: -1 });
+
 export default (mongoose.models && mongoose.models.Venue) || mongoose.model('Venue', VenueSchema);

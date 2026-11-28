@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { Wallet, Download } from 'lucide-react';
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function PayoutsClient() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetch('/api/vendor/payouts').then(r => r.json()).then(setData).catch(() => {});
+    apiFetch('/api/vendor/payouts').then(r => r.json()).then(setData).catch(() => {});
   }, []);
 
   const exportCsv = () => {
@@ -41,10 +41,10 @@ export default function PayoutsClient() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
         {[
-          ['Gross Booking Value', money(k.gross)],
-          [`Commission (${k.commissionPercent}%)`, `− ${money(k.commission)}`],
-          ['Net Earnings', money(k.net)],
-          ['Payable Now', money(k.payable)],
+          ['Gross Booking Value', formatINR(k.gross)],
+          [`Commission (${k.commissionPercent}%)`, `− ${formatINR(k.commission)}`],
+          ['Net Earnings', formatINR(k.net)],
+          ['Payable Now', formatINR(k.payable)],
         ].map(([label, value]) => (
           <div key={label} className="glass-morphism" style={{ padding: '20px' }}>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{label}</div>
@@ -67,14 +67,14 @@ export default function PayoutsClient() {
                 {data.batches.map(b => (
                   <tr key={b.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                     <td style={{ padding: '10px' }}>{new Date(b.periodStart).toLocaleDateString('en-IN')} – {new Date(b.periodEnd).toLocaleDateString('en-IN')}</td>
-                    <td>{money(b.gross)}</td><td>{money(b.commission)}</td><td style={{ fontWeight: 700 }}>{money(b.net)}</td>
+                    <td>{formatINR(b.gross)}</td><td>{formatINR(b.commission)}</td><td style={{ fontWeight: 700 }}>{formatINR(b.net)}</td>
                     <td>{b.status}</td><td>{b.method}</td><td>{b.reference || '—'}</td>
                   </tr>
                 ))}
                 {data.withdrawals.map(w => (
                   <tr key={w.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                     <td style={{ padding: '10px' }}>{w.month}/{w.year}</td>
-                    <td>{money(w.amount)}</td><td>{money(w.commissionDeducted)}</td><td style={{ fontWeight: 700 }}>{money(w.netAmount)}</td>
+                    <td>{formatINR(w.amount)}</td><td>{formatINR(w.commissionDeducted)}</td><td style={{ fontWeight: 700 }}>{formatINR(w.netAmount)}</td>
                     <td>{w.status}</td><td>Withdrawal</td><td>—</td>
                   </tr>
                 ))}

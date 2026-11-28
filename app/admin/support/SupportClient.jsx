@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatDayMonth } from '@/lib/format';
 import { LifeBuoy, Send } from 'lucide-react';
 import styles from '../admin.module.css';
 
@@ -14,14 +16,14 @@ export default function SupportClient() {
   const [reply, setReply] = useState('');
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/admin/tickets');
+    const res = await apiFetch('/api/admin/tickets');
     if (res.ok) setTickets((await res.json()).tickets || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const patch = async (body) => {
     if (!selected) return;
-    const res = await fetch('/api/admin/tickets', {
+    const res = await apiFetch('/api/admin/tickets', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketId: selected.id, ...body }),
     });
     if (res.ok) { setReply(''); load(); }
@@ -56,7 +58,7 @@ export default function SupportClient() {
                       <td>{t.createdByName}<div style={{ fontSize: '11px', color: '#64748b' }}>{t.venueName}</div></td>
                       <td>{t.priority}</td>
                       <td><span className={`${styles.badge} ${BADGE[t.status] || styles.badgeUser}`}>{t.status}</span></td>
-                      <td style={{ fontSize: '12px' }}>{new Date(t.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                      <td style={{ fontSize: '12px' }}>{formatDayMonth(t.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>

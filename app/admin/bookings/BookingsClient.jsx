@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -45,7 +46,7 @@ export default function BookingsClient() {
   const [cities, setCities] = useState([]);
 
   useEffect(() => {
-    fetch('/api/admin/venues?limit=200').then(r => r.json()).then(d => {
+    apiFetch('/api/admin/venues?limit=200').then(r => r.json()).then(d => {
       const v = d.venues || [];
       setVenues(v);
       setCities([...new Set(v.map(x => x.city).filter(Boolean))].sort());
@@ -65,7 +66,7 @@ export default function BookingsClient() {
       if (typeFilter) params.set('bookingType', typeFilter);
       if (classFilter) params.set('classification', classFilter);
       if (searchQuery.trim()) params.set('search', searchQuery.trim());
-      const res = await fetch(`/api/admin/bookings?${params}`, { signal });
+      const res = await apiFetch(`/api/admin/bookings?${params}`, { signal });
       const data = await res.json();
       setBookings(data.bookings || []);
       setCounts(data.counts || {});

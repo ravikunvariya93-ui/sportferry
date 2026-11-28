@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
-import { auth, hasRole } from '@/lib/auth';
 import { parseListParams } from '@/lib/apiParams';
 
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { page, limit, skip, query } = parseListParams(request, { limit: 25, filters: ['status'] });
 
@@ -54,20 +53,20 @@ export async function GET(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { withdrawalId, status, adminNotes } = await request.json();
     if (!withdrawalId || !status) {
-      return NextResponse.json({ message: 'withdrawalId and status are required' }, { status: 400 });
+      return badRequest('withdrawalId and status are required');
     }
     if (!['PROCESSING', 'COMPLETED', 'REJECTED'].includes(status)) {
-      return NextResponse.json({ message: 'Invalid status' }, { status: 400 });
+      return badRequest('Invalid status');
     }
 
     await dbConnect();
 
     const withdrawal = await Withdrawal.findById(withdrawalId);
-    if (!withdrawal) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    if (!withdrawal) return notFound('Not found');
 
     withdrawal.status = status;
     if (adminNotes) withdrawal.adminNotes = adminNotes;

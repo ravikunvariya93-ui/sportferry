@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { Calendar, MapPin, Clock, XCircle, AlertCircle, Info, ArrowDownCircle, ShieldCheck, Ticket } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,7 +38,7 @@ export default function BookingsClient({ initialBookings }) {
   const fetchCancellationPreview = useCallback(async (bookingId) => {
     setPreviewLoading(bookingId);
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`);
+      const res = await apiFetch(`/api/bookings/${bookingId}`);
       if (res.ok) {
         const data = await res.json();
         setPreviewMap(prev => ({ ...prev, [bookingId]: data.cancellationPreview }));
@@ -62,7 +63,7 @@ export default function BookingsClient({ initialBookings }) {
     setLoadingId(bookingId);
     setErrorMap(prev => ({ ...prev, [bookingId]: null }));
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, { 
+      const res = await apiFetch(`/api/bookings/${bookingId}`, { 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'CANCELLED' }),

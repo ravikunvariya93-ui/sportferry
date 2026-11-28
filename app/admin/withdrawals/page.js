@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatINR, formatDayMonth } from '@/lib/format';
 import Link from 'next/link';
 import { Wallet, RefreshCw, CheckCircle2, XCircle, Clock, X } from 'lucide-react';
 import styles from '../admin.module.css';
@@ -125,14 +126,14 @@ export default function WithdrawalsPage() {
                         <div style={{ fontSize: '11px', color: '#64748b' }}>{w.vendorEmail}</div>
                       </td>
                       <td style={{ fontSize: '13px', color: 'var(--admin-text-sub)' }}>{MONTHS[w.month]} {w.year}</td>
-                      <td style={{ fontWeight: 600, fontSize: '13px' }}>₹{w.amount?.toLocaleString('en-IN')}</td>
-                      <td style={{ fontSize: '13px', color: '#f87171' }}>₹{w.commissionDeducted?.toLocaleString('en-IN')}</td>
-                      <td style={{ fontWeight: 700, fontSize: '13px', color: '#22c55e' }}>₹{w.netAmount?.toLocaleString('en-IN')}</td>
+                      <td style={{ fontWeight: 600, fontSize: '13px' }}>{formatINR(w.amount)}</td>
+                      <td style={{ fontSize: '13px', color: '#f87171' }}>{formatINR(w.commissionDeducted)}</td>
+                      <td style={{ fontWeight: 700, fontSize: '13px', color: '#22c55e' }}>{formatINR(w.netAmount)}</td>
                       <td>
                         <span className={`${styles.badge} ${STATUS_BADGE[w.status] || ''}`}>{w.status}</span>
                       </td>
                       <td style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        {new Date(w.requestedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        {formatDayMonth(w.requestedAt)}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px' }}>

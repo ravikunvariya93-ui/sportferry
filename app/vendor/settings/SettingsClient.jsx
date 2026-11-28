@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import Link from 'next/link';
 import { Settings, Bell, ShieldCheck, LifeBuoy, CheckCircle2 } from 'lucide-react';
 
@@ -15,18 +16,18 @@ export default function SettingsClient() {
   const [ticketMessage, setTicketMessage] = useState('');
 
   useEffect(() => {
-    fetch('/api/vendor/settings').then(r => r.json()).then(d => setSettings(d.settings)).catch(() => {});
+    apiFetch('/api/vendor/settings').then(r => r.json()).then(d => setSettings(d.settings)).catch(() => {});
   }, []);
 
   const patch = async (body) => {
     setSaved(false);
-    const res = await fetch('/api/vendor/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await apiFetch('/api/vendor/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.ok) setSaved(true);
   };
 
   const submitTicket = async (e) => {
     e.preventDefault(); setTicketMessage('');
-    const res = await fetch('/api/vendor/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticket) });
+    const res = await apiFetch('/api/vendor/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ticket) });
     const d = await res.json();
     setTicketMessage(res.ok ? 'Ticket submitted — support will be in touch.' : (d.message || 'Could not submit.'));
     if (res.ok) setTicket({ subject: '', body: '', priority: 'Medium' });
@@ -84,8 +85,8 @@ export default function SettingsClient() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h2 style={{ fontSize: '16px', fontWeight: 700, display: 'flex', gap: '8px', alignItems: 'center' }}><ShieldCheck size={17} /> Booking Rules</h2>
             {[
-              ['Team Booking (4v4)', 'If 4 players book on one side, the opposite side needs 4 players (team or solo).'],
-              ['Solo Booking', 'When 6 solo players book, the game confirms regardless of sides.'],
+              ['Team Booking (3–6 players)', 'If a team of 3–6 players books on one side, the opposite side needs a team of the same size.'],
+              ['Solo Booking', 'When 8 players book, the game confirms regardless of sides.'],
               ['Group Booking', 'Book the entire turf for your group — no other players can join.'],
               ['No double booking', 'One shared calendar for online and offline bookings.'],
               ['Commission', '12% on confirmed online bookings; 0% on your own offline bookings.'],

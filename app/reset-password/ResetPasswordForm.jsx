@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
+import { apiFetch } from '@/lib/clientApi';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Trophy, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ResetPasswordForm() {
   const params = useSearchParams();
@@ -28,7 +30,7 @@ export default function ResetPasswordForm() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await apiFetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, token, password }),
@@ -49,8 +51,8 @@ export default function ResetPasswordForm() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
       <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '420px' }}>
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: 'var(--primary)' }}>
-            <Trophy size={48} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <Image src="/logo-mark.png" alt="Sportferry" width={56} height={56} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>Set a new password</h1>
           {!invalidLink && !done && (

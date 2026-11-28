@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, badRequest, notFound, conflict } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Turf from '@/models/Turf';
 import Booking from '@/models/Booking';
 import User from '@/models/User';
-import { auth } from '@/lib/auth';
 import { syncVenueTurfCount } from '@/lib/turfs';
 import { normalizeOnboarding } from '@/lib/onboarding';
-import { requireVendor, ownedVenue } from '@/lib/vendorAuth';
+import { ownedVenue } from '@/lib/vendorAuth';
 
 /**
  * Owner onboarding submit. Creates (or updates) a venue, its turfs, amenities,
@@ -17,14 +17,12 @@ import { requireVendor, ownedVenue } from '@/lib/vendorAuth';
  */
 export async function POST(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     const body = await request.json();
     const parsed = normalizeOnboarding(body);
-    if (parsed.error) return NextResponse.json({ message: parsed.error }, { status: 400 });
+    if (parsed.error) return badRequest(parsed.error);
     const { venue, turfs, bank } = parsed.value;
 
     await dbConnect();
@@ -32,12 +30,12 @@ export async function POST(request) {
     let existing = null;
     if (body.venueId) {
       existing = await ownedVenue(session, body.venueId, { lean: false });
-      if (!existing) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+      if (!existing) return notFound('Venue not found.');
       // Re-submitting a live venue would replace its turfs (breaking booked turf
       // indexes) and send it back to PENDING, delisting it from Explore.
       const booked = await Booking.countDocuments({ venue: existing._id });
       if (booked || existing.onboardingStatus === 'ACTIVE') {
-        return NextResponse.json({ message: 'This venue is already live. Use Grounds & Courts and Pricing & Rules to edit it.' }, { status: 409 });
+        return conflict('This venue is already live. Use Grounds & Courts and Pricing & Rules to edit it.');
       }
     }
 

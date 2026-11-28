@@ -11,7 +11,7 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { hoursUntilSlot } from '@/lib/cancellationPolicy';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
-import { formatToAMPM } from '@/lib/ist';
+import { formatToAMPM, formatBookingDate } from '@/lib/ist';
 import BookingsClient from './BookingsClient';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +45,7 @@ export default async function BookingsPage() {
       id: b._id.toString(),
       venue: b.venue ? b.venue.name : 'Unknown Venue',
       area: b.venue ? `${b.venue.area}, ${b.venue.city}` : 'Unknown Location',
-      date: new Date(b.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      date: formatBookingDate(b.date),
       time: `${formatToAMPM(b.startTime)} – ${formatToAMPM(b.endTime)}`,
       status: displayStatus,
       amount: `₹${b.totalAmount}`,

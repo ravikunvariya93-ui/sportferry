@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
@@ -71,9 +72,7 @@ export default function VendorSidebar() {
     <>
       <aside className="vendor-rail">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 10px', marginBottom: '26px' }}>
-          <span style={{ width: '34px', height: '34px', borderRadius: '10px', background: 'linear-gradient(135deg, var(--primary), var(--accent))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Trophy size={18} strokeWidth={2.5} />
-          </span>
+          <Image src="/logo-mark.png" alt="" width={34} height={34} style={{ objectFit: 'contain', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.3px' }}>Sportferry</div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ground Owner</div>

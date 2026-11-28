@@ -1,12 +1,11 @@
 'use client';
 
 import React from 'react';
+import { formatINR } from '@/lib/format';
 import { TrendingUp, Percent, IndianRupee, CalendarCheck } from 'lucide-react';
 import { bookingTypeBreakdown } from '@/lib/adminStats';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function AnalyticsClient({ bookings, kpis, earnings, trend }) {
   const breakdown = bookingTypeBreakdown(bookings.map(b => ({ classification: b.classification, bookingType: b.bookingType })));
@@ -27,7 +26,7 @@ export default function AnalyticsClient({ bookings, kpis, earnings, trend }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '16px' }}>
         {[
           [CalendarCheck, 'Total Bookings', kpis.totalBookings, '#38bdf8'],
-          [IndianRupee, 'Net Earnings', money(earnings.net), '#22c55e'],
+          [IndianRupee, 'Net Earnings', formatINR(earnings.net), '#22c55e'],
           [Percent, 'Occupancy', `${kpis.occupancy}%`, '#f59e0b'],
           [TrendingUp, 'Players', kpis.players, '#8b5cf6'],
         ].map(([Icon, label, value, color]) => (

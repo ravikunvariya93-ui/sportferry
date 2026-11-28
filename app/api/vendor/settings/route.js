@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import VendorSettings from '@/models/VendorSettings';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
-import { requireVendor } from '@/lib/vendorAuth';
+
+
 
 async function settingsFor(session) {
   let doc = await VendorSettings.findOne({ vendor: session.user.id });
@@ -14,8 +15,8 @@ async function settingsFor(session) {
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const doc = await settingsFor(session);
     const venue = await Venue.findOne({ owner: session.user.id }).select('name').lean();
@@ -32,8 +33,8 @@ export async function GET() {
 
 export async function PATCH(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     const body = await request.json();
     await dbConnect();
     const doc = await settingsFor(session);

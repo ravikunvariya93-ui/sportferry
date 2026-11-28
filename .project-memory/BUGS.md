@@ -121,9 +121,48 @@ Tests 27/193, lint clean, build compiled; all fixture records deleted (ZZ users 
 - Verified live with a throwaway vendor: public pages HTTP 200, malformed dates still 400, offer price ₹960 vs ₹1200, offline booking created 201 and grouped by `groupGames`, vendor pages render, no browser errors. Fixture deleted (users/venues/turfs/offers/bookings all 0). Tests 30 suites / 210 tests, lint clean.
 - Deliberately left alone: visual redesigns, inline one-off styles, intentional edge/DB auth split, middleware+handler role checks, prototype screens.
 
+## 🆕 Production-readiness audit — 2026-11-27 (reproduced live)
+
+Scope: money → authz → validation → time → rate limits → data hygiene, against a production build (`next start`) and the real database. Every finding below was reproduced unless marked "by reading".
+
+### 🔴 Open — fix before launch
+
+**P4 — No error monitoring and no admin audit log** (`SECURITY.md` gaps 4, 6). Money-affecting admin actions (refunds, settlements, role changes, cancellations) leave no independent record. *(Still open — needs an observability decision/provider.)*
+
+### ✅ Fixed 2026-11-27 (each re-verified against a production build)
+
+- **P1 — Double payout on concurrent admin settlement → FIXED.** `POST /api/admin/payouts` now reads the payable and inserts the batch inside one transaction (`runBookingTransaction`), after touching a per-vendor `PayoutLock`. **Re-verified: 3 concurrent payouts for a vendor owed ₹4,400 → one `201`, two `400 "Nothing payable"`, one batch, `settledAmount` ₹4,400.** Note: the lock uses the vendor id as `_id`, not a secondary `key` — an earlier version upserted on a `key` field whose unique index did not exist in the database, so every request created its own lock and the race persisted. `_id` is always unique, so the collision holds without relying on index creation.
+- **P2 — Password reset silently failing in production → FIXED.** `app/api/auth/forgot-password/route.js` now answers **503** with "Password reset email could not be sent. Please contact support…" when a token was minted but no mail provider could deliver it, instead of claiming a link was sent. `RESEND_API_KEY` and `EMAIL_FROM` are documented in `.env.example`. **Verified: 503 with the real message.** Remaining action: set the key in Vercel for reset to actually work.
+- **P3 — Credentials login unthrottled → FIXED.** `lib/auth.js` `authorize()` now rate-limits by identifier (8 / 15 min) and client IP (25 / 15 min) via the shared Mongo limiter, and throws a `RateLimitedSignin` (`code: 'rate_limited'`) so `app/login/page.jsx` shows "Too many sign-in attempts…". **Verified: 9 bad credentials, then `rate_limited` from the 10th attempt on.**
+- **P5 — Public venue detail exposed verification documents → FIXED.** `GET /api/venues/[id]` selects player-facing fields explicitly. **Verified: response no longer contains `documents` / the stored Blob URL.**
+- **P6 — No secondary indexes on hot collections → FIXED (schema).** Added `bookings`: `{venue,date,startTime,endTime,turf}`, `{user,date}`, `{status,date}`, `{razorpayOrderId}`, `{groupId}`; `venues`: `{city,onboardingStatus}`, `{owner}`, `{createdAt}`. **Verified created in the DB: bookings 6 indexes, venues 4.**
+- **P8 — Remaining inline error shapes → FIXED** in the touched routes; added `serviceUnavailable()` so 503s (payments/webhook/upload/forgot-password) share one helper.
+- **P9 — Stale `booking.save()` in admin cancel → FIXED.** The cancel path now writes only the fields the refund changed via `findByIdAndUpdate`, instead of saving the pre-claim document. **Verified: status CANCELLED, cancelledBy ADMIN, refund fields persisted.**
+
+### 🟡 Still open — hardening
+
+- **P7 — 4 refunds stuck `FAILED`** — **resolved by deletion 2026-11-27.** All 4 were ₹1 cancelled test bookings. The owner asked to clear old booking data; a backup was written to `scratch/bookings-backup-2026-11-27T06-00-44-964Z.json` (gitignored) before `bookings` and `slotlocks` were emptied (4 → 0 and 7 → 0). Vendors/venues/users/payouts untouched; payables were unaffected because there were 0 confirmed online bookings and 0 payout batches.
+- **P10 — `lib/email.js` is the only mail path**; see P2 for the required env.
+- **P11 — Local env uses LIVE Razorpay keys against the production Atlas cluster** (`.env.local`: `rzp_live_*`). Split test keys + a dev database before heavier testing.
+- **P12 — `autoIndex` is effectively off in production.** Indexes are declared in the schemas but production does not build them; anything relying on a *secondary* unique index (not `_id`) must not assume it exists. Apply `scripts/ensure-indexes.mjs` on deploy if you add more.
+
+### (superseded detail for P1–P3, P5–P9 kept above for the record)
+
+### ✅ Checked and found sound
+
+- **Authorization:** every `/api/admin/*` and `/api/vendor/*` route has a guard (verified: the three flagged by grep use `auth()`+`hasRole` directly). Middleware enforces a coarse role gate on pages and 401s unknown APIs; handlers re-read the role from the DB, so demotion/blocking is immediate (`lib/auth.js` `roleOf` returns null when `blocked`).
+- **Money in:** signature verification uses `timingSafeEqual`; `verify` then fetches the payment and requires `captured` + amount coverage; webhook is signature-verified, idempotent via claims, and refunds a capture with no live hold.
+- **Money out:** every cancellation path executes the refund (`lib/refunds.js`), records `refundStatus`/`refundId`, and claims atomically first. Admin bulk refund claims each booking (`refundStatus !== COMPLETED`).
+- **Withdrawal race:** **reproduced clean** — two concurrent withdrawals → one `201`, one `409`, exactly one document, no over-withdrawal (unique index `{vendor, month, year}`).
+- **Overbooking:** slot lock + transaction + retry; malformed `page`/`date`/`id` now 400 instead of 500.
+- **Public PII:** availability API returns counts only to anonymous callers; no walk-in names anywhere.
+- **Build/runtime:** `npm run build` → 89 static pages; `next start` serves `/` `/login` `/explore` 200, `/api/admin/*` 401 anonymous; deployed `sportferry.com` 200 on home/explore/login. Tests 32 suites / 217 pass; lint clean apart from pre-existing `<img>` warnings.
+- **Webhook registration:** live Razorpay account has exactly one active webhook at `https://sportferry.com/api/payments/webhook` subscribed to `payment.captured`.
+- **Stale-data hygiene:** 0 expired `PAYMENT_PENDING` holds, 0 `PENDING` bookings past their slot, 0 cancelled bookings with an unexecuted refund besides P7.
+
 ## ⚠️ Still open (not code bugs — they need a decision or infra)
 
 1. **Email verification is deliberately deferred (no code to remove).** Registration accepts any well-formed address; Google sign-in links to an existing account with the same email. The only verification flow that existed — vendor phone OTP — was removed along with its API routes, helper and model fields. `lib/email.js` now only sends password-reset emails.
-2. **The Razorpay dashboard must point at `https://sportferry.com/api/payments/webhook`** with the same secret already in `.env.local`; until then `payment.captured` confirmations still depend on the browser returning after checkout.
+2. ~~The Razorpay dashboard must point at `https://sportferry.com/api/payments/webhook`~~ — **verified done 2026-11-27.** The live Razorpay account has exactly one webhook, `https://sportferry.com/api/payments/webhook`, active, subscribed to `payment.captured` (plus the refund/order events). Signature verification verified locally against a production build: valid signature → 200 `{ok:true,ignored:…}`, malformed / wrong-secret / missing header → 400 `{"message":"Invalid signature."}`. The dashboard secret cannot be read back through the API, so confirm it matches `RAZORPAY_WEBHOOK_SECRET` in the Vercel env by hand.
 3. **`tailwind-merge` is installed but Tailwind is not configured** (harmless dead dependency; removing it churns the lockfile).
 4. **`/players` and `/tournaments` render sample data** with no API behind them — prototypes, labelled as such in the docs.

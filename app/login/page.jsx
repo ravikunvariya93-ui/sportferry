@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, AlertCircle } from 'lucide-react';
+import Image from 'next/image';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -61,7 +62,9 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError('Invalid username/email or password');
+      setError(result.code === 'rate_limited'
+        ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
+        : 'Invalid username/email or password');
       setLoading(false);
     } else {
       const session = await getSession();
@@ -107,8 +110,8 @@ export default function LoginPage() {
     }}>
       <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '420px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: 'var(--primary)' }}>
-            <Trophy size={48} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <Image src="/logo-mark.png" alt="Sportferry" width={56} height={56} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>Welcome Back</h1>
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Sign in to book your favorite arenas.</p>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden } from '@/lib/apiResponse';
 import { claimBooking } from '@/lib/bookingClaims';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
@@ -18,7 +18,7 @@ export async function POST(request) {
   try {
     const session = await auth();
     if (!session || !(await hasRole(session, 'VENDOR'))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+      return forbidden();
     }
 
     const { code, action } = await request.json();

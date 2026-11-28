@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
 import { claimBooking } from '@/lib/bookingClaims';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { auth, hasRole } from '@/lib/auth';
 import { executeRefund } from '@/lib/refunds';
 import { bookingRef } from '@/lib/bookingRef';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
@@ -19,7 +18,7 @@ function refundQueueStatus(refundStatus) {
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const format = new URL(request.url).searchParams.get('format');
     await dbConnect();
@@ -81,11 +80,11 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { bookingIds } = await request.json();
     if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
-      return NextResponse.json({ message: 'Select at least one booking.' }, { status: 400 });
+      return badRequest('Select at least one booking.');
     }
 
     await dbConnect();

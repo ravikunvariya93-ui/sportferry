@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { MapPin, Clock, CheckCircle, Navigation, Zap, Shield, CalendarCheck, AlertCircle, Trophy, LayoutGrid, IndianRupee } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -89,7 +90,7 @@ export default function VenueDetailClient({ venue }) {
     dates.forEach((iso, i) => {
       (async () => {
         try {
-          const r = await fetch(`/api/venues/${venue._id}/availability?date=${iso}`, { signal: ctrls[i].signal });
+          const r = await apiFetch(`/api/venues/${venue._id}/availability?date=${iso}`, { signal: ctrls[i].signal });
           if (r.ok) {
             const d = await r.json();
             setBusyByDate(prev => ({ ...prev, [iso]: d.slotStats || {} }));
@@ -145,7 +146,7 @@ export default function VenueDetailClient({ venue }) {
     if (!allCells.length) { setBookingState('error'); setBookingMessage('Select at least one date and slot.'); return; }
     setBookingState('loading');
     try {
-      const r1 = await fetch('/api/payments/create-order', {
+      const r1 = await apiFetch('/api/payments/create-order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ venueId: venue._id, selections: allCells, sport: venue.sportTypes[0] }),
       });
@@ -156,7 +157,7 @@ export default function VenueDetailClient({ venue }) {
         description: `Booking for ${venue.name}`, order_id: od.orderId,
         handler: async (res) => {
           setBookingState('loading'); setBookingMessage('Verifying…');
-          const r2 = await fetch('/api/payments/verify', {
+          const r2 = await apiFetch('/api/payments/verify', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ razorpay_order_id: res.razorpay_order_id, razorpay_payment_id: res.razorpay_payment_id, razorpay_signature: res.razorpay_signature }),
           });

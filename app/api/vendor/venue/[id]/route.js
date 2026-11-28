@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, notFound, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
-import { auth } from '@/lib/auth';
+
 import { SPORT_TYPES } from '@/lib/constants';
-import { requireVendor, ownedVenue } from '@/lib/vendorAuth';
+import { ownedVenue } from '@/lib/vendorAuth';
 
 const numOrNull = (v) => {
   if (v === null || v === '' || v === undefined) return null;
@@ -13,19 +14,17 @@ const numOrNull = (v) => {
 
 export async function PATCH(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     await dbConnect();
     const venue = await ownedVenue(session, params.id, { lean: false });
-    if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+    if (!venue) return notFound('Venue not found.');
 
     const body = await request.json();
 
     if (body.name !== undefined) {
-      if (!String(body.name).trim()) return NextResponse.json({ message: 'Venue name is required.' }, { status: 400 });
+      if (!String(body.name).trim()) return badRequest('Venue name is required.');
       venue.name = String(body.name).trim().slice(0, 60);
     }
     if (body.city !== undefined) venue.city = String(body.city).trim();
@@ -33,7 +32,7 @@ export async function PATCH(request, { params }) {
     if (body.address !== undefined) venue.address = String(body.address).trim();
     if (body.sportTypes !== undefined) {
       const sports = (Array.isArray(body.sportTypes) ? body.sportTypes : []).filter(s => SPORT_TYPES.includes(s));
-      if (!sports.length) return NextResponse.json({ message: 'Pick at least one valid sport.' }, { status: 400 });
+      if (!sports.length) return badRequest('Pick at least one valid sport.');
       venue.sportTypes = sports;
     }
     if (body.amenities !== undefined) {
@@ -51,7 +50,7 @@ export async function PATCH(request, { params }) {
       // A venue must still have a base rate; keep pricePerHour as the weekday mirror.
       const weekday = pricing.weekday ?? pricing.weekend;
       if (!weekday || weekday <= 0) {
-        return NextResponse.json({ message: 'A weekday price is required.' }, { status: 400 });
+        return badRequest('A weekday price is required.');
       }
       venue.pricing = pricing;
       venue.pricePerHour = weekday;

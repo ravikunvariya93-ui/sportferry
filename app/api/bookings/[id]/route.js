@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, unauthorized, badRequest, notFound, forbidden, conflict } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -13,7 +13,7 @@ export async function PATCH(request, { params }) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return unauthorized('Unauthorized');
     }
 
     await dbConnect();
@@ -22,12 +22,12 @@ export async function PATCH(request, { params }) {
     const { status, cancellationReason } = body;
 
     if (!status) {
-      return NextResponse.json({ message: 'Status is required.' }, { status: 400 });
+      return badRequest('Status is required.');
     }
 
     const booking = await Booking.findById(params.id).populate('venue');
     if (!booking) {
-      return NextResponse.json({ message: 'Booking not found.' }, { status: 404 });
+      return notFound('Booking not found.');
     }
 
     const isCustomer = booking.user?.toString() === session.user.id;
@@ -37,14 +37,14 @@ export async function PATCH(request, { params }) {
     // 1. Handle Approval
     if (status === 'CONFIRMED') {
       if (!isVenueOwner && !isAdmin) {
-        return NextResponse.json({ message: 'Not authorized to approve this booking.' }, { status: 403 });
+        return forbidden('Not authorized to approve this booking.');
       }
       
       if (booking.status === 'CANCELLED') {
-        return NextResponse.json({ message: 'Cannot approve a cancelled booking.' }, { status: 400 });
+        return badRequest('Cannot approve a cancelled booking.');
       }
       if (booking.status === 'PAYMENT_PENDING') {
-        return NextResponse.json({ message: 'Payment is still being processed — this hold can only be confirmed by payment.' }, { status: 400 });
+        return badRequest('Payment is still being processed — this hold can only be confirmed by payment.');
       }
 
       booking.status = 'CONFIRMED';
@@ -52,20 +52,18 @@ export async function PATCH(request, { params }) {
     // 2. Handle Cancellation (with policy enforcement)
     else if (status === 'CANCELLED') {
       if (!isCustomer && !isVenueOwner && !isAdmin) {
-        return NextResponse.json({ message: 'Not authorized to cancel this booking.' }, { status: 403 });
+        return forbidden('Not authorized to cancel this booking.');
       }
 
       if (booking.status === 'CANCELLED') {
-        return NextResponse.json({ message: 'Booking is already cancelled.' }, { status: 400 });
+        return badRequest('Booking is already cancelled.');
       }
 
       // A checkout may still be in flight. Cancelling here would leave a
       // captured payment with no live hold to refund (the webhook cannot know
       // who to pay back). Unpaid holds disappear after 15 minutes on their own.
       if (booking.status === 'PAYMENT_PENDING') {
-        return NextResponse.json({
-          message: 'Payment is still being processed. If you do not pay, the slot is released automatically.',
-        }, { status: 400 });
+        return badRequest('Payment is still being processed. If you do not pay, the slot is released automatically.');
       }
 
       // Determine who is cancelling
@@ -78,18 +76,14 @@ export async function PATCH(request, { params }) {
 
       // ── VENDOR CANNOT CANCEL BOOKINGS ─────────────────────────────────
       if (cancelledBy === 'VENDOR') {
-        return NextResponse.json({ 
-          message: 'Vendors cannot cancel bookings. Please contact admin if needed.' 
-        }, { status: 403 });
+        return forbidden('Vendors cannot cancel bookings. Please contact admin if needed.');
       }
 
       // Player-initiated: check if slot already started
       if (cancelledBy === 'PLAYER') {
         const hrs = hoursUntilSlot(booking);
         if (hrs <= 0) {
-          return NextResponse.json({ 
-            message: 'Cannot cancel — the slot has already started or passed.' 
-          }, { status: 400 });
+          return badRequest('Cannot cancel — the slot has already started or passed.');
         }
       }
 
@@ -97,7 +91,7 @@ export async function PATCH(request, { params }) {
       // two concurrent cancellations can never pay out twice.
       const claimed = await claimCancelled(booking._id);
       if (!claimed) {
-        return NextResponse.json({ message: 'Booking is already cancelled.' }, { status: 409 });
+        return conflict('Booking is already cancelled.');
       }
 
       // Calculate refund
@@ -121,7 +115,7 @@ export async function PATCH(request, { params }) {
       }
     } 
     else {
-      return NextResponse.json({ message: 'Invalid status update.' }, { status: 400 });
+      return badRequest('Invalid status update.');
     }
 
     await booking.save();
@@ -133,8 +127,8 @@ export async function PATCH(request, { params }) {
       await autoConfirmIfReady(venueId, booking.date, booking.startTime, booking.endTime, booking.turf);
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       status: booking.status,
       message: `Booking successfully ${status.toLowerCase()}.`,
       refundPercent: booking.refundPercent ?? null,
@@ -154,14 +148,14 @@ export async function GET(request, { params }) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return unauthorized('Unauthorized');
     }
 
     await dbConnect();
 
     const booking = await Booking.findById(params.id).populate('venue');
     if (!booking) {
-      return NextResponse.json({ message: 'Booking not found.' }, { status: 404 });
+      return notFound('Booking not found.');
     }
 
     const isCustomer = booking.user?.toString() === session.user.id;
@@ -169,7 +163,7 @@ export async function GET(request, { params }) {
     const isAdmin = await hasRole(session, 'ADMIN');
 
     if (!isCustomer && !isVenueOwner && !isAdmin) {
-      return NextResponse.json({ message: 'Not authorized.' }, { status: 403 });
+      return forbidden('Not authorized.');
     }
 
     // If already cancelled, return the existing data

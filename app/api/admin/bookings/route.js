@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound, conflict } from '@/lib/apiResponse';
+import { parseListParams } from '@/lib/apiParams';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { auth, hasRole } from '@/lib/auth';
 import { applyCancellation } from '@/lib/cancelBooking';
 import { autoConfirmIfReady, releaseExpiredPendingBookings } from '@/lib/booking-utils';
-import { getISTDayRange, istTodayISO } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, formatBookingDate } from '@/lib/ist';
 import { bookingRef } from '@/lib/bookingRef';
 import { escapeRegex } from '@/lib/validation';
 import { claimCancelled } from '@/lib/bookingClaims';
@@ -14,13 +14,9 @@ import { claimCancelled } from '@/lib/bookingClaims';
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    let limit = parseInt(searchParams.get('limit') || '25');
-    if (limit > 100) limit = 100;
-    if (limit < 1) limit = 1;
+    const { page, limit, skip, searchParams } = parseListParams(request, { limit: 25 });
     const status = searchParams.get('status') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
@@ -99,7 +95,7 @@ export async function GET(request) {
         .populate('venue', 'name city area')
         .populate('user', 'name email phone')
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
+        .skip(skip)
         .limit(limit)
         .lean(),
       Booking.countDocuments(query),
@@ -129,7 +125,7 @@ export async function GET(request) {
         userEmail: b.user?.email || '',
         userPhone: b.user?.phone || b.offlineCustomerPhone || '',
         date: b.date,
-        dateStr: new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        dateStr: formatBookingDate(b.date, { day: '2-digit' }),
         startTime: b.startTime,
         endTime: b.endTime,
         slot: `${b.startTime} – ${b.endTime}`,
@@ -163,23 +159,23 @@ export async function GET(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { bookingId, status, cancellationReason } = await request.json();
-    if (!bookingId || !status) return NextResponse.json({ message: 'bookingId and status are required' }, { status: 400 });
+    if (!bookingId || !status) return badRequest('bookingId and status are required');
     if (!['PENDING', 'CONFIRMED', 'CANCELLED'].includes(status)) {
-      return NextResponse.json({ message: 'Invalid status' }, { status: 400 });
+      return badRequest('Invalid status');
     }
 
     await dbConnect();
     const booking = await Booking.findById(bookingId);
-    if (!booking) return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
+    if (!booking) return notFound('Booking not found');
 
     if (booking.status === 'CANCELLED' && status !== 'CANCELLED') {
-      return NextResponse.json({ message: 'A cancelled booking cannot be re-activated.' }, { status: 400 });
+      return badRequest('A cancelled booking cannot be re-activated.');
     }
     if (status === 'CONFIRMED' && booking.status === 'PAYMENT_PENDING') {
-      return NextResponse.json({ message: 'A payment-pending hold can only be confirmed by payment.' }, { status: 400 });
+      return badRequest('A payment-pending hold can only be confirmed by payment.');
     }
 
     if (status === 'CANCELLED') {
@@ -190,17 +186,42 @@ export async function PATCH(request) {
       }
       // Claim first: two concurrent cancels must never execute the same refund.
       const claimed = await claimCancelled(booking._id);
-      if (!claimed) return NextResponse.json({ message: 'Booking is already cancelled' }, { status: 409 });
+      if (!claimed) return conflict('Booking is already cancelled');
 
       // Cancels, records the 100% admin refund and executes it against Razorpay.
       await applyCancellation(booking, {
         cancelledBy: 'ADMIN',
         reason: cancellationReason?.trim() || 'Cancelled by admin',
       });
-    } else {
-      booking.status = status;
+
+      // Save only the fields the refund actually changed. Saving the whole
+      // in-memory document would rewrite `status` from the stale pre-claim read
+      // and could clobber a concurrent update.
+      const update = {
+        status: booking.status,
+        cancelledBy: booking.cancelledBy,
+        cancelledAt: booking.cancelledAt,
+        cancellationReason: booking.cancellationReason,
+        refundPercent: booking.refundPercent,
+        refundAmount: booking.refundAmount,
+        refundStatus: booking.refundStatus,
+      };
+      if (booking.refundId) update.refundId = booking.refundId;
+      const saved = await Booking.findByIdAndUpdate(booking._id, { $set: update }, { new: true });
+
+      // An admin approval can be what fills a turf up — confirm the rest of it.
+      if (saved?.status === 'CONFIRMED') {
+        await autoConfirmIfReady(saved.venue, saved.date, saved.startTime, saved.endTime, saved.turf);
+      }
+
+      return NextResponse.json({
+        id: saved._id.toString(),
+        status: saved.status,
+        refundStatus: saved.refundStatus ?? 'NONE',
+      });
     }
 
+    booking.status = status;
     await booking.save();
 
     // An admin approval can be what fills a turf up — confirm the rest of it.

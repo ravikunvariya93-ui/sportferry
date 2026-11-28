@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch, apiErrorMessage } from '@/lib/clientApi';
 import { UserCog, Plus, Trash2 } from 'lucide-react';
 import ModalShell from '@/components/ui/ModalShell';
 import Field, { fieldClass } from '@/components/ui/Field';
@@ -14,27 +15,27 @@ export default function StaffClient() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/vendor/staff');
+    const res = await apiFetch('/api/vendor/staff');
     if (res.ok) setStaff((await res.json()).staff || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async (e) => {
     e.preventDefault(); setError('');
-    const res = await fetch('/api/vendor/staff', {
+    const res = await apiFetch('/api/vendor/staff', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
     });
     if (res.ok) { setShow(false); setForm({ name: '', email: '', phone: '', role: 'Viewer', access: 'Bookings, Check-in' }); load(); }
-    else setError((await res.json()).message || 'Could not add staff.');
+    else setError(apiErrorMessage(await res.json(), 'Could not add staff.'));
   };
 
   const patch = async (id, body) => {
-    await fetch(`/api/vendor/staff/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await apiFetch(`/api/vendor/staff/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     load();
   };
   const remove = async (id) => {
     if (!window.confirm('Remove this staff member?')) return;
-    await fetch(`/api/vendor/staff/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/vendor/staff/${id}`, { method: 'DELETE' });
     load();
   };
 

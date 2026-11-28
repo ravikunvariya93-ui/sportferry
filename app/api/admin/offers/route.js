@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import VendorOffer from '@/models/VendorOffer';
 import User from '@/models/User';
-import { auth, hasRole } from '@/lib/auth';
 import { normalizeOffer } from '@/lib/offers';
 import { serializeDoc } from '@/lib/serialize';
 
 export async function GET() {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     await dbConnect();
     const offers = await VendorOffer.find({}).populate('vendor', 'name').sort({ createdAt: -1 }).lean();
     return NextResponse.json({
@@ -23,9 +22,9 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     const parsed = normalizeOffer(await request.json(), { vendorId: null, allowPlatform: true });
-    if (parsed.error) return NextResponse.json({ message: parsed.error }, { status: 400 });
+    if (parsed.error) return badRequest(parsed.error);
     await dbConnect();
     const offer = await VendorOffer.create(parsed.value);
     return NextResponse.json({ offer: serializeDoc(offer, { keepLegacyId: true }) }, { status: 201 });

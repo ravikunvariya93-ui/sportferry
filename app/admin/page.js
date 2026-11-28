@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { formatDayMonth } from '@/lib/format';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -87,7 +88,7 @@ async function getStats() {
       userId: b.user?._id?.toString() || null,
       status: b.status,
       amount: b.totalAmount,
-      dateStr: new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      dateStr: formatDayMonth(b.date),
       createdAt: b.createdAt?.toISOString(),
     })),
   };

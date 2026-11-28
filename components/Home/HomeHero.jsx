@@ -6,9 +6,9 @@ import { User, Users, Trophy, ArrowRight } from 'lucide-react';
 import styles from './HomeHero.module.css';
 
 const MODES = [
-  { key: 'SOLO', Icon: User, title: 'Solo', desc: 'Join as an individual (1 player)', color: '#16a34a', bg: 'rgba(34,197,94,0.16)' },
-  { key: 'TEAM', Icon: Users, title: 'Team', desc: 'Book with your team (4 players)', color: '#2563eb', bg: 'rgba(59,130,246,0.16)' },
-  { key: 'GROUP', Icon: Trophy, title: 'Group', desc: 'Book the full turf (private game)', color: '#ea580c', bg: 'rgba(249,115,22,0.16)' },
+  { key: 'SOLO', Icon: User, title: 'Solo (1–2 players)', desc: 'Join as an individual or pair', color: '#16a34a', bg: 'rgba(34,197,94,0.16)' },
+  { key: 'TEAM', Icon: Users, title: 'Team (3–6 players)', desc: 'Book with your team', color: '#2563eb', bg: 'rgba(59,130,246,0.16)' },
+  { key: 'GROUP', Icon: Trophy, title: 'Group (12 players)', desc: 'Book the full turf (private game)', color: '#ea580c', bg: 'rgba(249,115,22,0.16)' },
 ];
 
 export default function HomeHero() {
@@ -30,10 +30,10 @@ export default function HomeHero() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginTop: '22px' }}>
         {MODES.map(({ key, Icon, title, desc, color, bg }) => (
-          <Link key={key} href={`/explore?classification=${key}`} style={{
+          <div key={key} style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', borderRadius: '14px',
-            background: 'rgba(255,255,255,0.94)', color: '#0f172a', textDecoration: 'none',
-            border: `1px solid ${color}55`, transition: 'transform 0.15s ease',
+            background: 'rgba(255,255,255,0.94)', color: '#0f172a',
+            border: `1px solid ${color}55`,
           }}>
             <span style={{ width: '38px', height: '38px', borderRadius: '11px', background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Icon size={19} />
@@ -42,8 +42,7 @@ export default function HomeHero() {
               <span style={{ display: 'block', fontSize: '14px', fontWeight: 800 }}>{title}</span>
               <span style={{ display: 'block', fontSize: '11px', color: '#64748b', lineHeight: 1.3 }}>{desc}</span>
             </span>
-            <ArrowRight size={15} style={{ marginLeft: 'auto', color, flexShrink: 0 }} />
-          </Link>
+          </div>
         ))}
       </div>
     </section>

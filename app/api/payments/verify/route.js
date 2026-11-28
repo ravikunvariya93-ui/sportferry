@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, unauthorized, badRequest, notFound, serviceUnavailable } from '@/lib/apiResponse';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
@@ -12,7 +12,7 @@ export async function POST(request) {
   try {
     const authSession = await auth();
     if (!authSession) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return unauthorized('Unauthorized');
     }
 
     const { 
@@ -22,13 +22,13 @@ export async function POST(request) {
     } = await request.json();
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return NextResponse.json({ message: 'Missing payment verification details.' }, { status: 400 });
+      return badRequest('Missing payment verification details.');
     }
 
     // 1. Verify Signature
     const secret = process.env.RAZORPAY_KEY_SECRET;
     if (!secret) {
-      return NextResponse.json({ message: 'Payments are not configured.' }, { status: 503 });
+      return serviceUnavailable('Payments are not configured.');
     }
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
@@ -43,7 +43,7 @@ export async function POST(request) {
       && crypto.timingSafeEqual(received, expectedBuffer);
 
     if (!isAuthentic) {
-      return NextResponse.json({ message: 'Invalid payment signature.' }, { status: 400 });
+      return badRequest('Invalid payment signature.');
     }
 
     await dbConnect();
@@ -61,7 +61,7 @@ export async function POST(request) {
 
       if (bookings.length === 0) {
         await session.abortTransaction();
-        return NextResponse.json({ message: 'Booking not found or already processed.' }, { status: 404 });
+        return notFound('Booking not found or already processed.');
       }
 
       // 3. Confirm the money actually moved. The signature only proves the
@@ -71,7 +71,7 @@ export async function POST(request) {
       if (!payment.ok) {
         await session.abortTransaction();
         session.endSession();
-        return NextResponse.json({ message: 'Could not verify the payment.' }, { status: 400 });
+        return badRequest('Could not verify the payment.');
       }
       if (!isCaptured(payment.payment)) {
         await session.abortTransaction();

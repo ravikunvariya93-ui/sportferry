@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { CalendarDays, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { istTodayISO, addDaysISO, formatBookingDate } from '@/lib/ist';
 import { STATUS_STYLES, CALENDAR_LEGEND } from '@/lib/calendarStatus';
@@ -18,7 +19,7 @@ export default function AdminCalendarClient() {
     try {
       const params = new URLSearchParams({ date });
       if (venueId) params.set('venueId', venueId);
-      const res = await fetch(`/api/admin/calendar?${params}`, { signal });
+      const res = await apiFetch(`/api/admin/calendar?${params}`, { signal });
       const d = await res.json();
       setData(d);
       if (!venueId && d.venue) setVenueId(d.venue.id);

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch, apiErrorMessage } from '@/lib/clientApi';
 import { useRouter } from 'next/navigation';
 import {
   Check, Plus, Trash2, Upload, AlertCircle, MapPin, Building2, Image as ImageIcon,
@@ -38,8 +39,8 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
     if (!list.length) return [];
     const fd = new FormData();
     list.forEach(f => fd.append('files', f));
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    if (!res.ok) { setError((await res.json()).message || 'Upload failed.'); return []; }
+    const res = await apiFetch('/api/upload', { method: 'POST', body: fd });
+    if (!res.ok) { setError(apiErrorMessage(await res.json(), 'Upload failed.')); return []; }
     return (await res.json()).urls || [];
   };
 
@@ -69,7 +70,7 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
     if (step === 0) {
       // Save the mobile number for the venue contact details.
       if (mobile.trim()) {
-        await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: mobile.trim() }) }).catch(() => {});
+        await apiFetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: mobile.trim() }) }).catch(() => {});
       }
       setStep(1); return;
     }
@@ -89,7 +90,7 @@ export default function OnboardingWizard({ userName, userEmail, initialPhone, in
   const submit = async () => {
     setSaving(true); setError('');
     try {
-      const res = await fetch('/api/vendor/onboarding', {
+      const res = await apiFetch('/api/vendor/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ venueId: initial?.venueId, venue, turfs, bank }),

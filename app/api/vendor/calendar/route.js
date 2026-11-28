@@ -1,30 +1,28 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
 import { getISTDayRange } from '@/lib/ist';
 import { blocksForDate } from '@/lib/blockedSlots';
 import { loadTurfs } from '@/lib/turfs';
 import { buildDayGrid } from '@/lib/calendarData';
-import { requireVendor, ownedVenue } from '@/lib/vendorAuth';
+import { ownedVenue } from '@/lib/vendorAuth';
 
 export async function GET(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
-      return NextResponse.json({ message: 'A valid date is required.' }, { status: 400 });
+      return badRequest('A valid date is required.');
     }
 
     await dbConnect();
     const venue = await ownedVenue(session, searchParams.get('venueId'));
-    if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+    if (!venue) return notFound('Venue not found.');
 
     const { startUTC, endUTC } = getISTDayRange(date);
     const [bookings, blocks, turfs] = await Promise.all([

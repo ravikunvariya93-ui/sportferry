@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, conflict, notFound } from '@/lib/apiResponse';
+import { parseListParams } from '@/lib/apiParams';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import Booking from '@/models/Booking';
-import { auth, hasRole } from '@/lib/auth';
 import { escapeRegex } from '@/lib/validation';
 
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    let limit = parseInt(searchParams.get('limit') || '20');
-    if (limit > 100) limit = 100;
-    if (limit < 1) limit = 1;
+    const { page, limit, skip, searchParams } = parseListParams(request);
     const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
     const status = searchParams.get('status') || ''; // 'active' | 'blocked'
@@ -42,7 +38,7 @@ export async function GET(request) {
       User.find(query)
         .select('-password')
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
+        .skip(skip)
         .limit(limit)
         .lean(),
       User.countDocuments(query),
@@ -82,14 +78,14 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
     const body = await request.json();
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const username = String(body.username || email).trim();
     const role = ['PLAYER', 'VENDOR', 'ADMIN'].includes(body.role) ? body.role : 'PLAYER';
     if (!name || !email || !username) {
-      return NextResponse.json({ message: 'Name, email and username are required.' }, { status: 400 });
+      return badRequest('Name, email and username are required.');
     }
     await dbConnect();
     const bcrypt = (await import('bcryptjs')).default;
@@ -101,7 +97,7 @@ export async function POST(request) {
     });
     return NextResponse.json({ id: user._id.toString(), role: user.role }, { status: 201 });
   } catch (error) {
-    if (error?.code === 11000) return NextResponse.json({ message: 'Username or email already exists.' }, { status: 409 });
+    if (error?.code === 11000) return conflict('Username or email already exists.');
     return apiError(error, 'POST /api/admin/users');
   }
 }
@@ -109,34 +105,34 @@ export async function POST(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { userId, role, blocked } = await request.json();
-    if (!userId) return NextResponse.json({ message: 'userId is required' }, { status: 400 });
+    if (!userId) return badRequest('userId is required');
 
     const update = {};
     if (role !== undefined) {
       if (!['PLAYER', 'VENDOR', 'ADMIN'].includes(role)) {
-        return NextResponse.json({ message: 'Invalid role' }, { status: 400 });
+        return badRequest('Invalid role');
       }
       if (userId === session.user.id) {
-        return NextResponse.json({ message: 'You cannot change your own role.' }, { status: 400 });
+        return badRequest('You cannot change your own role.');
       }
       update.role = role;
     }
     if (blocked !== undefined) {
       if (userId === session.user.id) {
-        return NextResponse.json({ message: 'You cannot block your own account.' }, { status: 400 });
+        return badRequest('You cannot block your own account.');
       }
       update.blocked = Boolean(blocked);
     }
     if (!Object.keys(update).length) {
-      return NextResponse.json({ message: 'Nothing to update.' }, { status: 400 });
+      return badRequest('Nothing to update.');
     }
 
     await dbConnect();
     const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true }).select('-password');
-    if (!user) return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    if (!user) return notFound('User not found');
 
     return NextResponse.json({ id: user._id.toString(), role: user.role, blocked: Boolean(user.blocked) });
   } catch (error) {
@@ -147,20 +143,20 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
-    if (!userId) return NextResponse.json({ message: 'userId is required' }, { status: 400 });
+    if (!userId) return badRequest('userId is required');
 
     // Prevent self-deletion
     if (userId === session.user.id) {
-      return NextResponse.json({ message: 'Cannot delete your own account' }, { status: 400 });
+      return badRequest('Cannot delete your own account');
     }
 
     await dbConnect();
     const user = await User.findByIdAndDelete(userId);
-    if (!user) return NextResponse.json({ message: 'User not found' }, { status: 404 });
+    if (!user) return notFound('User not found');
 
     return NextResponse.json({ message: 'User deleted successfully' });
   } catch (error) {

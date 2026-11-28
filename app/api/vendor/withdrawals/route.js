@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { formatINR } from '@/lib/format';
+import { apiError, forbidden, conflict } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
 import PayoutBatch from '@/models/PayoutBatch';
@@ -13,7 +14,7 @@ import { settledAmountForVendor } from '@/lib/payouts';
 export async function GET(request) {
   try {
     const session = await requireVendor();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     await dbConnect();
 
@@ -43,7 +44,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await requireVendor();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     await dbConnect();
 
@@ -112,11 +113,11 @@ export async function POST(request) {
     return NextResponse.json({
       id: withdrawal._id.toString(),
       netAmount: availableBalance,
-      message: `Withdrawal of ₹${availableBalance.toLocaleString('en-IN')} requested successfully.`,
+      message: `Withdrawal of ${formatINR(availableBalance)} requested successfully.`,
     }, { status: 201 });
   } catch (error) {
     if (error.code === 11000) {
-      return NextResponse.json({ message: 'Withdrawal already requested for this month.' }, { status: 409 });
+      return conflict('Withdrawal already requested for this month.');
     }
     return apiError(error, 'POST /api/vendor/withdrawals');
   }

@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
+import { formatBookingDate } from '@/lib/ist';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { Users, Download, Search } from 'lucide-react';
 import DataTable from '@/components/ui/DataTable';
 import StatusPill from '@/components/ui/StatusPill';
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function CustomersClient({ customers }) {
   const [search, setSearch] = useState('');
@@ -49,8 +49,8 @@ export default function CustomersClient({ customers }) {
               ),
             },
             { key: 'bookings', label: 'Bookings' },
-            { key: 'totalSpend', label: 'Total spend', render: c => <strong>{money(c.totalSpend)}</strong> },
-            { key: 'lastBookingAt', label: 'Last booking', render: c => <span style={{ color: 'var(--muted)' }}>{c.lastBookingAt ? new Date(c.lastBookingAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span> },
+            { key: 'totalSpend', label: 'Total spend', render: c => <strong>{formatINR(c.totalSpend)}</strong> },
+            { key: 'lastBookingAt', label: 'Last booking', render: c => <span style={{ color: 'var(--muted)' }}>{c.lastBookingAt ? formatBookingDate(c.lastBookingAt, { day: '2-digit' }) : '—'}</span> },
             {
               key: 'type', label: 'Type',
               render: c => c.bookings > 1

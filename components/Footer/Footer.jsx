@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Mail, MapPin, Phone } from 'lucide-react';
 import styles from './Footer.module.css';
@@ -10,6 +11,7 @@ export default function Footer() {
 
         {/* Brand */}
         <div className={styles.brand}>
+          <Image src="/logo-mark.png" alt="Sportferry" width={52} height={52} className={styles.brandLogo} />
           <h2 className={styles.brandName}>SPORTFERRY</h2>
           <p className={styles.desc}>
             Simplifying sports venue bookings. Discover, book, and play at the best turfs and courts in your city.

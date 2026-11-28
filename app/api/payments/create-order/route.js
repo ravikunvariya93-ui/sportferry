@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError, tooManyRequests } from '@/lib/apiResponse';
+import { apiError, tooManyRequests, unauthorized, badRequest, notFound, serviceUnavailable } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import User from '@/models/User';
@@ -22,7 +22,7 @@ export async function POST(request) {
   try {
     const authSession = await auth();
     if (!authSession) {
-      return NextResponse.json({ message: 'You must be logged in to book.' }, { status: 401 });
+      return unauthorized('You must be logged in to book.');
     }
 
     const rl = await rateLimit(`create-order:${authSession.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
@@ -58,23 +58,23 @@ export async function POST(request) {
       }
     }
     if (!venueId || cells.length === 0 || !sport) {
-      return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
+      return badRequest('Missing required fields.');
     }
     if (cells.length > 20) {
-      return NextResponse.json({ message: 'Too many slots in a single booking.' }, { status: 400 });
+      return badRequest('Too many slots in a single booking.');
     }
 
     await dbConnect();
 
     const pricedVenue = await loadPricedVenue(venueId);
     if (!pricedVenue) {
-      return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+      return notFound('Venue not found.');
     }
 
     const turfCount = turfCountOf(pricedVenue.numberOfTurfs);
 
     if (!Array.isArray(pricedVenue.sportTypes) || !pricedVenue.sportTypes.includes(sport)) {
-      return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
+      return badRequest('Invalid sport for this venue.');
     }
 
     // The session doesn't carry the phone number, so read it for the Razorpay prefill.
@@ -86,12 +86,12 @@ export async function POST(request) {
       // A bookable slot is one 1-hour slot inside the venue's grid.
       const times = parseBookableSlot(c.slot);
       if (!times || !isValidDateISO(c.date)) {
-        return NextResponse.json({ message: `Invalid date/slot: ${c.date} ${c.slot}` }, { status: 400 });
+        return badRequest(`Invalid date/slot: ${c.date} ${c.slot}`);
       }
       // Past dates are rejected against the IST calendar day, not the
       // server's local midnight (which broke same-day bookings on some hosts).
       if (c.date < todayISO || isSlotPast(c.date, times.startTime)) {
-        return NextResponse.json({ message: 'Cannot book a slot that has already started.' }, { status: 400 });
+        return badRequest('Cannot book a slot that has already started.');
       }
       parsedCells.push({
         ...times,
@@ -107,7 +107,7 @@ export async function POST(request) {
 
     for (const pc of parsedCells) {
       const error = classificationLimitError(pc.classification, pc.playersCount);
-      if (error) return NextResponse.json({ message: error }, { status: 400 });
+      if (error) return badRequest(error);
     }
 
     const groupId = parsedCells.length > 1 ? crypto.randomUUID() : undefined;
@@ -123,7 +123,7 @@ export async function POST(request) {
     //    slot race reuses the same order instead of leaving a second one.
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
     if (!isRazorpayConfigured()) {
-      return NextResponse.json({ message: 'Payments are not configured.' }, { status: 503 });
+      return serviceUnavailable('Payments are not configured.');
     }
     const razorpay = getRazorpay();
 

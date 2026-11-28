@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import SupportTicket from '@/models/SupportTicket';
-import { auth, hasRole } from '@/lib/auth';
+
 
 export async function GET(request) {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     const status = new URL(request.url).searchParams.get('status') || '';
     await dbConnect();
     const query = status ? { status } : {};
@@ -38,12 +38,12 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     const { ticketId, status, reply, author } = await request.json();
-    if (!ticketId) return NextResponse.json({ message: 'ticketId is required.' }, { status: 400 });
+    if (!ticketId) return badRequest('ticketId is required.');
     await dbConnect();
     const ticket = await SupportTicket.findById(ticketId);
-    if (!ticket) return NextResponse.json({ message: 'Ticket not found.' }, { status: 404 });
+    if (!ticket) return notFound('Ticket not found.');
     if (status) ticket.status = status;
     if (reply?.trim()) ticket.replies.push({ author: author || 'Admin', body: String(reply).trim().slice(0, 2000) });
     await ticket.save();

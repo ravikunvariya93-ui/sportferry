@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { Settings, ShieldCheck, Bell, CheckCircle2 } from 'lucide-react';
 import styles from '../admin.module.css';
 
@@ -10,13 +11,13 @@ export default function SettingsClient() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/settings').then(r => r.json()).then(d => { setSettings(d.settings); setCommission(d.commissionPercent); }).catch(() => {});
+    apiFetch('/api/admin/settings').then(r => r.json()).then(d => { setSettings(d.settings); setCommission(d.commissionPercent); }).catch(() => {});
   }, []);
 
   const patch = async (group, key, value) => {
     setSaved(false);
     setSettings(p => ({ ...p, [group]: { ...p[group], [key]: value } }));
-    const res = await fetch('/api/admin/settings', {
+    const res = await apiFetch('/api/admin/settings', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [group]: { [key]: value } }),
     });
     if (res.ok) setSaved(true);
@@ -50,7 +51,7 @@ export default function SettingsClient() {
           <h2 className={styles.sectionTitle} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}><ShieldCheck size={17} /> Booking rules</h2>
           <div style={{ display: 'grid', gap: '10px' }}>
             {toggle('rules', 'teamMatch', 'Team match', 'An opposing team must match the same player count.')}
-            {toggle('rules', 'autoConfirm', 'Auto-confirm', 'A turf confirms at 6 players in total.')}
+            {toggle('rules', 'autoConfirm', 'Auto-confirm', 'A turf confirms at 8 players in total.')}
             {toggle('rules', 'groupNeedsEmpty', 'Group needs empty turf', 'A group books a whole free turf.')}
             {toggle('rules', 'noDoubleBooking', 'No double booking', 'One shared calendar for online and offline slots.')}
           </div>

@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
+import { apiFetch } from '@/lib/clientApi';
 import Link from 'next/link';
-import { Trophy, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -16,7 +18,7 @@ export default function ForgotPasswordPage() {
     setError('');
     setMessage(null);
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      const res = await apiFetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -41,8 +43,8 @@ export default function ForgotPasswordPage() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
       <div className="glass-morphism" style={{ padding: '40px', width: '100%', maxWidth: '420px' }}>
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: 'var(--primary)' }}>
-            <Trophy size={48} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <Image src="/logo-mark.png" alt="Sportferry" width={56} height={56} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>Reset your password</h1>
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Enter your email and we&apos;ll send you a reset link.</p>

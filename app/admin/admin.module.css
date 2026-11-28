@@ -41,12 +41,7 @@
 .logoIcon {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #16a34a, #22c55e);
-  display: flex;
-  align-items: center;
-  justify-Content: center;
-  color: white;
+  object-fit: contain;
   flex-shrink: 0;
 }
 

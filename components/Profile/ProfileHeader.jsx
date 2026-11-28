@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatMonthYear } from '@/lib/format';
 import { User2, Calendar, MapPin } from 'lucide-react';
 import LevelBadge from './LevelBadge';
 import LevelProgress from './LevelProgress';
@@ -25,7 +26,7 @@ export default function ProfileHeader({ name, city, joinedISO, level, actions })
               <MapPin size={15} color="var(--primary)" /> {city || 'Location not set'}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <Calendar size={15} /> Joined {new Date(joinedISO).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              <Calendar size={15} /> Joined {formatMonthYear(joinedISO)}
             </span>
           </div>
         </div>

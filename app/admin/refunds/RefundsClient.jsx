@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { RefreshCcw, Send, RefreshCw } from 'lucide-react';
 import styles from '../admin.module.css';
@@ -11,8 +13,6 @@ const TABS = [
   { key: 'FAILED', label: 'Failed' },
 ];
 const BADGE = { PENDING: styles.badgePending, COMPLETED: styles.badgeConfirmed, FAILED: styles.badgeCancelled };
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function RefundsClient() {
   const [data, setData] = useState({ refunds: [], kpis: {}, counts: {} });
@@ -26,7 +26,7 @@ export default function RefundsClient() {
   const load = useCallback(async (signal) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/refunds', { signal });
+      const res = await apiFetch('/api/admin/refunds', { signal });
       setData(await res.json());
     } catch (e) { if (e.name !== 'AbortError') console.error(e); }
     finally { setLoading(false); }
@@ -46,7 +46,7 @@ export default function RefundsClient() {
   const submit = async () => {
     setBusy(true); setResult(null);
     try {
-      const res = await fetch('/api/admin/refunds', {
+      const res = await apiFetch('/api/admin/refunds', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingIds: selected }),
       });
@@ -69,10 +69,10 @@ export default function RefundsClient() {
 
       <div className={styles.statsGrid}>
         {[
-          ['Refundable Amount', money(k.refundable), '#22c55e'],
+          ['Refundable Amount', formatINR(k.refundable), '#22c55e'],
           ['Cancelled Bookings', (k.cancelledBookings ?? 0).toString(), '#8b5cf6'],
-          ['Refunds Processed', money(k.processed), '#3b82f6'],
-          [`Pending Refunds (${k.pendingCount ?? 0})`, money(k.refundable), '#f59e0b'],
+          ['Refunds Processed', formatINR(k.processed), '#3b82f6'],
+          [`Pending Refunds (${k.pendingCount ?? 0})`, formatINR(k.refundable), '#f59e0b'],
         ].map(([label, value, color]) => (
           <div key={label} className={styles.statCard}>
             <div>
@@ -117,8 +117,8 @@ export default function RefundsClient() {
                       <td>{r.userName}</td>
                       <td>{r.venueName} / T{r.turf}</td>
                       <td><span className={`${styles.badge} ${styles.badgeUser}`}>{r.classification}</span></td>
-                      <td>{money(r.amount)}</td>
-                      <td style={{ fontWeight: 600 }}>{money(r.refundAmount)}</td>
+                      <td>{formatINR(r.amount)}</td>
+                      <td style={{ fontWeight: 600 }}>{formatINR(r.refundAmount)}</td>
                       <td style={{ fontSize: '12px' }}>{r.method}</td>
                       <td style={{ fontSize: '12px', maxWidth: '180px' }}>{r.reason || '—'}</td>
                       <td><span className={`${styles.badge} ${BADGE[r.status]}`}>{r.status}</span></td>
@@ -130,9 +130,9 @@ export default function RefundsClient() {
 
             {tab === 'PENDING' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '18px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>{selected.length} booking{selected.length !== 1 ? 's' : ''} selected · Total refund <strong style={{ color: 'var(--admin-text-main)' }}>{money(totalSelected)}</strong></span>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>{selected.length} booking{selected.length !== 1 ? 's' : ''} selected · Total refund <strong style={{ color: 'var(--admin-text-main)' }}>{formatINR(totalSelected)}</strong></span>
                 <button className={styles.pageBtn} disabled={!selected.length} onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: selected.length ? '#16a34a' : undefined, color: selected.length ? 'white' : undefined, border: 'none', padding: '10px 18px', marginLeft: 'auto' }}>
-                  <Send size={15} /> Refund {money(totalSelected)} to {selected.length} Player{selected.length !== 1 ? 's' : ''}
+                  <Send size={15} /> Refund {formatINR(totalSelected)} to {selected.length} Player{selected.length !== 1 ? 's' : ''}
                 </button>
               </div>
             )}
@@ -154,7 +154,7 @@ export default function RefundsClient() {
           <div className={styles.modalCard} style={{ maxWidth: '440px' }}>
             <h2 className={styles.modalTitle}>Confirm Bulk Refund</h2>
             <p className={styles.modalDesc}>
-              Refund {money(totalSelected)} to {selected.length} player{selected.length !== 1 ? 's' : ''}? This calls Razorpay and moves real money for online payments.
+              Refund {formatINR(totalSelected)} to {selected.length} player{selected.length !== 1 ? 's' : ''}? This calls Razorpay and moves real money for online payments.
             </p>
             <div className={styles.modalActions}>
               <button className={styles.btnCancel} onClick={() => setShowModal(false)}>Cancel</button>

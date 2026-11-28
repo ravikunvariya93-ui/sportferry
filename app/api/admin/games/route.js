@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
-import { auth, hasRole } from '@/lib/auth';
 import { getISTDayRange, istTodayISO } from '@/lib/ist';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 import { applyCancellation } from '@/lib/cancelBooking';
@@ -14,7 +13,7 @@ import { claimBooking } from '@/lib/bookingClaims';
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const city = searchParams.get('city') || '';
@@ -81,7 +80,7 @@ export async function GET(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { venueId, date, startTime, endTime, turf, action } = await request.json();
     const valid = /^[a-f\d]{24}$/i.test(String(venueId))
@@ -90,7 +89,7 @@ export async function PATCH(request) {
       && /^\d{2}:\d{2}$/.test(String(endTime))
       && ['CONFIRM', 'CANCEL'].includes(action);
     if (!valid) {
-      return NextResponse.json({ message: 'venueId, date, slot and a valid action are required.' }, { status: 400 });
+      return badRequest('venueId, date, slot and a valid action are required.');
     }
 
     await dbConnect();

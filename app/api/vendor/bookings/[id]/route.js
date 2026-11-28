@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
-import { auth } from '@/lib/auth';
-import { requireVendor, isValidObjectId } from '@/lib/vendorAuth';
+
+import { isValidObjectId } from '@/lib/vendorAuth';
 import { bookingRef } from '@/lib/bookingRef';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 
 export async function GET(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    if (!isValidObjectId(params.id)) return NextResponse.json({ message: 'Invalid id.' }, { status: 400 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
+    if (!isValidObjectId(params.id)) return badRequest('Invalid id.');
 
     await dbConnect();
     const ownedVenues = await Venue.find({ owner: session.user.id }).select('_id').lean();
@@ -22,9 +23,9 @@ export async function GET(request, { params }) {
       .populate('venue', 'name area city owner')
       .populate('user', 'name email phone')
       .lean();
-    if (!booking) return NextResponse.json({ message: 'Booking not found.' }, { status: 404 });
+    if (!booking) return notFound('Booking not found.');
     if (String(booking.venue?.owner || '') !== session.user.id) {
-      return NextResponse.json({ message: 'Booking not found.' }, { status: 404 });
+      return notFound('Booking not found.');
     }
 
     const siblings = await Booking.find({

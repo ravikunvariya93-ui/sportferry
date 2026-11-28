@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError, tooManyRequests } from '@/lib/apiResponse';
+import { apiError, tooManyRequests, unauthorized, badRequest, serviceUnavailable } from '@/lib/apiResponse';
 import { put } from '@vercel/blob';
 import { auth, hasRole } from '@/lib/auth';
 import { sharedRateLimit as rateLimit } from '@/lib/rateLimit';
@@ -11,7 +11,7 @@ export async function POST(request) {
   try {
     const session = await auth();
     if (!session || !(await hasRole(session, 'VENDOR', 'ADMIN'))) {
-      return NextResponse.json({ message: 'Only vendors can upload images.' }, { status: 401 });
+      return unauthorized('Only vendors can upload images.');
     }
 
     const rl = await rateLimit(`upload:${session.user.id}`, { limit: 30, windowMs: 10 * 60 * 1000 });
@@ -20,29 +20,26 @@ export async function POST(request) {
     }
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return NextResponse.json(
-        { message: 'Image uploads are not configured (missing BLOB_READ_WRITE_TOKEN).' },
-        { status: 500 }
-      );
+      return serviceUnavailable('Image uploads are not configured (missing BLOB_READ_WRITE_TOKEN).');
     }
 
     const formData = await request.formData();
     const files = formData.getAll('files').filter((f) => f && typeof f !== 'string');
 
     if (!files.length) {
-      return NextResponse.json({ message: 'No files received.' }, { status: 400 });
+      return badRequest('No files received.');
     }
     if (files.length > MAX_FILES) {
-      return NextResponse.json({ message: `Upload up to ${MAX_FILES} images at a time.` }, { status: 400 });
+      return badRequest(`Upload up to ${MAX_FILES} images at a time.`);
     }
 
     const urls = [];
     for (const file of files) {
       if (!file.type?.startsWith('image/')) {
-        return NextResponse.json({ message: `Not an image: ${file.name}` }, { status: 400 });
+        return badRequest(`Not an image: ${file.name}`);
       }
       if (file.size > MAX_SIZE) {
-        return NextResponse.json({ message: `${file.name} exceeds 5MB.` }, { status: 400 });
+        return badRequest(`${file.name} exceeds 5MB.`);
       }
       // Never trust the client filename — strip anything that isn't safe.
       const safeName = String(file.name || 'image').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);

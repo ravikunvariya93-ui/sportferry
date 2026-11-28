@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { formatINR, formatDayMonth } from '@/lib/format';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/mongodb';
 import Withdrawal from '@/models/Withdrawal';
@@ -37,10 +38,10 @@ export default async function VendorEarningsPage() {
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
-        <StatCard label="Gross (confirmed)" value={`₹${earnings.gross.toLocaleString('en-IN')}`} />
-        <StatCard label={`Commission (${earnings.commissionPercent}%)`} value={`−₹${earnings.commission.toLocaleString('en-IN')}`} color="#dc2626" />
-        <StatCard label="Net earnings" value={`₹${earnings.net.toLocaleString('en-IN')}`} color="var(--primary)" />
-        <StatCard label="Available to withdraw" value={`₹${available.toLocaleString('en-IN')}`} color="#10b981" />
+        <StatCard label="Gross (confirmed)" value={`${formatINR(earnings.gross)}`} />
+        <StatCard label={`Commission (${earnings.commissionPercent}%)`} value={`−${formatINR(earnings.commission)}`} color="#dc2626" />
+        <StatCard label="Net earnings" value={`${formatINR(earnings.net)}`} color="var(--primary)" />
+        <StatCard label="Available to withdraw" value={`${formatINR(available)}`} color="#10b981" />
       </div>
 
       <section className="glass-morphism" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -64,11 +65,11 @@ export default async function VendorEarningsPage() {
                 {withdrawals.map(w => (
                   <tr key={w._id.toString()} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                     <td style={{ padding: '12px' }}>{MONTHS[w.month]} {w.year}</td>
-                    <td style={{ padding: '12px' }}>₹{(w.amount || 0).toLocaleString('en-IN')}</td>
-                    <td style={{ padding: '12px', color: '#dc2626' }}>₹{(w.commissionDeducted || 0).toLocaleString('en-IN')}</td>
-                    <td style={{ padding: '12px', fontWeight: '600' }}>₹{(w.netAmount || 0).toLocaleString('en-IN')}</td>
+                    <td style={{ padding: '12px' }}>{formatINR(w.amount)}</td>
+                    <td style={{ padding: '12px', color: '#dc2626' }}>{formatINR(w.commissionDeducted)}</td>
+                    <td style={{ padding: '12px', fontWeight: '600' }}>{formatINR(w.netAmount)}</td>
                     <td style={{ padding: '12px' }}><StatusPill status={w.status} /></td>
-                    <td style={{ padding: '12px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{new Date(w.requestedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                    <td style={{ padding: '12px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{formatDayMonth(w.requestedAt)}</td>
                   </tr>
                 ))}
               </tbody>

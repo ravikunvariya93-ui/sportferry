@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import Link from 'next/link';
 import TabBar from '@/components/ui/TabBar';
 import StateBlock from '@/components/ui/StateBlock';
@@ -26,7 +27,7 @@ export default function GamesClient() {
   const load = useCallback(async (signal) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor/games?date=${date}`, { signal });
+      const res = await apiFetch(`/api/vendor/games?date=${date}`, { signal });
       if (res.ok) setData(await res.json());
     } catch (e) { if (e.name !== 'AbortError') console.error(e); }
     finally { setLoading(false); }

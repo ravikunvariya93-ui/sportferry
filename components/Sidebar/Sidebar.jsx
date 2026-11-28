@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -64,9 +65,7 @@ const Sidebar = () => {
   return (
     <div className={styles.sidebar} data-auth-state={authState}>
       <div className={styles.logo}>
-        <span className={styles.logoMark}>
-          <Trophy size={20} strokeWidth={2.5} />
-        </span>
+        <Image src="/logo-mark.png" alt="" width={36} height={36} className={styles.logoMark} />
         <span className={styles.logoText}>Sportferry</span>
       </div>
 

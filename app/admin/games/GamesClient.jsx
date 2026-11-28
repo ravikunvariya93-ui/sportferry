@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatDayMonth } from '@/lib/format';
 import { Gamepad2, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import styles from '../admin.module.css';
 
@@ -32,7 +34,7 @@ export default function GamesClient() {
       if (venueId) params.set('venueId', venueId);
       if (sport) params.set('sport', sport);
       if (date) params.set('date', date);
-      const res = await fetch(`/api/admin/games?${params}`, { signal });
+      const res = await apiFetch(`/api/admin/games?${params}`, { signal });
       const data = await res.json();
       setGames(data.games || []);
       setCounts(data.counts || {});
@@ -46,7 +48,7 @@ export default function GamesClient() {
   const act = async (g, action) => {
     setBusy(g.key + action);
     try {
-      const res = await fetch('/api/admin/games', {
+      const res = await apiFetch('/api/admin/games', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ venueId: g.venueId, date: g.date, startTime: g.startTime, endTime: g.endTime, turf: g.turf, action }),
       });
@@ -113,7 +115,7 @@ export default function GamesClient() {
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{g.venueCity}</div>
                     </td>
                     <td style={{ fontSize: '12px' }}>
-                      <div>{new Date(g.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</div>
+                      <div>{formatDayMonth(g.date)}</div>
                       <div style={{ color: '#64748b' }}>{g.slot}</div>
                     </td>
                     <td>T{g.turf}</td>

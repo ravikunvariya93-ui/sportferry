@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatMonthYear } from '@/lib/format';
 import {
   User, Mail, Shield, ShieldCheck, Calendar, LogOut, Phone, ChevronRight, Trash2, AtSign,
   MapPin, LocateFixed, Loader2, Save, CheckCircle, AlertCircle,
@@ -69,7 +71,7 @@ export default function ProfileClient({ initialUser, bookingsSummary = { total: 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
-          const res = await fetch(
+          const res = await apiFetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.latitude}&lon=${coords.longitude}`,
             { headers: { 'Accept-Language': 'en' }, signal }
           );
@@ -101,7 +103,7 @@ export default function ProfileClient({ initialUser, bookingsSummary = { total: 
     setSaving(true);
     setSaveMsg(null);
     try {
-      const res = await fetch('/api/profile', {
+      const res = await apiFetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone, city }),
@@ -140,7 +142,7 @@ export default function ProfileClient({ initialUser, bookingsSummary = { total: 
     setPwSaving(true);
     setPwMsg(null);
     try {
-      const res = await fetch('/api/profile/password', {
+      const res = await apiFetch('/api/profile/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
@@ -163,7 +165,7 @@ export default function ProfileClient({ initialUser, bookingsSummary = { total: 
     setDeleting(true);
     setDeleteMsg('');
     try {
-      const res = await fetch('/api/profile', {
+      const res = await apiFetch('/api/profile', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: deletePw }),
@@ -260,7 +262,7 @@ export default function ProfileClient({ initialUser, bookingsSummary = { total: 
               <Calendar size={14} /> Joined On
             </div>
             <div style={{ fontSize: '17px', fontWeight: '700' }}>
-              {new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              {formatMonthYear(user.createdAt)}
             </div>
           </div>
           <div style={{ padding: '20px', background: 'var(--secondary)', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>

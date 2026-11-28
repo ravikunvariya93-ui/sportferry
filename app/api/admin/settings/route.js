@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import PlatformSettings from '@/models/PlatformSettings';
 import { COMMISSION_PERCENT } from '@/lib/constants';
-import { auth, hasRole } from '@/lib/auth';
+
 
 async function settingsDoc() {
   let doc = await PlatformSettings.findOne({});
@@ -14,7 +14,7 @@ async function settingsDoc() {
 
 export async function GET() {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     await dbConnect();
     const doc = await settingsDoc();
     return NextResponse.json({ settings: doc.toObject(), commissionPercent: COMMISSION_PERCENT });
@@ -25,7 +25,7 @@ export async function GET() {
 
 export async function PATCH(request) {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     const body = await request.json();
     await dbConnect();
     const doc = await settingsDoc();

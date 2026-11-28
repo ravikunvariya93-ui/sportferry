@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Trophy, User } from 'lucide-react';
 import styles from './MobileHeader.module.css';
@@ -18,9 +19,7 @@ const MobileHeader = () => {
   return (
     <header className={styles.mobileHeader}>
       <Link href="/" className={styles.logo} aria-label="Sportferry home">
-        <span className={styles.logoMark}>
-          <Trophy size={16} strokeWidth={2.5} />
-        </span>
+        <Image src="/logo-mark.png" alt="" width={30} height={30} className={styles.logoMark} />
         <span className={styles.logoText}>Sportferry</span>
       </Link>
 

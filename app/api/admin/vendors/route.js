@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, conflict } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import { auth, hasRole } from '@/lib/auth';
 
@@ -7,13 +7,13 @@ import { auth, hasRole } from '@/lib/auth';
 export async function POST(request) {
   try {
     const session = await auth();
-    if (!session || !(await hasRole(session, 'ADMIN'))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session || !(await hasRole(session, 'ADMIN'))) return forbidden();
     const body = await request.json();
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const ownerName = String(body.ownerName || '').trim();
     if (!name || !email || !ownerName) {
-      return NextResponse.json({ message: 'Venue name, owner name and email are required.' }, { status: 400 });
+      return badRequest('Venue name, owner name and email are required.');
     }
     await dbConnect();
     const bcrypt = (await import('bcryptjs')).default;
@@ -37,7 +37,7 @@ export async function POST(request) {
     });
     return NextResponse.json({ venueId: venue._id.toString(), ownerId: user._id.toString() }, { status: 201 });
   } catch (error) {
-    if (error?.code === 11000) return NextResponse.json({ message: 'Email already exists.' }, { status: 409 });
+    if (error?.code === 11000) return conflict('Email already exists.');
     return apiError(error, 'POST /api/admin/vendors');
   }
 }

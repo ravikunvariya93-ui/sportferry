@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { formatINR, formatNumber } from '@/lib/format';
 import Link from 'next/link';
 import {
   Users, Building2, CalendarCheck, TrendingUp, IndianRupee, Percent,
@@ -15,10 +16,6 @@ const STATUS_BADGE = {
   CANCELLED: styles.badgeCancelled,
 };
 
-function money(n) {
-  return `₹${Number(n || 0).toLocaleString('en-IN')}`;
-}
-
 export default function AdminOverviewClient({ stats }) {
   const {
     totalBookings, totalPlayers, grossBookingValue, commission, commissionPercent,
@@ -27,16 +24,16 @@ export default function AdminOverviewClient({ stats }) {
   } = stats;
 
   const KPIS = [
-    { label: 'Total Bookings', value: totalBookings.toLocaleString('en-IN'), Icon: CalendarCheck, color: '#06b6d4', bg: 'rgba(6,182,212,0.12)', href: '/admin/bookings' },
-    { label: 'Total Players', value: totalPlayers.toLocaleString('en-IN'), Icon: Users, color: '#6366f1', bg: 'rgba(99,102,241,0.12)', href: '/admin/users' },
-    { label: 'Gross Booking Value', value: money(grossBookingValue), Icon: TrendingUp, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', href: '/admin/bookings?status=CONFIRMED' },
-    { label: `Commission (${commissionPercent}%)`, value: money(commission), Icon: IndianRupee, color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)', href: '/admin/payouts' },
+    { label: 'Total Bookings', value: formatNumber(totalBookings), Icon: CalendarCheck, color: '#06b6d4', bg: 'rgba(6,182,212,0.12)', href: '/admin/bookings' },
+    { label: 'Total Players', value: formatNumber(totalPlayers), Icon: Users, color: '#6366f1', bg: 'rgba(99,102,241,0.12)', href: '/admin/users' },
+    { label: 'Gross Booking Value', value: formatINR(grossBookingValue), Icon: TrendingUp, color: '#22c55e', bg: 'rgba(34,197,94,0.12)', href: '/admin/bookings?status=CONFIRMED' },
+    { label: `Commission (${commissionPercent}%)`, value: formatINR(commission), Icon: IndianRupee, color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)', href: '/admin/payouts' },
   ];
 
   const PLATFORM = [
     { label: 'Active Venues', value: activeVenues, Icon: Building2, color: '#22c55e' },
     { label: 'Total Turfs', value: totalTurfs, Icon: Layers, color: '#06b6d4' },
-    { label: 'Registered Users', value: registeredUsers.toLocaleString('en-IN'), Icon: UserCheck, color: '#6366f1' },
+    { label: 'Registered Users', value: formatNumber(registeredUsers), Icon: UserCheck, color: '#6366f1' },
     { label: 'Fill Rate', value: `${fillRate}%`, Icon: Percent, color: '#f59e0b' },
   ];
 
@@ -188,7 +185,7 @@ export default function AdminOverviewClient({ stats }) {
                         <div style={{ fontSize: '11px', color: '#64748b' }}>{v.city}</div>
                       </td>
                       <td><span className={`${styles.badge} ${styles.badgeConfirmed}`}>{v.count}</span></td>
-                      <td style={{ fontWeight: 600, color: '#22c55e' }}>{money(v.revenue)}</td>
+                      <td style={{ fontWeight: 600, color: '#22c55e' }}>{formatINR(v.revenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,7 +213,7 @@ export default function AdminOverviewClient({ stats }) {
                     <div style={{ fontSize: '11px', color: '#64748b' }}>{b.venueCity}</div>
                   </div>
                   <span className={`${styles.badge} ${STATUS_BADGE[b.status] || styles.badgeUser}`}>{b.status}</span>
-                  <div style={{ fontWeight: 700, color: '#22c55e', fontSize: '13px', marginLeft: '10px', flexShrink: 0 }}>{money(b.amount)}</div>
+                  <div style={{ fontWeight: 700, color: '#22c55e', fontSize: '13px', marginLeft: '10px', flexShrink: 0 }}>{formatINR(b.amount)}</div>
                 </div>
               ))}
             </div>

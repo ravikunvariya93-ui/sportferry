@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Staff from '@/models/Staff';
-import { auth, hasRole } from '@/lib/auth';
 import { serializeDoc, serializeList } from '@/lib/serialize';
 
 export async function GET() {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     await dbConnect();
     const staff = await Staff.find({}).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ staff: serializeList(staff, { keepLegacyId: true }) });
@@ -19,10 +18,10 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!(await requireAdmin())) return forbidden();
     const body = await request.json();
     const name = String(body.name || '').trim();
-    if (!name) return NextResponse.json({ message: 'Name is required.' }, { status: 400 });
+    if (!name) return badRequest('Name is required.');
     await dbConnect();
     const staff = await Staff.create({
       name,

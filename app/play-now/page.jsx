@@ -4,7 +4,7 @@ import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { getISTDayRange, istTodayISO, istHour } from '@/lib/ist';
+import { getISTDayRange, istTodayISO, istHour, formatToAMPM } from '@/lib/ist';
 import { slotCapacityFor, openSeatsFor } from '@/lib/capacity';
 import { PUBLIC_VENUE_FILTER } from '@/lib/constants';
 import PlayNowClient from './PlayNowClient';
@@ -25,13 +25,6 @@ function getNextSlots() {
     slots.push({ startTime: fmt(startHour + i), endTime: fmt(startHour + i + 1) });
   }
   return slots;
-}
-
-function formatTime(time24) {
-  const [h, m] = time24.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 export default async function PlayNowPage() {
@@ -135,7 +128,7 @@ export default async function PlayNowPage() {
         bookings: g.slotBookings,
         turfCount: g.turfCount,
       }),
-      timeDisplay: `${formatTime(g.startTime)} – ${formatTime(g.endTime)}`,
+      timeDisplay: `${formatToAMPM(g.startTime, { padHour: false })} – ${formatToAMPM(g.endTime, { padHour: false })}`,
     }))
     .filter(g => g.spotsLeft > 0)
     .sort((a, b) => a.spotsLeft - b.spotsLeft); // Most urgent first

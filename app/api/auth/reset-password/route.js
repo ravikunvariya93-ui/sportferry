@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, badRequest } from '@/lib/apiResponse';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
@@ -12,10 +12,10 @@ export async function POST(request) {
   try {
     const { email, token, password } = await request.json();
     if (!email || !token || !password) {
-      return NextResponse.json({ message: 'Missing fields.' }, { status: 400 });
+      return badRequest('Missing fields.');
     }
     if (!isValidPassword(password)) {
-      return NextResponse.json({ message: `Password must be at least ${PASSWORD_MIN} characters.` }, { status: 400 });
+      return badRequest(`Password must be at least ${PASSWORD_MIN} characters.`);
     }
 
     await dbConnect();
@@ -26,7 +26,7 @@ export async function POST(request) {
       || user.resetToken !== sha256(String(token));
 
     if (invalid) {
-      return NextResponse.json({ message: 'This reset link is invalid or has expired. Request a new one.' }, { status: 400 });
+      return badRequest('This reset link is invalid or has expired. Request a new one.');
     }
 
     user.password = await bcrypt.hash(password, 10);

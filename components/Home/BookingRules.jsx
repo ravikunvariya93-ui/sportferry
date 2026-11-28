@@ -2,8 +2,8 @@ import React from 'react';
 import { Megaphone, Users, User, Trophy } from 'lucide-react';
 
 const RULES = [
-  { Icon: Users, color: '#2563eb', title: 'Team Booking (4 vs 4)', text: 'If 4 players book on one side, the opposite side also needs 4 players (a team or solo players).' },
-  { Icon: User, color: '#0f172a', title: 'Solo Booking', text: 'When 6 solo players book, the game confirms — regardless of sides.' },
+  { Icon: Users, color: '#2563eb', title: 'Team Booking (3–6 players)', text: 'Book as a team of 3–6 players on one side; the opposite side must field a team of the same size.' },
+  { Icon: User, color: '#0f172a', title: 'Solo Booking', text: 'When 8 players book, the game confirms — regardless of sides.' },
   { Icon: Trophy, color: '#ea580c', title: 'Group Booking', text: 'Book the entire turf for your group. No other players can join.' },
 ];
 

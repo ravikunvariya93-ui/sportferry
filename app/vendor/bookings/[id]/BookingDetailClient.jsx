@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { ArrowLeft, Trophy, MapPin, Clock, Users, IndianRupee, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const BADGE = { CONFIRMED: '#16a34a', PENDING: '#d97706', CANCELLED: '#dc2626', PAYMENT_PENDING: '#3b82f6' };
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function BookingDetailClient({ bookingId }) {
   const [data, setData] = useState(null);
@@ -16,7 +16,7 @@ export default function BookingDetailClient({ bookingId }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor/bookings/${bookingId}`);
+      const res = await apiFetch(`/api/vendor/bookings/${bookingId}`);
       if (res.ok) setData(await res.json());
     } finally { setLoading(false); }
   }, [bookingId]);
@@ -25,7 +25,7 @@ export default function BookingDetailClient({ bookingId }) {
 
   const checkin = async () => {
     setMessage('');
-    const res = await fetch('/api/vendor/verify-booking', {
+    const res = await apiFetch('/api/vendor/verify-booking', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: bookingId, action: 'checkin' }),
     });
@@ -71,7 +71,7 @@ export default function BookingDetailClient({ bookingId }) {
               [Clock, 'Date & time', `${b.date} · ${slotFmt(b.startTime)} – ${slotFmt(b.endTime)}`],
               [MapPin, 'Turf', `Turf ${b.turf}`],
               [Users, 'Players', `${b.playersCount}`],
-              [IndianRupee, 'Amount', money(b.amount)],
+              [IndianRupee, 'Amount', formatINR(b.amount)],
             ].map(([Icon, label, value]) => (
               <div key={label} style={{ padding: '12px', background: 'var(--secondary)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                 <Icon size={15} color="var(--primary)" />
@@ -98,7 +98,7 @@ export default function BookingDetailClient({ bookingId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ padding: '18px', background: 'var(--secondary)', borderRadius: '14px', border: '1px solid var(--glass-border)' }}>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Your commission ({b.commissionPercent}%)</div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{money(b.commissionAmount)}</div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{formatINR(b.commissionAmount)}</div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '10px' }}>Customer: {b.customerName}</div>
           </div>
 

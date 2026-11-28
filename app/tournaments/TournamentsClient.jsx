@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { formatBookingDate } from '@/lib/ist';
 import Link from 'next/link';
 import { Trophy, Calendar, MapPin, Users, Plus, AlertCircle, Clock } from 'lucide-react';
 
@@ -52,14 +53,6 @@ const SAMPLE_TOURNAMENTS = [
     status: 'REGISTRATION_CLOSED',
   },
 ];
-
-function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-IN', { 
-    day: 'numeric', 
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 function getStatusColor(status) {
   switch (status) {
@@ -177,7 +170,7 @@ export default function TournamentsClient({ tournaments }) {
                     <div style={{ padding: '12px', background: 'var(--background)', borderRadius: '10px' }}>
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>Dates</div>
                       <div style={{ fontSize: '13px', fontWeight: '600' }}>
-                        {formatDate(tournament.startDate)} – {formatDate(tournament.endDate)}
+                        {formatBookingDate(tournament.startDate)} – {formatBookingDate(tournament.endDate)}
                       </div>
                     </div>
                     <div style={{ padding: '12px', background: 'var(--background)', borderRadius: '10px' }}>
@@ -232,7 +225,7 @@ export default function TournamentsClient({ tournaments }) {
                         Register Your Team
                       </button>
                       <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        Deadline: {formatDate(tournament.registrationDeadline)}
+                        Deadline: {formatBookingDate(tournament.registrationDeadline)}
                       </div>
                     </div>
                   )}

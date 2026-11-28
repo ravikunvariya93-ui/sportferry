@@ -1,27 +1,30 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import User from '@/models/User';
 import Withdrawal from '@/models/Withdrawal';
 import PayoutBatch from '@/models/PayoutBatch';
-import { auth, hasRole } from '@/lib/auth';
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { computeVendorPayables, settledAmountForVendor } from '@/lib/payouts';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
+import { runBookingTransaction, lockVendorSettlement, BookingError } from '@/lib/bookingTransactions';
 
 /** Per-vendor pending payables from confirmed online bookings minus settled amounts. */
-async function pendingPayables() {
-  const bookings = await Booking.find({ status: 'CONFIRMED', bookingType: 'ONLINE' })
-    .populate('venue', 'name owner')
-    .select('venue totalAmount')
-    .lean();
+async function pendingPayables(session) {
+  const withSession = (query) => (session ? query.session(session) : query);
+
+  const bookings = await withSession(
+    Booking.find({ status: 'CONFIRMED', bookingType: 'ONLINE' })
+      .populate('venue', 'name owner')
+      .select('venue totalAmount')
+  ).lean();
 
   const [batches, withdrawals, users] = await Promise.all([
-    PayoutBatch.find({}).select('vendor net settledAmount status').lean(),
-    Withdrawal.find({}).select('vendor netAmount status').lean(),
-    User.find({ role: 'VENDOR' }).select('name email bankDetails').lean(),
+    withSession(PayoutBatch.find({}).select('vendor net settledAmount status')).lean(),
+    withSession(Withdrawal.find({}).select('vendor netAmount status')).lean(),
+    withSession(User.find({ role: 'VENDOR' }).select('name email bankDetails')).lean(),
   ]);
 
   const settledByVendor = {};
@@ -71,7 +74,7 @@ async function pendingPayables() {
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const format = new URL(request.url).searchParams.get('format');
     await dbConnect();
@@ -129,56 +132,78 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { vendorIds, method = 'AUTOMATED', reference = '' } = await request.json();
     if (!Array.isArray(vendorIds) || vendorIds.length === 0) {
-      return NextResponse.json({ message: 'Select at least one vendor.' }, { status: 400 });
+      return badRequest('Select at least one vendor.');
     }
     if (method === 'MANUAL' && !String(reference).trim()) {
-      return NextResponse.json({ message: 'A reference number is required for a manual transfer.' }, { status: 400 });
+      return badRequest('A reference number is required for a manual transfer.');
     }
 
     await dbConnect();
-    const rows = await pendingPayables();
-    const selected = rows.filter(r => vendorIds.includes(r.vendorId) && r.payable > 0);
-    if (!selected.length) return NextResponse.json({ message: 'Nothing payable for the selected vendors.' }, { status: 400 });
 
-    const now = new Date();
-    const periodStart = new Date(now);
-    periodStart.setDate(periodStart.getDate() - 30);
+    const vendorIdStrings = [...new Set(vendorIds.map(String))].sort();
 
-    const users = await User.find({ _id: { $in: selected.map(s => s.vendorId) } }).select('bankDetails').lean();
-    const bankMap = {};
-    users.forEach(u => { bankMap[u._id.toString()] = u.bankDetails || {}; });
+    // The payable is read and the batch inserted inside one transaction, and
+    // every vendor's settlement lock is touched first. Two admins settling the
+    // same vendor at once therefore collide on that lock instead of both
+    // reading the full outstanding balance and both inserting a batch.
+    const created = await runBookingTransaction(async (tx) => {
+      for (const vendorId of vendorIdStrings) {
+        await lockVendorSettlement(vendorId, tx);
+      }
 
-    const docs = selected.map(s => ({
-      vendor: s.vendorId,
-      periodStart,
-      periodEnd: now,
-      bookingsCount: s.bookings,
-      gross: s.gross,
-      commission: s.commission,
-      net: s.net,
-      // This batch settles the outstanding payable, which may be less than the
-      // period net when earnings were already partly paid out.
-      settledAmount: s.payable,
-      bankAccountSnapshot: bankMap[s.vendorId] || {},
-      // AUTOMATED records the settlement as in-flight (the bank transfer happens
-      // out of band); MANUAL with a reference is marked paid immediately.
-      status: method === 'MANUAL' ? 'COMPLETED' : 'PROCESSING',
-      method,
-      reference: String(reference).trim(),
-      createdBy: session.user.id,
-      processedAt: method === 'MANUAL' ? now : undefined,
-    }));
+      const rows = await pendingPayables(tx);
+      const selected = rows.filter(r => vendorIdStrings.includes(r.vendorId) && r.payable > 0);
+      if (!selected.length) return [];
 
-    const created = await PayoutBatch.insertMany(docs);
+      const now = new Date();
+      const periodStart = new Date(now);
+      periodStart.setDate(periodStart.getDate() - 30);
+
+      const users = await User.find({ _id: { $in: selected.map(s => s.vendorId) } })
+        .select('bankDetails')
+        .session(tx)
+        .lean();
+      const bankMap = {};
+      users.forEach(u => { bankMap[u._id.toString()] = u.bankDetails || {}; });
+
+      const docs = selected.map(s => ({
+        vendor: s.vendorId,
+        periodStart,
+        periodEnd: now,
+        bookingsCount: s.bookings,
+        gross: s.gross,
+        commission: s.commission,
+        net: s.net,
+        // This batch settles the outstanding payable, which may be less than the
+        // period net when earnings were already partly paid out.
+        settledAmount: s.payable,
+        bankAccountSnapshot: bankMap[s.vendorId] || {},
+        // AUTOMATED records the settlement as in-flight (the bank transfer happens
+        // out of band); MANUAL with a reference is marked paid immediately.
+        status: method === 'MANUAL' ? 'COMPLETED' : 'PROCESSING',
+        method,
+        reference: String(reference).trim(),
+        createdBy: session.user.id,
+        processedAt: method === 'MANUAL' ? now : undefined,
+      }));
+
+      return PayoutBatch.insertMany(docs, { session: tx });
+    });
+
+    if (!created.length) return badRequest('Nothing payable for the selected vendors.');
+
     return NextResponse.json({
       created: created.length,
-      total: selected.reduce((sum, r) => sum + r.payable, 0),
+      total: created.reduce((sum, b) => sum + (b.settledAmount || 0), 0),
     }, { status: 201 });
   } catch (error) {
+    if (error instanceof BookingError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     return apiError(error, 'POST /api/admin/payouts');
   }
 }
@@ -186,11 +211,11 @@ export async function POST(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { batchId, status, reference } = await request.json();
     if (!batchId || !['COMPLETED', 'FAILED'].includes(status)) {
-      return NextResponse.json({ message: 'batchId and a valid status are required.' }, { status: 400 });
+      return badRequest('batchId and a valid status are required.');
     }
 
     await dbConnect();
@@ -199,7 +224,7 @@ export async function PATCH(request) {
     if (reference !== undefined) update.reference = String(reference).trim();
 
     const batch = await PayoutBatch.findByIdAndUpdate(batchId, { $set: update }, { new: true });
-    if (!batch) return NextResponse.json({ message: 'Payout not found.' }, { status: 404 });
+    if (!batch) return notFound('Payout not found.');
 
     return NextResponse.json({ id: batch._id.toString(), status: batch.status });
   } catch (error) {

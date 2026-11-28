@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { ShieldCheck, AlertTriangle, ArrowDownCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -36,7 +37,7 @@ export default function VendorBookingsTable({ bookings, title = 'All Bookings' }
     setErrorId(null);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      const res = await apiFetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'CONFIRMED' }),
@@ -47,7 +48,7 @@ export default function VendorBookingsTable({ bookings, title = 'All Bookings' }
         router.refresh();
       } else {
         setErrorId(bookingId);
-        const d = await res.json().catch(() => ({}));
+        const d = await res.json();
         setErrorMsg(d.message || 'Failed to approve.');
       }
     } catch (e) {

@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatBookingDate } from '@/lib/ist';
+import { formatINR, formatDayMonth } from '@/lib/format';
 import Link from 'next/link';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, CheckCircle2, Ban, XCircle } from 'lucide-react';
 import styles from '../../admin.module.css';
@@ -12,8 +15,6 @@ const STATUS_BADGE = {
   SUSPENDED: styles.badgeCancelled, REJECTED: styles.badgeCancelled,
 };
 
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
-
 export default function VendorDetailClient({ venueId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,7 @@ export default function VendorDetailClient({ venueId }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/vendors/${venueId}`);
+      const res = await apiFetch(`/api/admin/vendors/${venueId}`);
       if (res.ok) setData(await res.json());
     } finally { setLoading(false); }
   }, [venueId]);
@@ -30,7 +31,7 @@ export default function VendorDetailClient({ venueId }) {
   useEffect(() => { load(); }, [load]);
 
   const setStatus = async (onboardingStatus) => {
-    const res = await fetch('/api/admin/venues', {
+    const res = await apiFetch('/api/admin/venues', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ venueId, onboardingStatus }),
     });
@@ -89,7 +90,7 @@ export default function VendorDetailClient({ venueId }) {
               <tbody>
                 {[['Owner', owner.name], ['Mobile', owner.phone || '—'], ['Email', owner.email || '—'], ['City', owner.city || venue.city],
                   ['Address', venue.address], ['Sports', (venue.sportTypes || []).join(', ') || '—'], ['Turfs', `${turfs.length}`],
-                  ['Joined On', new Date(venue.joinedOn).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })]].map(([k, v]) => (
+                  ['Joined On', formatBookingDate(venue.joinedOn, { day: '2-digit' })]].map(([k, v]) => (
                   <tr key={k}><td style={{ color: '#64748b', width: '42%' }}>{k}</td><td style={{ fontWeight: 600, color: 'var(--admin-text-main)' }}>{v}</td></tr>
                 ))}
               </tbody>
@@ -98,8 +99,8 @@ export default function VendorDetailClient({ venueId }) {
           <div className={styles.sectionCard}>
             <h2 className={styles.sectionTitle}>Performance (Last 30 Days)</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-              {[['Total Bookings', performance.bookings], ['Booking Value', money(performance.bookingValue)],
-                [`Commission (${data.commissionPercent}%)`, money(performance.commission)], ['Fill Rate', `${performance.fillRate}%`]].map(([k, v]) => (
+              {[['Total Bookings', performance.bookings], ['Booking Value', formatINR(performance.bookingValue)],
+                [`Commission (${data.commissionPercent}%)`, formatINR(performance.commission)], ['Fill Rate', `${performance.fillRate}%`]].map(([k, v]) => (
                 <div key={k} style={{ padding: '14px', border: '1px solid var(--admin-border)', borderRadius: '12px' }}>
                   <div style={{ fontSize: '20px', fontWeight: 800 }}>{v}</div>
                   <div style={{ fontSize: '12px', color: '#64748b' }}>{k}</div>
@@ -147,7 +148,7 @@ export default function VendorDetailClient({ venueId }) {
               </tr>
             </tbody>
           </table>
-          <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px' }}>Base price per hour: {money(venue.pricePerHour)}. Peak applies 5–11 PM.</p>
+          <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px' }}>Base price per hour: {formatINR(venue.pricePerHour)}. Peak applies 5–11 PM.</p>
         </div>
       )}
 
@@ -177,9 +178,9 @@ export default function VendorDetailClient({ venueId }) {
                 <tr><td colSpan={4} style={{ color: '#64748b' }}>No withdrawal requests.</td></tr>
               ) : withdrawals.map(w => (
                 <tr key={w.id}>
-                  <td>{w.month}/{w.year}</td><td style={{ fontWeight: 600 }}>{money(w.netAmount)}</td>
+                  <td>{w.month}/{w.year}</td><td style={{ fontWeight: 600 }}>{formatINR(w.netAmount)}</td>
                   <td><span className={styles.badge}>{w.status}</span></td>
-                  <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(w.requestedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                  <td style={{ fontSize: '12px', color: '#64748b' }}>{formatDayMonth(w.requestedAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -202,11 +203,11 @@ export default function VendorDetailClient({ venueId }) {
                 ) : activity.map(a => (
                   <tr key={a.id}>
                     <td style={{ fontWeight: 600 }}>{a.ref} · {a.userName}</td>
-                    <td>{new Date(a.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                    <td>{formatDayMonth(a.date)}</td>
                     <td>{a.slot}</td>
                     <td>{a.bookingType === 'OFFLINE' ? 'Offline' : a.classification}</td>
                     <td>{a.playersCount}</td>
-                    <td style={{ fontWeight: 600 }}>{money(a.amount)}</td>
+                    <td style={{ fontWeight: 600 }}>{formatINR(a.amount)}</td>
                     <td><span className={styles.badge}>{a.status}</span></td>
                   </tr>
                 ))}

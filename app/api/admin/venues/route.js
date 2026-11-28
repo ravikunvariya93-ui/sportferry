@@ -1,23 +1,21 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
+import { parseListParams } from '@/lib/apiParams';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import Turf from '@/models/Turf';
 import BlockedSlot from '@/models/BlockedSlot';
 import User from '@/models/User';
-import { auth, hasRole } from '@/lib/auth';
 import { escapeRegex } from '@/lib/validation';
 
 export async function GET(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const { page, limit, skip, searchParams } = parseListParams(request);
     const city = searchParams.get('city') || '';
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || '';
@@ -41,7 +39,7 @@ export async function GET(request) {
       Venue.find(query)
         .populate('owner', 'name email phone')
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
+        .skip(skip)
         .limit(limit)
         .lean(),
       Venue.countDocuments(query),
@@ -108,17 +106,17 @@ export async function GET(request) {
 export async function PATCH(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { venueId, onboardingStatus } = await request.json();
     const ALLOWED = ['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED'];
     if (!venueId || !ALLOWED.includes(onboardingStatus)) {
-      return NextResponse.json({ message: 'venueId and a valid onboardingStatus are required.' }, { status: 400 });
+      return badRequest('venueId and a valid onboardingStatus are required.');
     }
 
     await dbConnect();
     const venue = await Venue.findByIdAndUpdate(venueId, { $set: { onboardingStatus } }, { new: true });
-    if (!venue) return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+    if (!venue) return notFound('Venue not found');
 
     return NextResponse.json({ venueId: venue._id.toString(), onboardingStatus: venue.onboardingStatus });
   } catch (error) {
@@ -129,15 +127,15 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const venueId = searchParams.get('venueId');
-    if (!venueId) return NextResponse.json({ message: 'venueId is required' }, { status: 400 });
+    if (!venueId) return badRequest('venueId is required');
 
     await dbConnect();
     const venue = await Venue.findByIdAndDelete(venueId);
-    if (!venue) return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+    if (!venue) return notFound('Venue not found');
 
     // Cascade cancel bookings and remove the venue's turfs/blocks (they would
     // otherwise be orphaned).

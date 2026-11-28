@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import StaffMember from '@/models/StaffMember';
-import { auth } from '@/lib/auth';
-import { requireVendor } from '@/lib/vendorAuth';
+
+
 import { serializeDoc, serializeList } from '@/lib/serialize';
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     await dbConnect();
     const staff = await StaffMember.find({ vendor: session.user.id }).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ staff: serializeList(staff, { keepLegacyId: true, extra: { vendor: session.user.id } }) });
@@ -20,13 +21,13 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     const body = await request.json();
     const name = String(body.name || '').trim();
-    if (!name) return NextResponse.json({ message: 'Name is required.' }, { status: 400 });
+    if (!name) return badRequest('Name is required.');
     if (!['Manager', 'Operator', 'Viewer'].includes(body.role)) {
-      return NextResponse.json({ message: 'Invalid role.' }, { status: 400 });
+      return badRequest('Invalid role.');
     }
     await dbConnect();
     const member = await StaffMember.create({

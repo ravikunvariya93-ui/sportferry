@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, badRequest, notFound, unauthorized, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
@@ -10,12 +10,20 @@ import { isValidObjectId } from '@/lib/vendorAuth';
 export async function GET(request, { params }) {
   try {
     const { id } = params;
-    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
+    if (!isValidObjectId(id)) return badRequest('Invalid venue id.');
     await dbConnect();
-    const venue = await Venue.findById(id).populate('owner', 'name');
-    
+    // Public endpoint: select the player-facing fields explicitly so owner
+    // verification documents (Blob URLs captured during onboarding) and any
+    // future internal field are never exposed to anonymous visitors.
+    const venue = await Venue.findById(id)
+      .select(
+        'name owner sportTypes city area address pricePerHour pricing discountPercent ' +
+        'numberOfTurfs images amenities rating location onboardingStatus createdAt updatedAt'
+      )
+      .populate('owner', 'name');
+
     if (!venue) {
-      return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+      return notFound('Venue not found');
     }
 
     return NextResponse.json(venue);
@@ -28,16 +36,16 @@ export async function PATCH(request, { params }) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return unauthorized('Unauthorized');
     }
 
     const { id } = params;
-    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
+    if (!isValidObjectId(id)) return badRequest('Invalid venue id.');
     await dbConnect();
     const venue = await Venue.findById(id);
 
     if (!venue) {
-      return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+      return notFound('Venue not found');
     }
 
     // Check authorization: Owner or Admin
@@ -45,7 +53,7 @@ export async function PATCH(request, { params }) {
     const isOwner = venue.owner.toString() === session.user.id;
 
     if (!isOwner && !isAdmin) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
+      return forbidden('Unauthorized');
     }
 
     const body = await request.json();
@@ -53,14 +61,14 @@ export async function PATCH(request, { params }) {
 
     // Validation
     if (!name || !city || !area || !address || !sportTypes?.length || !pricePerHour) {
-      return NextResponse.json({ message: 'All required fields must be filled.' }, { status: 400 });
+      return badRequest('All required fields must be filled.');
     }
 
     // A price must be a real, positive number — a negative price would flow
     // into the Razorpay order amount.
     const price = Number(pricePerHour);
     if (!Number.isFinite(price) || price <= 0) {
-      return NextResponse.json({ message: 'Price per hour must be a positive number.' }, { status: 400 });
+      return badRequest('Price per hour must be a positive number.');
     }
 
     // Update fields
@@ -96,23 +104,23 @@ export async function DELETE(request, { params }) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return unauthorized('Unauthorized');
     }
 
     const { id } = params;
-    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid venue id.' }, { status: 400 });
+    if (!isValidObjectId(id)) return badRequest('Invalid venue id.');
     await dbConnect();
     const venue = await Venue.findById(id);
 
     if (!venue) {
-      return NextResponse.json({ message: 'Venue not found' }, { status: 404 });
+      return notFound('Venue not found');
     }
 
     const isAdmin = await hasRole(session, 'ADMIN');
     const isOwner = venue.owner.toString() === session.user.id;
 
     if (!isOwner && !isAdmin) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
+      return forbidden('Unauthorized');
     }
 
     // Upcoming bookings must not vanish with the venue — players already paid

@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { notFound, redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
@@ -7,7 +8,7 @@ import { Trophy, MapPin, Ticket, Clock, XCircle } from 'lucide-react';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { auth } from '@/lib/auth';
-import { formatToAMPM } from '@/lib/ist';
+import { formatToAMPM, formatBookingDate } from '@/lib/ist';
 import { releaseExpiredPendingBookings } from '@/lib/booking-utils';
 
 export const dynamic = 'force-dynamic';
@@ -83,7 +84,7 @@ export default async function BookingTicketPage({ params }) {
   const isOffline = booking.bookingType === 'OFFLINE';
 
   const details = [
-    { label: 'Date', value: new Date(booking.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) },
+    { label: 'Date', value: formatBookingDate(booking.date, { weekday: true }) },
     { label: 'Time Slot', value: `${formatToAMPM(booking.startTime)} – ${formatToAMPM(booking.endTime)}` },
     { label: 'Sport', value: booking.sport },
     { label: 'Players', value: `${booking.playersCount} · ${booking.classification}${isOffline ? ' · Walk-in' : ''}` },
@@ -96,7 +97,7 @@ export default async function BookingTicketPage({ params }) {
         <div style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)', padding: '24px', color: 'white' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '800', fontSize: '17px', letterSpacing: '-0.3px' }}>
-              <Trophy size={20} /> Sportferry
+              <Image src="/logo-mark.png" alt="" width={22} height={22} /> Sportferry
             </div>
             <span style={{ fontSize: '12px', fontWeight: '700', background: 'rgba(255,255,255,0.22)', padding: '5px 12px', borderRadius: '100px', letterSpacing: '0.5px' }}>
               E-TICKET

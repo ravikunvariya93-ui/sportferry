@@ -131,4 +131,10 @@ const BookingSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+BookingSchema.index({ venue: 1, date: 1, startTime: 1, endTime: 1, turf: 1 });
+BookingSchema.index({ user: 1, date: -1 });
+BookingSchema.index({ status: 1, date: 1 });
+BookingSchema.index({ razorpayOrderId: 1 });
+BookingSchema.index({ groupId: 1 });
+
 export default (mongoose.models && mongoose.models.Booking) || mongoose.model('Booking', BookingSchema);

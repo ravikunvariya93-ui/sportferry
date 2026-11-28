@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, notFound, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Turf from '@/models/Turf';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
+
 import { SPORT_TYPES } from '@/lib/constants';
 import { syncVenueTurfCount } from '@/lib/turfs';
-import { requireVendor, ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
+import { ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
 
 async function ownedTurf(session, turfId) {
   if (!isValidObjectId(turfId)) return null;
@@ -18,22 +19,20 @@ async function ownedTurf(session, turfId) {
 
 export async function PATCH(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     await dbConnect();
     const turf = await ownedTurf(session, params.id);
-    if (!turf) return NextResponse.json({ message: 'Turf not found.' }, { status: 404 });
+    if (!turf) return notFound('Turf not found.');
 
     const body = await request.json();
     if (body.name !== undefined) {
-      if (!String(body.name).trim()) return NextResponse.json({ message: 'Turf name cannot be empty.' }, { status: 400 });
+      if (!String(body.name).trim()) return badRequest('Turf name cannot be empty.');
       turf.name = String(body.name).trim();
     }
     if (body.sport !== undefined) {
-      if (!SPORT_TYPES.includes(body.sport)) return NextResponse.json({ message: 'Invalid sport.' }, { status: 400 });
+      if (!SPORT_TYPES.includes(body.sport)) return badRequest('Invalid sport.');
       turf.sport = body.sport;
     }
     if (body.size !== undefined) {
@@ -57,14 +56,12 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     await dbConnect();
     const turf = await ownedTurf(session, params.id);
-    if (!turf) return NextResponse.json({ message: 'Turf not found.' }, { status: 404 });
+    if (!turf) return notFound('Turf not found.');
 
     // A booking's `turf` is the turf's index. Removing or renumbering a turf
     // after bookings exist would silently re-point their history, so a venue

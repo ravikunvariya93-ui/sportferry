@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError, tooManyRequests } from '@/lib/apiResponse';
+import { apiError, tooManyRequests, badRequest, serviceUnavailable } from '@/lib/apiResponse';
 import crypto from 'crypto';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -19,7 +19,7 @@ export async function POST(request) {
 
     const { email } = await request.json();
     if (!email || typeof email !== 'string') {
-      return NextResponse.json({ message: 'Email is required.' }, { status: 400 });
+      return badRequest('Email is required.');
     }
 
     await dbConnect();
@@ -47,6 +47,14 @@ export async function POST(request) {
       // Dev fallback: no email provider configured → return the link so localhost works.
       if (!emailed && process.env.NODE_ENV !== 'production') {
         return NextResponse.json({ ...generic, devResetUrl: resetUrl });
+      }
+
+      // In production, a token was minted but nothing could be delivered. Say so
+      // instead of claiming an email was sent — the reset link would never
+      // arrive and the user would be stuck.
+      if (!emailed) {
+        console.error('[forgot-password] no email provider configured — reset link not delivered');
+        return serviceUnavailable('Password reset email could not be sent. Please contact support so we can help you regain access.');
       }
     }
 

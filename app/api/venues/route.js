@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, unauthorized, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import { auth, hasRole } from '@/lib/auth';
@@ -9,21 +9,21 @@ export async function POST(request) {
   try {
     const session = await auth();
     if (!session || !(await hasRole(session, 'VENDOR'))) {
-      return NextResponse.json({ message: 'Only vendors can register venues.' }, { status: 401 });
+      return unauthorized('Only vendors can register venues.');
     }
 
     const body = await request.json();
     const { name, city, area, address, sportTypes, pricePerHour, discountPercent, numberOfTurfs, amenities, images, imageUrl, lat, lng } = body;
 
     if (!name || !city || !area || !address || !sportTypes?.length || !pricePerHour) {
-      return NextResponse.json({ message: 'All required fields must be filled.' }, { status: 400 });
+      return badRequest('All required fields must be filled.');
     }
 
     // A price must be a real, positive number — a negative price would flow
     // into the Razorpay order amount.
     const price = Number(pricePerHour);
     if (!Number.isFinite(price) || price <= 0) {
-      return NextResponse.json({ message: 'Price per hour must be a positive number.' }, { status: 400 });
+      return badRequest('Price per hour must be a positive number.');
     }
 
     await dbConnect();

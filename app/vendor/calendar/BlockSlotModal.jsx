@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { X, AlertCircle, Ban } from 'lucide-react';
 import { SLOT_LABELS, istTodayISO, isSlotLabelPast } from '@/lib/ist';
 
@@ -33,7 +34,7 @@ export default function BlockSlotModal({ venue, turfs, initialDate, initialSlot,
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/vendor/blocks', {
+      const res = await apiFetch('/api/vendor/blocks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ venueId: venue.id, turf: Number(form.turf), date: form.date, slot: form.slot, reason: form.reason, note: form.note }),

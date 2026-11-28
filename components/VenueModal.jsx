@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { X, AlertCircle, CheckCircle2, MapPin, DollarSign, Crosshair } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { parseLatLng, mapsEmbedUrl } from '@/lib/geo';
@@ -145,7 +146,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
         setUploading(true);
         const fd = new FormData();
         toUpload.slice(0, 6).forEach(f => fd.append('files', f));
-        const up = await fetch('/api/upload', { method: 'POST', body: fd, signal });
+        const up = await apiFetch('/api/upload', { method: 'POST', body: fd, signal });
         const ud = await up.json();
         setUploading(false);
         if (!up.ok) {
@@ -166,7 +167,7 @@ export default function VenueModal({ onClose, editingVenue = null }) {
       const payload = { ...form, images, lat: coords?.lat ?? null, lng: coords?.lng ?? null };
       const url = isEdit ? `/api/venues/${editingVenue.id || editingVenue._id}` : '/api/venues';
       const method = isEdit ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

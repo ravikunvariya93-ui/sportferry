@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -15,7 +14,7 @@ const csvResponse = (header, rows) => new NextResponse(
 export async function GET(request) {
   try {
     const session = await auth();
-    if (!session || !(await hasRole(session, 'ADMIN'))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session || !(await hasRole(session, 'ADMIN'))) return forbidden();
 
     const type = new URL(request.url).searchParams.get('type') || 'bookings';
     await dbConnect();

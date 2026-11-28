@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, unauthorized, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { NextResponse } from 'next/server';
@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 export async function PATCH(request) {
   const session = await auth();
   if (!session) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    return unauthorized('Unauthorized');
   }
 
   await dbConnect();
@@ -24,12 +24,12 @@ export async function PATCH(request) {
     if (city !== undefined) update.city = city.trim();
 
     if (Object.keys(update).length === 0) {
-      return NextResponse.json({ message: 'No fields to update.' }, { status: 400 });
+      return badRequest('No fields to update.');
     }
 
     // Validate name is not empty if provided
     if (update.name !== undefined && update.name.length === 0) {
-      return NextResponse.json({ message: 'Name cannot be empty.' }, { status: 400 });
+      return badRequest('Name cannot be empty.');
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -39,7 +39,7 @@ export async function PATCH(request) {
     ).lean();
 
     if (!updatedUser) {
-      return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+      return notFound('User not found.');
     }
 
     return NextResponse.json({
@@ -59,7 +59,7 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   const session = await auth();
   if (!session) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    return unauthorized('Unauthorized');
   }
 
   try {
@@ -68,14 +68,14 @@ export async function DELETE(request) {
     await dbConnect();
     const user = await User.findById(session.user.id);
     if (!user) {
-      return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+      return notFound('User not found.');
     }
 
     // Confirm identity when the account has a password.
     if (user.password) {
       const ok = body.password && await bcrypt.compare(body.password, user.password);
       if (!ok) {
-        return NextResponse.json({ message: 'Password is incorrect.' }, { status: 400 });
+        return badRequest('Password is incorrect.');
       }
     }
 
@@ -84,7 +84,7 @@ export async function DELETE(request) {
 
     const ownedVenues = await Venue.countDocuments({ owner: user._id });
     if (ownedVenues > 0) {
-      return NextResponse.json({ message: `You still own ${ownedVenues} venue(s). Delete them before deleting your account.` }, { status: 400 });
+      return badRequest(`You still own ${ownedVenues} venue(s). Delete them before deleting your account.`);
     }
 
     await Booking.deleteMany({ user: user._id });

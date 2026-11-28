@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatBookingDate } from '@/lib/ist';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Users, Trash2, RefreshCw, Ban, CheckCircle2, Download } from 'lucide-react';
@@ -11,8 +14,6 @@ const STATUS_TABS = [
   { key: 'active', label: 'Active' },
   { key: 'blocked', label: 'Blocked' },
 ];
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function UsersClient({ currentAdminId }) {
   const searchParams = useSearchParams();
@@ -38,7 +39,7 @@ export default function UsersClient({ currentAdminId }) {
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
       if (statusFilter) params.set('status', statusFilter);
-      const res = await fetch(`/api/admin/users?${params}`, { signal });
+      const res = await apiFetch(`/api/admin/users?${params}`, { signal });
       const data = await res.json();
       setUsers(data.users || []);
       setTotalPages(data.totalPages || 1);
@@ -60,7 +61,7 @@ export default function UsersClient({ currentAdminId }) {
   const patchUser = async (userId, body) => {
     setBusyId(userId);
     try {
-      const res = await fetch('/api/admin/users', {
+      const res = await apiFetch('/api/admin/users', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, ...body }),
       });
@@ -75,7 +76,7 @@ export default function UsersClient({ currentAdminId }) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/users?userId=${deleteTarget.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/admin/users?userId=${deleteTarget.id}`, { method: 'DELETE' });
       if (res.ok) { setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id)); setDeleteTarget(null); }
     } catch (e) { console.error(e); }
     finally { setDeleting(false); }
@@ -152,9 +153,9 @@ export default function UsersClient({ currentAdminId }) {
                       </td>
                       <td style={{ fontSize: '12px' }}>{u.phone || '—'}</td>
                       <td style={{ fontSize: '12px' }}>{u.city || '—'}</td>
-                      <td style={{ fontSize: '12px', color: '#64748b' }}>{new Date(u.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td style={{ fontSize: '12px', color: '#64748b' }}>{formatBookingDate(u.createdAt, { day: '2-digit' })}</td>
                       <td>{u.gamesPlayed}</td>
-                      <td style={{ fontWeight: 600 }}>{money(u.totalSpend)}</td>
+                      <td style={{ fontWeight: 600 }}>{formatINR(u.totalSpend)}</td>
                       <td><span className={`${styles.badge} ${u.blocked ? styles.badgeCancelled : styles.badgeConfirmed}`}>{u.blocked ? 'Blocked' : 'Active'}</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -190,7 +191,7 @@ export default function UsersClient({ currentAdminId }) {
         <div className={styles.modalOverlay}>
           <form className={styles.modalCard} style={{ maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '12px' }} onSubmit={async (e) => {
             e.preventDefault();
-            const res = await fetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addForm) });
+            const res = await apiFetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(addForm) });
             if (res.ok) { setShowAdd(false); fetchUsers(); }
           }}>
             <h2 className={styles.modalTitle}>Add User</h2>

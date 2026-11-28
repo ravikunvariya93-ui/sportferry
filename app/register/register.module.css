@@ -1,0 +1,807 @@
+/* ─────────────────────────────────────────────────────────────
+   Register page — premium sports-tech theme.
+   Scoped to this page only (CSS module); the rest of the app keeps
+   its light theme and global tokens.
+   ───────────────────────────────────────────────────────────── */
+
+/* Form-only page. The form panel itself carries the stadium backdrop: a deep
+   navy-to-pitch gradient with a faint venue photo burned in, plus lime glows.
+   The photo is decorative only — gradients underneath keep the panel designed
+   even if the image fails to load. */
+.page {
+  --navy-950: #060b15;
+  --navy-900: #0a1322;
+  --navy-800: #111d31;
+  --lime: #c8f31d;
+  --lime-strong: #b7e000;
+  --ink: #0a1322;
+  --muted: #5d6b81;
+  --line: #e4e9f1;
+  --surface: #ffffff;
+  --surface-soft: #f7f9fc;
+  --danger: #d92d20;
+  --danger-soft: #fef3f2;
+
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 0 40px;
+  color: var(--ink);
+}
+
+.formPanel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(560px 240px at 90% -60px, rgba(200, 243, 29, 0.35), transparent 62%),
+    radial-gradient(480px 280px at -80px 108%, rgba(34, 197, 94, 0.14), transparent 60%),
+    linear-gradient(150deg, #fbfef3 0%, #f2f6ff 55%, #eefbf0 100%);
+  box-shadow:
+    0 1px 2px rgba(6, 11, 21, 0.06),
+    0 24px 70px -28px rgba(6, 11, 21, 0.25);
+}
+
+/* Faint venue photo burned into the panel — decorative only. */
+.formPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=60") center 30% / cover no-repeat;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* Soft white wash so text and inputs stay readable over the photo. */
+.formPanel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0.50) 38%, rgba(255,255,255,0.78) 100%);
+  pointer-events: none;
+}
+
+.formInner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 36px 36px 32px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.formHeader {
+  margin-bottom: 24px;
+}
+
+.formEyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  /* Lime is a surface/accent colour — it fails AA as thin text on white
+     (1.54:1). Use a deep olive that keeps the brand hue at 7.4:1. */
+  color: #4d5f04;
+  margin-bottom: 10px;
+}
+
+.formTitle {
+  font-size: 27px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 8px;
+}
+
+.formSubtitle {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Role selection ────────────────────────────────────────── */
+
+.roleFieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 22px;
+  min-width: 0;
+}
+
+.roleLegend {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 10px;
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.roleCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 16px 15px;
+  border-radius: 16px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
+  text-align: left;
+}
+
+.roleCardActive,
+.roleCardActive:hover {
+  border-color: var(--navy-900);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbef 100%);
+  box-shadow: 0 0 0 3px rgba(200, 243, 29, 0.35), 0 14px 30px -20px rgba(10, 19, 34, 0.6);
+}
+
+/* Keyboard-only focus ring on the card (the hidden radio carries focus after a
+   click too, so :focus-within alone would ring it for mouse users). */
+.roleCard:has(.roleInput:focus-visible) {
+  outline: 3px solid rgba(10, 19, 34, 0.22);
+  outline-offset: 2px;
+}
+
+/* Lift only where a real pointer can hover — a tap would otherwise leave the
+   card stuck in its hover state on touch devices. */
+@media (hover: hover) and (pointer: fine) {
+  .roleCard:hover {
+    border-color: #c3ccdb;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px -18px rgba(10, 19, 34, 0.5);
+  }
+}
+
+.roleInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.roleTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.roleIcon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--navy-800);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.roleCardActive .roleIcon {
+  background: var(--navy-900);
+  border-color: var(--navy-900);
+  color: var(--lime);
+}
+
+.roleCheck {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--navy-950);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.roleCardActive .roleCheck {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.roleName {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.roleDesc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.roleList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.roleList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #3d4a5c;
+}
+
+.roleList li::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--lime-strong);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Google button + divider ──────────────────────────────── */
+
+.googleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 13px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.googleBtn:hover:not(:disabled) {
+  border-color: #b9c4d4;
+  background: var(--surface-soft);
+  box-shadow: 0 8px 20px -14px rgba(10, 19, 34, 0.5);
+}
+
+.googleBtn:focus-visible {
+  outline: 3px solid rgba(10, 19, 34, 0.22);
+  outline-offset: 2px;
+}
+
+.googleBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ── Form fields ──────────────────────────────────────────── */
+
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.fieldset:disabled .input,
+.fieldset:disabled .eyeBtn {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #24324a;
+}
+
+.inputWrap {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.input::placeholder {
+  color: #9aa6b8;
+}
+
+.input:hover:not(:disabled) {
+  border-color: #cbd4e2;
+}
+
+.input:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--navy-800);
+  box-shadow: 0 0 0 4px rgba(200, 243, 29, 0.28);
+}
+
+.inputWithAction {
+  padding-right: 46px;
+}
+
+.inputError {
+  border-color: rgba(217, 45, 32, 0.55);
+  background: var(--danger-soft);
+}
+
+.inputError:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 4px rgba(217, 45, 32, 0.14);
+}
+
+.eyeBtn {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.eyeBtn:hover {
+  background: rgba(10, 19, 34, 0.06);
+  color: var(--ink);
+}
+
+.eyeBtn:focus-visible {
+  outline: 2px solid var(--navy-800);
+  outline-offset: 2px;
+}
+
+.fieldError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--danger);
+}
+
+/* ── Password strength ────────────────────────────────────── */
+
+.strength {
+  display: grid;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.strengthTrack {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.strengthBar {
+  height: 5px;
+  border-radius: 999px;
+  background: #e8edf4;
+  transition: background 0.2s ease;
+}
+
+.strengthBarOn1 { background: #e5484d; }
+.strengthBarOn2 { background: #f5a524; }
+.strengthBarOn3 { background: #7bc86c; }
+.strengthBarOn4 { background: var(--lime-strong); }
+
+.strengthRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.strengthLabel {
+  font-weight: 700;
+  color: #24324a;
+}
+
+/* ── Alerts ───────────────────────────────────────────────── */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid rgba(217, 45, 32, 0.24);
+  background: var(--danger-soft);
+  color: #b42318;
+}
+
+.alertIcon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.successAlert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid rgba(183, 224, 0, 0.5);
+  background: #f7fce6;
+  color: #3d4a0a;
+}
+
+/* ── Submit + footer ──────────────────────────────────────── */
+
+.submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 15px 20px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--lime);
+  color: var(--navy-950);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: 0 10px 24px -14px rgba(183, 224, 0, 0.95);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--lime-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px -16px rgba(183, 224, 0, 1);
+}
+
+.submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit:focus-visible {
+  outline: 3px solid rgba(10, 19, 34, 0.3);
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.terms {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  text-align: center;
+}
+
+.termsLink {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.termsLink:hover {
+  color: #000;
+}
+
+.signin {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.signinLink {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 2px solid var(--lime);
+  padding-bottom: 1px;
+}
+
+.signinLink:hover {
+  border-bottom-color: var(--lime-strong);
+}
+
+.trustNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 12px;
+  /* 5.2:1 on white — the previous #93a0b3 was 2.65:1 and failed WCAG AA. */
+  color: #5d6b81;
+}
+
+/* ── Tablet ───────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .formInner {
+    padding: 28px 26px 28px;
+  }
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+
+@media (max-width: 560px) {
+  .page {
+    /* Reserve room for the fixed MobileNav (70px) + safe area so nothing at
+       the foot of the page can hide underneath it. */
+    padding-bottom: calc(70px + env(safe-area-inset-bottom) + 24px);
+    /* Keep a keyboard-raised input clear of the MobileHeader (fixed, 57px)
+       and the MobileNav (fixed, ~66px + safe area). */
+    scroll-padding-top: 88px;
+    scroll-padding-bottom: 96px;
+  }
+
+  .formPanel {
+    border-radius: 18px;
+  }
+
+  .formInner {
+    margin: 10px auto;
+    padding: 20px 16px 18px;
+    border-radius: 16px;
+  }
+
+  .formHeader {
+    margin-bottom: 12px;
+  }
+
+  .formEyebrow {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    margin-bottom: 4px;
+  }
+
+  .formTitle {
+    font-size: 19px;
+    margin-bottom: 2px;
+  }
+
+  .formSubtitle {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .roleFieldset {
+    margin-bottom: 11px;
+  }
+
+  .roleLegend {
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+
+  /* Side-by-side keeps both options visible without scrolling — stacked cards
+     cost ~260px and pushed the submit button below the fold. */
+  .roleGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .roleCard {
+    gap: 4px;
+    padding: 9px 9px 8px;
+    border-radius: 12px;
+  }
+
+  .roleIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .roleCheck {
+    width: 18px;
+    height: 18px;
+  }
+
+  .roleName {
+    font-size: 13.5px;
+  }
+
+  .roleDesc {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .roleList {
+    display: none;
+  }
+
+  .googleBtn {
+    padding: 12px 14px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+
+  .divider {
+    margin: 14px 0;
+    font-size: 11.5px;
+  }
+
+  .form {
+    gap: 13px;
+  }
+
+  .field {
+    gap: 6px;
+  }
+
+  .label {
+    font-size: 12.5px;
+  }
+
+  /* 16px inputs stop iOS from zooming on focus */
+  .input {
+    font-size: 16px;
+    padding: 12px 14px;
+    border-radius: 11px;
+  }
+
+  .strength {
+    gap: 6px;
+  }
+
+  .terms {
+    font-size: 11px;
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+
+  .signin {
+    margin-top: 14px;
+    padding-top: 14px;
+    font-size: 13px;
+  }
+
+  .trustNote {
+    margin-top: 12px;
+  }
+
+  /* Submit stays in flow: the page reserves space for the fixed bottom nav via
+     its own bottom padding, so the button is never hidden under it. */
+  .submit {
+    padding: 14px 16px;
+    border-radius: 12px;
+  }
+}
+
+/* Very small phones (≤ 360px): trim further so nothing wraps awkwardly. */
+@media (max-width: 360px) {
+  .formInner {
+    padding: 16px 12px 18px;
+  }
+
+  .formTitle {
+    font-size: 19px;
+  }
+
+  .roleCard {
+    padding: 10px 8px;
+  }
+
+  .roleDesc {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roleCard,
+  .roleCheck,
+  .roleIcon,
+  .googleBtn,
+  .input,
+  .submit,
+  .strengthBar,
+  .eyeBtn {
+    transition: none;
+  }
+
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* Visible focus for keyboard users on every interactive control */
+.roleCard:focus-visible,
+.googleBtn:focus-visible,
+.input:focus-visible,
+.submit:focus-visible,
+.eyeBtn:focus-visible {
+  outline-offset: 2px;
+}

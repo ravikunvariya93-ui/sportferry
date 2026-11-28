@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatINR } from '@/lib/format';
 import Link from 'next/link';
 import { Wallet, RefreshCw, Send, CheckCircle2, XCircle } from 'lucide-react';
 import styles from '../admin.module.css';
@@ -8,8 +10,6 @@ import styles from '../admin.module.css';
 const TABS = ['Pending Payouts', 'Processing', 'Completed', 'Failed'];
 const BATCH_STATUS = { PROCESSING: 'Processing', COMPLETED: 'Completed', FAILED: 'Failed', PENDING: 'Pending' };
 const BADGE = { PROCESSING: styles.badgePending, COMPLETED: styles.badgeConfirmed, FAILED: styles.badgeCancelled, PENDING: styles.badgePending };
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function PayoutsClient() {
   const [data, setData] = useState({ kpis: {}, vendors: [], batches: [] });
@@ -25,7 +25,7 @@ export default function PayoutsClient() {
   const load = useCallback(async (signal) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/payouts', { signal });
+      const res = await apiFetch('/api/admin/payouts', { signal });
       const d = await res.json();
       setData({ kpis: d.kpis || {}, vendors: d.vendors || [], batches: d.batches || [] });
     } catch (e) { if (e.name !== 'AbortError') console.error(e); }
@@ -43,7 +43,7 @@ export default function PayoutsClient() {
   const submit = async () => {
     setBusy(true); setError('');
     try {
-      const res = await fetch('/api/admin/payouts', {
+      const res = await apiFetch('/api/admin/payouts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vendorIds: selected, method, reference }),
       });
@@ -55,7 +55,7 @@ export default function PayoutsClient() {
   };
 
   const updateBatch = async (batchId, status) => {
-    const res = await fetch('/api/admin/payouts', {
+    const res = await apiFetch('/api/admin/payouts', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ batchId, status }),
     });
@@ -81,10 +81,10 @@ export default function PayoutsClient() {
 
       <div className={styles.statsGrid}>
         {[
-          ['Gross Booking Value', money(k.gross), '#22c55e'],
-          [`Sportferry Commission (${k.commissionPercent ?? 12}%)`, money(k.commission), '#8b5cf6'],
-          ['Payable to Vendors', money(k.payable), '#3b82f6'],
-          [`Pending Payouts (${k.pendingCount ?? 0})`, money(k.payable), '#f59e0b'],
+          ['Gross Booking Value', formatINR(k.gross), '#22c55e'],
+          [`Sportferry Commission (${k.commissionPercent ?? 12}%)`, formatINR(k.commission), '#8b5cf6'],
+          ['Payable to Vendors', formatINR(k.payable), '#3b82f6'],
+          [`Pending Payouts (${k.pendingCount ?? 0})`, formatINR(k.payable), '#f59e0b'],
         ].map(([label, value, color]) => (
           <div key={label} className={styles.statCard}>
             <div>
@@ -130,9 +130,9 @@ export default function PayoutsClient() {
                           <div style={{ fontSize: '11px', color: '#64748b' }}>{v.venueName}</div>
                         </td>
                         <td>{v.bookings}</td>
-                        <td>{money(v.gross)}</td>
-                        <td style={{ color: '#f87171' }}>{money(v.commission)}</td>
-                        <td style={{ fontWeight: 700, color: '#22c55e' }}>{money(v.payable)}</td>
+                        <td>{formatINR(v.gross)}</td>
+                        <td style={{ color: '#f87171' }}>{formatINR(v.commission)}</td>
+                        <td style={{ fontWeight: 700, color: '#22c55e' }}>{formatINR(v.payable)}</td>
                         <td style={{ fontSize: '12px' }}>{v.bank?.accountNumber ? `${v.bank.accountNumber} (${v.bank.bankName})` : '—'}</td>
                         <td><span className={`${styles.badge} ${styles.badgePending}`}>Pending</span></td>
                       </tr>
@@ -141,9 +141,9 @@ export default function PayoutsClient() {
                 </table>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '18px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>{selected.length} vendor{selected.length !== 1 ? 's' : ''} selected · Total payable <strong style={{ color: 'var(--admin-text-main)' }}>{money(totalSelected)}</strong></span>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>{selected.length} vendor{selected.length !== 1 ? 's' : ''} selected · Total payable <strong style={{ color: 'var(--admin-text-main)' }}>{formatINR(totalSelected)}</strong></span>
                 <button className={styles.pageBtn} disabled={!selected.length} onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: selected.length ? '#16a34a' : undefined, color: selected.length ? 'white' : undefined, border: 'none', padding: '10px 18px', marginLeft: 'auto' }}>
-                  <Send size={15} /> Pay {money(totalSelected)} to {selected.length} Vendor{selected.length !== 1 ? 's' : ''}
+                  <Send size={15} /> Pay {formatINR(totalSelected)} to {selected.length} Vendor{selected.length !== 1 ? 's' : ''}
                 </button>
               </div>
             </>
@@ -160,9 +160,9 @@ export default function PayoutsClient() {
                     <tr key={b.id}>
                       <td style={{ fontWeight: 600, color: 'var(--admin-text-main)' }}>{b.vendorName}</td>
                       <td>{b.bookingsCount}</td>
-                      <td>{money(b.gross)}</td>
-                      <td style={{ color: '#f87171' }}>{money(b.commission)}</td>
-                      <td style={{ fontWeight: 700, color: '#22c55e' }}>{money(b.net)}</td>
+                      <td>{formatINR(b.gross)}</td>
+                      <td style={{ color: '#f87171' }}>{formatINR(b.commission)}</td>
+                      <td style={{ fontWeight: 700, color: '#22c55e' }}>{formatINR(b.net)}</td>
                       <td>{b.method}</td>
                       <td style={{ fontSize: '12px' }}>{b.reference || '—'}</td>
                       <td><span className={`${styles.badge} ${BADGE[b.status]}`}>{BATCH_STATUS[b.status]}</span></td>
@@ -185,7 +185,7 @@ export default function PayoutsClient() {
         <div className={styles.modalOverlay}>
           <div className={styles.modalCard} style={{ maxWidth: '460px' }}>
             <h2 className={styles.modalTitle}>Confirm Bulk Payout</h2>
-            <p className={styles.modalDesc}>Pay {money(totalSelected)} to {selected.length} vendor{selected.length !== 1 ? 's' : ''}.</p>
+            <p className={styles.modalDesc}>Pay {formatINR(totalSelected)} to {selected.length} vendor{selected.length !== 1 ? 's' : ''}.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '13px', cursor: 'pointer' }}>
                 <input type="radio" name="method" checked={method === 'AUTOMATED'} onChange={() => setMethod('AUTOMATED')} style={{ marginTop: '2px' }} />

@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/clientApi';
+import { formatINR } from '@/lib/format';
 import { BarChart3, Download } from 'lucide-react';
 import styles from '../admin.module.css';
-
-function money(n) { return `₹${Number(n || 0).toLocaleString('en-IN')}`; }
 
 export default function ReportsClient() {
   const [bookings, setBookings] = useState([]);
@@ -13,8 +13,8 @@ export default function ReportsClient() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/bookings?limit=100&tab=ALL').then(r => r.json()),
-      fetch('/api/admin/venues?limit=100').then(r => r.json()),
+      apiFetch('/api/admin/bookings?limit=100&tab=ALL').then(r => r.json()),
+      apiFetch('/api/admin/venues?limit=100').then(r => r.json()),
     ]).then(([b, v]) => {
       setBookings(b.bookings || []); setVenues(v.venues || []); setLoading(false);
     }).catch(() => setLoading(false));
@@ -53,7 +53,7 @@ export default function ReportsClient() {
       ) : (
         <>
           <div className={styles.statsGrid}>
-            {[['Bookings', bookings.length], ['Confirmed', bookings.filter(b => b.status === 'CONFIRMED').length], ['Gross (sample)', money(gross)], ['Venues', venues.length]].map(([label, value]) => (
+            {[['Bookings', bookings.length], ['Confirmed', bookings.filter(b => b.status === 'CONFIRMED').length], ['Gross (sample)', formatINR(gross)], ['Venues', venues.length]].map(([label, value]) => (
               <div key={label} className={styles.statCard}><div><div className={styles.statLabel}>{label}</div><div className={styles.statValue}>{value}</div></div></div>
             ))}
           </div>

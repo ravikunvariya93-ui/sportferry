@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, unauthorized, badRequest, notFound, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import Venue from '@/models/Venue';
@@ -17,7 +17,7 @@ export async function POST(request) {
   try {
     const authSession = await auth();
     if (!authSession) {
-      return NextResponse.json({ message: 'You must be logged in to book.' }, { status: 401 });
+      return unauthorized('You must be logged in to book.');
     }
 
     const body = await request.json();
@@ -33,18 +33,18 @@ export async function POST(request) {
     // Support both single slot and multiple slots
     const slotList = slots && Array.isArray(slots) && slots.length > 0 ? slots : (slot ? [slot] : []);
     if (slotList.length > 20) {
-      return NextResponse.json({ message: 'Too many slots in a single booking.' }, { status: 400 });
+      return badRequest('Too many slots in a single booking.');
     }
 
     // 1. Basic Validation
     if (!venueId || !date || slotList.length === 0 || !sport || !classification) {
-      return NextResponse.json({ message: 'Missing required fields.' }, { status: 400 });
+      return badRequest('Missing required fields.');
     }
     if (!['SOLO', 'TEAM', 'GROUP'].includes(classification)) {
-      return NextResponse.json({ message: 'Invalid classification.' }, { status: 400 });
+      return badRequest('Invalid classification.');
     }
     if (!isValidDateISO(date)) {
-      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
+      return badRequest('A valid date (YYYY-MM-DD) is required.');
     }
 
     // This endpoint is reserved for OFFLINE (walk-in) blocks only. Online bookings
@@ -58,7 +58,7 @@ export async function POST(request) {
 
     const playersCount = Math.floor(Number(rawPlayersCount));
     if (isNaN(playersCount) || playersCount < 1) {
-      return NextResponse.json({ message: 'Invalid players count.' }, { status: 400 });
+      return badRequest('Invalid players count.');
     }
 
     const bookingDate = bookingDateFor(date);
@@ -69,7 +69,7 @@ export async function POST(request) {
     // day, not the server's local midnight, which silently rejected same-day
     // bookings on hosts that run west of UTC.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) || date < istTodayISO()) {
-      return NextResponse.json({ message: 'Cannot book for a past date.' }, { status: 400 });
+      return badRequest('Cannot book for a past date.');
     }
 
     // 3. Validate all slots — a bookable slot is one 1-hour slot inside the
@@ -78,34 +78,34 @@ export async function POST(request) {
     for (const s of slotList) {
       const times = parseBookableSlot(s);
       if (!times) {
-        return NextResponse.json({ message: `Invalid slot: ${s}. Only 1-hour slots between 06:00 and 23:00 can be booked.` }, { status: 400 });
+        return badRequest(`Invalid slot: ${s}. Only 1-hour slots between 06:00 and 23:00 can be booked.`);
       }
       if (isSlotPast(date, times.startTime)) {
-        return NextResponse.json({ message: 'That slot has already started. Choose a future slot.' }, { status: 400 });
+        return badRequest('That slot has already started. Choose a future slot.');
       }
       parsedSlots.push(times);
     }
 
     const classificationError = classificationLimitError(classification, playersCount);
-    if (classificationError) return NextResponse.json({ message: classificationError }, { status: 400 });
+    if (classificationError) return badRequest(classificationError);
 
     await dbConnect();
 
     const venue = await Venue.findById(venueId).lean();
     if (!venue) {
-      return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+      return notFound('Venue not found.');
     }
 
     // Same sport check the online (create-order) route enforces.
     if (!Array.isArray(venue.sportTypes) || !venue.sportTypes.includes(sport)) {
-      return NextResponse.json({ message: 'Invalid sport for this venue.' }, { status: 400 });
+      return badRequest('Invalid sport for this venue.');
     }
 
     const turfCount = turfCountOf(venue.numberOfTurfs);
 
     // 5. Authorization for Offline
     if (venue.owner.toString() !== authSession.user.id) {
-      return NextResponse.json({ message: 'Unauthorized for offline booking.' }, { status: 403 });
+      return forbidden('Unauthorized for offline booking.');
     }
 
     // Generate a groupId if booking multiple slots

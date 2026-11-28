@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, badRequest } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import { getISTDayRange, parseSlot, isValidDateISO } from '@/lib/ist';
@@ -12,7 +12,7 @@ export async function GET(request) {
     const slot = searchParams.get('slot'); // e.g. "06:00 AM – 07:00 AM" or "All Slots"
 
     if (!isValidDateISO(date)) {
-      return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
+      return badRequest('A valid date (YYYY-MM-DD) is required.');
     }
 
     await dbConnect();
@@ -29,7 +29,7 @@ export async function GET(request) {
     if (slot && slot !== 'All Slots') {
       const parsed = parseSlot(slot);
       if (!parsed) {
-        return NextResponse.json({ message: 'Invalid slot format.' }, { status: 400 });
+        return badRequest('Invalid slot format.');
       }
       match.startTime = parsed.startTime;
       match.endTime = parsed.endTime;

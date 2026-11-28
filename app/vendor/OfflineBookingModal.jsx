@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { X, AlertCircle, CheckCircle2, Lock, LayoutGrid } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SLOT_LABELS, istTodayISO, isSlotLabelPast } from '@/lib/ist';
@@ -65,7 +66,7 @@ export default function OfflineBookingModal({ venues, onClose, initialVenueId, i
 
     setFetchingAvailability(true);
     try {
-      const res = await fetch(`/api/venues/${form.venueId}/availability?date=${form.date}`, { signal });
+      const res = await apiFetch(`/api/venues/${form.venueId}/availability?date=${form.date}`, { signal });
       const data = await res.json();
       setSlotStats(data.slotStats || {});
     } catch (e) {
@@ -136,7 +137,7 @@ export default function OfflineBookingModal({ venues, onClose, initialVenueId, i
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/bookings', {
+      const res = await apiFetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

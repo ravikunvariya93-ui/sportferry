@@ -1,29 +1,27 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden, notFound, badRequest, conflict } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import BlockedSlot from '@/models/BlockedSlot';
 import Booking from '@/models/Booking';
-import { auth } from '@/lib/auth';
 import { parseBookableSlot, isValidDateISO, istTodayISO, istDateToUTC } from '@/lib/ist';
 import { blocksForDate } from '@/lib/blockedSlots';
 import { turfCountOf } from '@/lib/capacity';
-import { requireVendor, ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
+import { ownedVenue, isValidObjectId } from '@/lib/vendorAuth';
 import { serializeDoc, serializeList } from '@/lib/serialize';
 
 const REASONS = ['MAINTENANCE', 'PRIVATE', 'TOURNAMENT'];
 
 export async function GET(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     await dbConnect();
     const venue = await ownedVenue(session, searchParams.get('venueId'));
-    if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
-    if (!isValidDateISO(date)) return NextResponse.json({ message: 'A valid date (YYYY-MM-DD) is required.' }, { status: 400 });
+    if (!venue) return notFound('Venue not found.');
+    if (!isValidDateISO(date)) return badRequest('A valid date (YYYY-MM-DD) is required.');
 
     const blocks = await blocksForDate(venue._id, date);
     return NextResponse.json({
@@ -36,10 +34,8 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     const body = await request.json();
     const { venueId, date, slot, reason, note } = body;
@@ -47,14 +43,14 @@ export async function POST(request) {
 
     const times = parseBookableSlot(slot);
     if (!times || !isValidDateISO(date) || date < istTodayISO()) {
-      return NextResponse.json({ message: 'A valid present or future date and 1-hour slot are required.' }, { status: 400 });
+      return badRequest('A valid present or future date and 1-hour slot are required.');
     }
 
     await dbConnect();
     const venue = await ownedVenue(session, venueId);
-    if (!venue) return NextResponse.json({ message: 'Venue not found.' }, { status: 404 });
+    if (!venue) return notFound('Venue not found.');
     if (turf > turfCountOf(venue.numberOfTurfs)) {
-      return NextResponse.json({ message: 'That turf does not exist at this venue.' }, { status: 400 });
+      return badRequest('That turf does not exist at this venue.');
     }
 
     const booked = await Booking.countDocuments({
@@ -66,7 +62,7 @@ export async function POST(request) {
       status: { $in: ['PENDING', 'CONFIRMED', 'PAYMENT_PENDING'] },
     });
     if (booked) {
-      return NextResponse.json({ message: 'Cancel the existing booking on this turf and slot before blocking it.' }, { status: 409 });
+      return conflict('Cancel the existing booking on this turf and slot before blocking it.');
     }
 
     const block = await BlockedSlot.create({
@@ -90,20 +86,18 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!isValidObjectId(id)) return NextResponse.json({ message: 'Invalid id.' }, { status: 400 });
+    if (!isValidObjectId(id)) return badRequest('Invalid id.');
 
     await dbConnect();
     const block = await BlockedSlot.findById(id);
-    if (!block) return NextResponse.json({ message: 'Block not found.' }, { status: 404 });
+    if (!block) return notFound('Block not found.');
     const venue = await ownedVenue(session, block.venue);
-    if (!venue) return NextResponse.json({ message: 'Block not found.' }, { status: 404 });
+    if (!venue) return notFound('Block not found.');
 
     await BlockedSlot.deleteOne({ _id: block._id });
     return NextResponse.json({ ok: true });

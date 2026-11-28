@@ -5,7 +5,6 @@ import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import HomeHero from '@/components/Home/HomeHero';
 import BookingRules from '@/components/Home/BookingRules';
-import QuickActions from '@/components/Home/QuickActions';
 import TonightsGames from '@/components/Home/TonightsGames';
 import FeaturedVenues from '@/components/Home/FeaturedVenues';
 import { getISTDayRange, istTodayISO, SLOT_LABELS, isSlotLabelPast, parseSlot } from '@/lib/ist';
@@ -95,7 +94,6 @@ export default async function Home() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '36px', paddingBottom: '40px' }}>
       <HomeHero />
       <BookingRules />
-      <QuickActions />
       <TonightsGames venues={allVenues} venueGames={venueGames} date={todayDateString} />
       <FeaturedVenues venues={allVenues} />
     </div>

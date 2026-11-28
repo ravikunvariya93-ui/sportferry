@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
-import { apiError } from '@/lib/apiResponse';
+import { requireVendorSession } from '@/lib/apiGuards';
+import { apiError, forbidden } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Booking from '@/models/Booking';
 import PayoutBatch from '@/models/PayoutBatch';
 import Withdrawal from '@/models/Withdrawal';
 import User from '@/models/User';
-import { auth } from '@/lib/auth';
-import { requireVendor } from '@/lib/vendorAuth';
+
+
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { commissionOf, settledAmountForVendor } from '@/lib/payouts';
 
 export async function GET(request) {
   try {
-    const session = await auth();
-    if (!(await requireVendor(session))) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const session = await requireVendorSession();
+    if (!session) return forbidden();
 
     await dbConnect();
     const [bookings, batches, withdrawals, user] = await Promise.all([

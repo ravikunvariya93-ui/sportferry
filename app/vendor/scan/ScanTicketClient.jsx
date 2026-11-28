@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import jsQR from 'jsqr';
 import {
   Camera, CameraOff, Search, CheckCircle2, XCircle, AlertTriangle,
@@ -60,7 +61,7 @@ export default function ScanTicketClient() {
   const verify = useCallback(async (code, action) => {
     setBusy(true);
     try {
-      const res = await fetch('/api/vendor/verify-booking', {
+      const res = await apiFetch('/api/vendor/verify-booking', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, action }),

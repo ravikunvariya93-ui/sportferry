@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { apiFetch } from '@/lib/clientApi';
 import { ArrowDownCircle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -13,7 +14,7 @@ export default function RequestWithdrawalButton({ disabled }) {
     setLoading(true);
     setMsg(null);
     try {
-      const res = await fetch('/api/vendor/withdrawals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const res = await apiFetch('/api/vendor/withdrawals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const data = await res.json();
       if (res.ok) {
         setMsg({ type: 'success', text: data.message || 'Withdrawal requested.' });

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/apiGuards';
-import { apiError } from '@/lib/apiResponse';
+import { apiError, forbidden, badRequest, notFound } from '@/lib/apiResponse';
 import dbConnect from '@/lib/mongodb';
 import Venue from '@/models/Venue';
 import Booking from '@/models/Booking';
 import Withdrawal from '@/models/Withdrawal';
-import { auth, hasRole } from '@/lib/auth';
+
 import { COMMISSION_PERCENT } from '@/lib/constants';
 import { loadTurfs } from '@/lib/turfs';
 import { bookingRef } from '@/lib/bookingRef';
@@ -17,15 +17,15 @@ const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 export async function GET(request, { params }) {
   try {
     const session = await requireAdmin();
-    if (!session) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!session) return forbidden();
 
     if (!OBJECT_ID_RE.test(String(params.id || ''))) {
-      return NextResponse.json({ message: 'Invalid id.' }, { status: 400 });
+      return badRequest('Invalid id.');
     }
 
     await dbConnect();
     const venue = await Venue.findById(params.id).populate('owner', 'name email phone city bankDetails createdAt').lean();
-    if (!venue) return NextResponse.json({ message: 'Vendor not found.' }, { status: 404 });
+    if (!venue) return notFound('Vendor not found.');
 
     await releaseExpiredPendingBookings({ venue: venue._id });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch, apiErrorMessage } from '@/lib/clientApi';
 import { useRouter } from 'next/navigation';
 import { IndianRupee, Save, CheckCircle2, AlertCircle, Plus, Trash2, X } from 'lucide-react';
 import { OFFER_DAYS } from '@/lib/offers';
@@ -23,13 +24,13 @@ function VenuePricing({ venue }) {
   const save = async () => {
     setSaving(true); setSaved(false); setError('');
     try {
-      const res = await fetch(`/api/vendor/venue/${venue.id}`, {
+      const res = await apiFetch(`/api/vendor/venue/${venue.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pricing: form, discountPercent: form.discountPercent }),
       });
       if (res.ok) { setSaved(true); router.refresh(); }
-      else setError((await res.json()).message || 'Save failed.');
+      else setError(apiErrorMessage(await res.json(), 'Save failed.'));
     } catch { setError('Network error.'); }
     finally { setSaving(false); }
   };
@@ -76,26 +77,26 @@ function Offers({ type }) {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/vendor/offers');
+    const res = await apiFetch('/api/vendor/offers');
     if (res.ok) setOffers((await res.json()).offers || []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async (e) => {
     e.preventDefault(); setError('');
-    const res = await fetch('/api/vendor/offers', {
+    const res = await apiFetch('/api/vendor/offers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
     });
     if (res.ok) { setShow(false); setForm(emptyOffer(type)); load(); }
-    else setError((await res.json()).message || 'Could not save.');
+    else setError(apiErrorMessage(await res.json(), 'Could not save.'));
   };
   const toggle = async (o) => {
-    await fetch(`/api/vendor/offers/${o.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !o.active }) });
+    await apiFetch(`/api/vendor/offers/${o.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !o.active }) });
     load();
   };
   const remove = async (id) => {
     if (!window.confirm('Delete this offer?')) return;
-    await fetch(`/api/vendor/offers/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/vendor/offers/${id}`, { method: 'DELETE' });
     load();
   };
 
